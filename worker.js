@@ -15,13 +15,8 @@ export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
-    await env.DB.exec(`
-      CREATE TABLE IF NOT EXISTS posts (
-        id TEXT PRIMARY KEY, author TEXT, blocks TEXT,
-        created_at INTEGER, like_count INTEGER DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS usage (id INTEGER PRIMARY KEY, bytes INTEGER DEFAULT 0);
-    `);
+    await env.DB.exec(`CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author TEXT, blocks TEXT, created_at INTEGER, like_count INTEGER DEFAULT 0)`);
+    await env.DB.exec(`CREATE TABLE IF NOT EXISTS usage (id INTEGER PRIMARY KEY, bytes INTEGER DEFAULT 0)`);
 
     const url = new URL(request.url);
     const p = url.pathname;
