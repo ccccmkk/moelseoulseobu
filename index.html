@@ -373,7 +373,7 @@ function renderEditor(){
     } else {
       div.innerHTML=`<img src="${b.url}" loading="lazy"/>
         <div class="caption-wrap">
-          <input class="caption-input" type="text" placeholder="사진 설명을 입력하세요 (선택)" value="${b.caption||""/>
+          <input class="caption-input" type="text" placeholder="사진 설명을 입력하세요 (선택)" value="${b.caption||''}"/>
           <button class="block-del" title="삭제">×</button>
         </div>`;
       div.querySelector(".caption-input").oninput=e=>{ editorBlocks[i].caption=e.target.value };
