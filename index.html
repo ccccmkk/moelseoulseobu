@@ -369,6 +369,14 @@ $("loginBtn").onclick = function(){
 };
 $("upw").onkeydown = e => e.key === "Enter" && $("loginBtn").click();
 $("uid").onkeydown = e => e.key === "Enter" && $("upw").focus();
+$("uid").oninput = function(){
+  if(/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(this.value)){
+    this.value = this.value.replace(/[ㄱ-ㅎㅏ-ㅣ가-힣]/g, "");
+    $("lerr").textContent = "아이디는 영문으로 입력해주세요. (한/영 키 전환)";
+  } else {
+    $("lerr").textContent = "";
+  }
+};
 
 $("logoutBtn").onclick = function(){
   $("uid").value = ""; $("upw").value = ""; $("lerr").textContent = "";
