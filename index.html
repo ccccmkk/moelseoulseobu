@@ -251,9 +251,12 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
 </div>
 
 <script>
-// ══════ 설정: 아이디/비밀번호 여기서 변경하세요 ══════
-const CRED = { id: "관리자", pw: "9999" };
-// ════════════════════════════════════════════════════
+// ══════ 설정: 계정 목록 여기서 관리하세요 ══════
+const USERS = [
+  { id: "관리자", pw: "9999" },
+  { id: "김창민", pw: "1234" },
+];
+// ═══════════════════════════════════════════════
 
 let posts = [];
 
@@ -360,7 +363,7 @@ $("loginBtn").onclick = function(){
   const id = $("uid").value.trim();
   const pw = $("upw").value;
   if(!id || !pw){ $("lerr").textContent = "아이디와 비밀번호를 입력해주세요."; return; }
-  if(id === CRED.id && pw === CRED.pw){
+  if(USERS.some(u => u.id === id && u.pw === pw)){
     localStorage.setItem("saved_id", id);
     localStorage.setItem("saved_pw", pw);
     loadLocal();
