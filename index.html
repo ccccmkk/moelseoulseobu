@@ -66,6 +66,77 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
   max-height:calc(100vh - 52px);
 }
 
+/* ────── 글쓰기 박스 (밴드 스타일) ────── */
+.compose-box{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px;
+  display:flex;align-items:center;gap:12px;cursor:pointer;
+  transition:box-shadow .15s;
+}
+.compose-box:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+.compose-placeholder{font-size:14px;color:var(--text-hint);flex:1}
+
+/* ────── 글쓰기 모달 ────── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+  z-index:500;align-items:center;justify-content:center;padding:1rem;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:#fff;border-radius:var(--radius);width:100%;max-width:540px;
+  max-height:90vh;overflow-y:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,0.18);
+}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 18px;border-bottom:1px solid var(--border);
+}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{
+  background:none;border:none;font-size:20px;cursor:pointer;
+  color:var(--text-hint);line-height:1;padding:2px 6px;
+}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:16px 18px}
+.modal-author{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.modal-author-name{font-size:14px;font-weight:600}
+.write-textarea{
+  width:100%;min-height:140px;border:none;outline:none;
+  font-size:15px;line-height:1.7;resize:none;color:var(--text);
+  font-family:inherit;
+}
+.write-textarea::placeholder{color:var(--text-hint)}
+.img-preview-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.img-preview-item{
+  position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;
+  border:1px solid var(--border);
+}
+.img-preview-item img{width:100%;height:100%;object-fit:cover;display:block}
+.img-preview-item .del-img{
+  position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.55);
+  color:#fff;border:none;border-radius:50%;width:20px;height:20px;
+  font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.modal-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;border-top:1px solid var(--border);margin-top:8px;
+}
+.modal-actions{display:flex;gap:8px}
+.btn-img{
+  display:flex;align-items:center;gap:6px;
+  background:none;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:7px 12px;font-size:13px;cursor:pointer;color:var(--text-sub);
+  transition:background .15s;
+}
+.btn-img:hover{background:#f5f5f5}
+.btn-submit{
+  background:var(--green);color:#fff;border:none;
+  border-radius:var(--radius-sm);padding:8px 20px;font-size:14px;
+  font-weight:600;cursor:pointer;transition:opacity .15s;
+}
+.btn-submit:hover{opacity:.88}
+.btn-submit:disabled{opacity:.45;cursor:not-allowed}
+
 /* ────── 피드 카드 ────── */
 .post-card{
   background:var(--bg-card);border:1px solid var(--border);
@@ -74,6 +145,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 }
 .post-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
 .post-header{display:flex;align-items:center;gap:10px;padding:14px 16px 8px}
+.post-header-info{flex:1}
 .avatar{
   width:38px;height:38px;border-radius:50%;
   background:var(--green-light);display:flex;align-items:center;justify-content:center;
@@ -101,6 +173,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .heart:hover{stroke:#ff4d6d}
 .heart.liked{fill:#ff4d6d;stroke:#ff4d6d}
 .like-count{font-size:12px;color:var(--text-hint)}
+
+/* ────── 더보기 메뉴 ────── */
+.more-btn{
+  background:none;border:none;cursor:pointer;padding:4px 6px;
+  color:var(--text-hint);font-size:18px;line-height:1;border-radius:6px;
+  transition:background .15s;
+}
+.more-btn:hover{background:#f0f0f0;color:var(--text)}
+.more-menu-wrap{position:relative}
+.more-menu{
+  display:none;position:absolute;right:0;top:100%;
+  background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);
+  box-shadow:0 4px 16px rgba(0,0,0,0.12);min-width:110px;z-index:200;
+}
+.more-menu.open{display:block}
+.more-menu button{
+  display:block;width:100%;text-align:left;padding:10px 16px;
+  background:none;border:none;font-size:13px;cursor:pointer;color:var(--text);
+  transition:background .15s;
+}
+.more-menu button:hover{background:#f5f5f5}
+.more-menu button.danger{color:var(--danger)}
 
 /* ────── 사이드 패널 ────── */
 .side-section{padding:1.1rem 1.1rem;border-bottom:1px solid var(--border)}
@@ -175,14 +269,46 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
       <div class="lf-err" id="lerr"></div>
       <button class="btn-green" id="loginBtn">로그인</button>
     </div>
-    <div style="text-align:center;margin-top:14px;font-size:11px;color:#bbb">v1.0.3</div>
+    <div style="text-align:center;margin-top:14px;font-size:11px;color:#bbb">v1.1.0</div>
+  </div>
+</div>
+
+<!-- ════════ 글쓰기/수정 모달 ════════ -->
+<div class="modal-overlay" id="writeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">글 쓰기</span>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-author">
+        <div class="avatar" id="modalAvatar">?</div>
+        <span class="modal-author-name" id="modalAuthorName"></span>
+      </div>
+      <textarea class="write-textarea" id="writeContent" placeholder="밴드에 글을 써보세요."></textarea>
+      <div class="img-preview-list" id="imgPreviewList"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions">
+        <button class="btn-img" id="addImgBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          사진
+        </button>
+        <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none"/>
+      </div>
+      <button class="btn-submit" id="submitPost">등록</button>
+    </div>
   </div>
 </div>
 
 <!-- ════════ 앱 페이지 ════════ -->
 <div id="appPage" class="page">
   <div class="appbar">
-    <span class="appbar-title">내 밴드 아카이브<span class="appbar-version">v1.0.3</span></span>
+    <span class="appbar-title">내 밴드 아카이브<span class="appbar-version">v1.1.0</span></span>
     <div class="appbar-btns">
       <button class="appbar-btn" id="toggleSide">글 가져오기</button>
       <button class="appbar-btn" id="logoutBtn">로그아웃</button>
@@ -200,7 +326,7 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
             <rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/>
           </svg>
         </div>
-        <div>오른쪽 [글 가져오기]에서 밴드 글을 불러오세요.</div>
+        <div>글을 작성하거나 오른쪽에서 밴드 글을 불러오세요.</div>
       </div>
     </div>
 
@@ -260,6 +386,9 @@ const USERS = [
 // ═══════════════════════════════════════════════
 
 let posts = [];
+let currentUser = "";
+let editingKey = null;
+let newImgs = []; // {dataUrl, name}
 
 // ── 유틸 ──
 function $(id){ return document.getElementById(id) }
@@ -271,7 +400,7 @@ function setStatus(el, msg, type){
   el.className = "side-status " + (type || "");
   el.textContent = msg;
 }
-function initials(name){ return (name || "?").charAt(0).toUpperCase() }
+function initials(name){ return (name || "?").charAt(0) }
 function fmtDate(ts){
   if(!ts) return "";
   const d = typeof ts === "number" ? new Date(ts * 1000) : new Date(ts);
@@ -307,22 +436,32 @@ function loadLocal(){
 // ── 렌더링 ──
 function renderPosts(){
   const feed = $("feed");
+
+  // 글쓰기 박스
+  const composeHtml = `<div class="compose-box" id="composeBox">
+    <div class="avatar">${initials(currentUser)}</div>
+    <span class="compose-placeholder">밴드에 글을 써보세요.</span>
+  </div>`;
+
   if(!posts.length){
-    feed.innerHTML = `<div class="empty-feed">
+    feed.innerHTML = composeHtml + `<div class="empty-feed">
       <div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="5" width="18" height="3" rx="1.5" fill="#ccc"/>
         <rect x="3" y="11" width="13" height="3" rx="1.5" fill="#ccc"/>
         <rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/>
       </svg></div>
-      <div>오른쪽 [글 가져오기]에서 밴드 글을 불러오세요.</div>
+      <div>글을 작성하거나 오른쪽에서 밴드 글을 불러오세요.</div>
     </div>`;
     $("statPosts").textContent = "0";
     $("statImgs").textContent = "0";
+    $("composeBox").onclick = openWriteModal;
     return;
   }
+
   let imgCount = 0;
   const sorted = [...posts].sort((a,b) => (b.created_at || 0) - (a.created_at || 0));
-  feed.innerHTML = sorted.map(p => {
+  const cardsHtml = sorted.map(p => {
+    const key = p.post_key || p.id || p._localKey || "";
     const author = p.author?.name || p.author || "알 수 없음";
     const content = p.content || "";
     const dateStr = fmtDate(p.created_at);
@@ -337,13 +476,23 @@ function renderPosts(){
       imgHtml = `<div class="post-imgs three">${imgs.slice(0,3).map(im => `<div class="img-wrap"><img src="${im.url || im}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div>`).join("")}</div>`;
     }
     const likes = p.like_count || 0;
-    return `<div class="post-card">
+    const canEdit = p._mine === true;
+    const moreMenu = canEdit ? `
+      <div class="more-menu-wrap">
+        <button class="more-btn" onclick="toggleMenu(event,'menu-${key}')">⋯</button>
+        <div class="more-menu" id="menu-${key}">
+          <button onclick="editPost('${key}')">수정</button>
+          <button class="danger" onclick="deletePost('${key}')">삭제</button>
+        </div>
+      </div>` : "";
+    return `<div class="post-card" data-key="${key}">
       <div class="post-header">
         <div class="avatar">${initials(author)}</div>
-        <div>
+        <div class="post-header-info">
           <div class="post-author">${author}</div>
           <div class="post-date">${dateStr}</div>
         </div>
+        ${moreMenu}
       </div>
       ${content ? `<div class="post-body">${content}</div>` : ""}
       ${imgHtml}
@@ -355,9 +504,125 @@ function renderPosts(){
       </div>
     </div>`;
   }).join("");
+
+  feed.innerHTML = composeHtml + cardsHtml;
+  $("composeBox").onclick = openWriteModal;
   $("statPosts").textContent = posts.length;
   $("statImgs").textContent = imgCount;
 }
+
+// ── 더보기 메뉴 ──
+function toggleMenu(e, id){
+  e.stopPropagation();
+  document.querySelectorAll(".more-menu.open").forEach(m => { if(m.id !== id) m.classList.remove("open"); });
+  document.getElementById(id).classList.toggle("open");
+}
+document.addEventListener("click", () => {
+  document.querySelectorAll(".more-menu.open").forEach(m => m.classList.remove("open"));
+});
+
+// ── 글쓰기 모달 ──
+function openWriteModal(editKey){
+  editingKey = null;
+  newImgs = [];
+  $("writeContent").value = "";
+  $("imgPreviewList").innerHTML = "";
+  $("modalTitle").textContent = "글 쓰기";
+  $("submitPost").textContent = "등록";
+  $("modalAvatar").textContent = initials(currentUser);
+  $("modalAuthorName").textContent = currentUser;
+  $("writeModal").classList.add("open");
+  $("writeContent").focus();
+}
+
+function editPost(key){
+  const p = posts.find(x => (x.post_key||x.id||x._localKey) === key);
+  if(!p) return;
+  editingKey = key;
+  newImgs = [];
+  $("writeContent").value = p.content || "";
+  $("imgPreviewList").innerHTML = "";
+  $("modalTitle").textContent = "글 수정";
+  $("submitPost").textContent = "수정";
+  $("modalAvatar").textContent = initials(currentUser);
+  $("modalAuthorName").textContent = currentUser;
+  // 기존 이미지 미리보기
+  const imgs = p.photos || p.images || [];
+  imgs.forEach((im, i) => {
+    const url = im.url || im;
+    newImgs.push({ dataUrl: url, existing: true });
+    addImgPreview(url, newImgs.length - 1);
+  });
+  $("writeModal").classList.add("open");
+  $("writeContent").focus();
+}
+
+function deletePost(key){
+  if(!confirm("이 글을 삭제할까요?")) return;
+  posts = posts.filter(p => (p.post_key||p.id||p._localKey) !== key);
+  saveLocal();
+  renderPosts();
+}
+
+$("modalClose").onclick = () => $("writeModal").classList.remove("open");
+$("writeModal").onclick = e => { if(e.target === $("writeModal")) $("writeModal").classList.remove("open"); };
+
+// 이미지 추가
+$("addImgBtn").onclick = () => $("imgFileInput").click();
+$("imgFileInput").onchange = function(e){
+  Array.from(e.target.files).forEach(file => {
+    const r = new FileReader();
+    r.onload = ev => {
+      newImgs.push({ dataUrl: ev.target.result });
+      addImgPreview(ev.target.result, newImgs.length - 1);
+    };
+    r.readAsDataURL(file);
+  });
+  this.value = "";
+};
+
+function addImgPreview(url, idx){
+  const wrap = document.createElement("div");
+  wrap.className = "img-preview-item";
+  wrap.dataset.idx = idx;
+  wrap.innerHTML = `<img src="${url}"/><button class="del-img" onclick="removeImg(${idx})">×</button>`;
+  $("imgPreviewList").appendChild(wrap);
+}
+
+function removeImg(idx){
+  newImgs[idx] = null;
+  const item = $("imgPreviewList").querySelector(`[data-idx="${idx}"]`);
+  if(item) item.remove();
+}
+
+// 글 등록/수정
+$("submitPost").onclick = function(){
+  const content = $("writeContent").value.trim();
+  const imgs = newImgs.filter(Boolean);
+  if(!content && !imgs.length){ alert("내용을 입력해주세요."); return; }
+
+  if(editingKey){
+    const p = posts.find(x => (x.post_key||x.id||x._localKey) === editingKey);
+    if(p){
+      p.content = content;
+      p.photos = imgs.map(im => ({ url: im.dataUrl }));
+    }
+  } else {
+    const key = "local_" + Date.now();
+    posts.unshift({
+      _localKey: key,
+      _mine: true,
+      author: currentUser,
+      content,
+      created_at: Math.floor(Date.now() / 1000),
+      photos: imgs.map(im => ({ url: im.dataUrl })),
+      like_count: 0,
+    });
+  }
+  saveLocal();
+  renderPosts();
+  $("writeModal").classList.remove("open");
+};
 
 // ── 로그인 ──
 $("loginBtn").onclick = function(){
@@ -365,6 +630,7 @@ $("loginBtn").onclick = function(){
   const pw = $("upw").value;
   if(!id || !pw){ $("lerr").textContent = "아이디와 비밀번호를 입력해주세요."; return; }
   if(USERS.some(u => u.id === id && u.pw === pw)){
+    currentUser = id;
     localStorage.setItem("saved_id", id);
     localStorage.setItem("saved_pw", pw);
     loadLocal();
@@ -383,6 +649,7 @@ const savedPw = localStorage.getItem("saved_pw");
 if(savedId && savedPw){ $("uid").value = savedId; $("upw").value = savedPw; }
 
 $("logoutBtn").onclick = function(){
+  currentUser = "";
   $("uid").value = ""; $("upw").value = ""; $("lerr").textContent = "";
   show("loginPage");
 };
