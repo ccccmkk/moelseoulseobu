@@ -361,6 +361,8 @@ $("loginBtn").onclick = function(){
   const pw = $("upw").value;
   if(!id || !pw){ $("lerr").textContent = "아이디와 비밀번호를 입력해주세요."; return; }
   if(id === CRED.id && pw === CRED.pw){
+    localStorage.setItem("saved_id", id);
+    localStorage.setItem("saved_pw", pw);
     loadLocal();
     show("appPage");
     renderPosts();
@@ -370,6 +372,11 @@ $("loginBtn").onclick = function(){
 };
 $("upw").onkeydown = e => e.key === "Enter" && $("loginBtn").click();
 $("uid").onkeydown = e => e.key === "Enter" && $("upw").focus();
+
+// 저장된 로그인 정보 자동 입력
+const savedId = localStorage.getItem("saved_id");
+const savedPw = localStorage.getItem("saved_pw");
+if(savedId && savedPw){ $("uid").value = savedId; $("upw").value = savedPw; }
 
 $("logoutBtn").onclick = function(){
   $("uid").value = ""; $("upw").value = ""; $("lerr").textContent = "";
