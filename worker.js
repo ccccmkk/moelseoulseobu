@@ -21,7 +21,7 @@ async function addMileageDB(env, userId, delta) {
 function parseRSS(xml) {
   const out = [];
   const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
-  for (const b of blocks.slice(0, 20)) {
+  for (const b of blocks.slice(0, 30)) {
     const tag = (t) => {
       const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(b);
       if (cd) return cd[1].trim();
@@ -460,7 +460,7 @@ export default {
         const cat = url.searchParams.get('category') || 'labor';
         const feeds = {
           labor: 'https://news.google.com/rss/search?q=' + encodeURIComponent('고용 노동 최저임금 근로 취업 노동부') + '&hl=ko&gl=KR&ceid=KR:ko',
-          economy: 'https://news.google.com/rss/search?q=' + encodeURIComponent('한국경제 금리 물가 환율 주식시장') + '&hl=ko&gl=KR&ceid=KR:ko',
+          local: 'https://news.google.com/rss/search?q=' + encodeURIComponent('마포구 OR 용산구 OR 서대문구 OR 은평구') + '&hl=ko&gl=KR&ceid=KR:ko',
         };
         if (!feeds[cat]) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
@@ -472,7 +472,7 @@ export default {
         });
         if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
         const xml = await resp.text();
-        const items = parseRSS(xml);
+        const items = parseRSS(xml).sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
           .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run();

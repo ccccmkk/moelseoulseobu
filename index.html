@@ -378,7 +378,7 @@ body{overscroll-behavior-y:contain}
     </div>
     <div class="news-cat-tabs">
       <button class="news-cat-btn active" id="newsCatLabor" onclick="switchNewsCategory('labor')">고용·노동</button>
-      <button class="news-cat-btn" id="newsCatEconomy" onclick="switchNewsCategory('economy')">경제</button>
+      <button class="news-cat-btn" id="newsCatLocal" onclick="switchNewsCategory('local')">지역뉴스</button>
     </div>
     <div id="newsContainer"><div class="news-loading">탭을 열면 뉴스를 불러옵니다.</div></div>
   </div>
@@ -614,8 +614,9 @@ let commentingPostId=null;
 let selectedNominee=null;
 let filterUser=null;
 let selectedKeyword=null;
-let newsData={labor:null,economy:null};
+let newsData={labor:null,local:null};
 let currentNewsCategory='labor';
+let newsShownCount={labor:10,local:10};
 let activeUsers=[];
 
 // API-backed state (no localStorage)
@@ -1130,8 +1131,8 @@ function initNewsTab(){ if(!newsData[currentNewsCategory]) loadNews(currentNewsC
 function switchNewsCategory(cat){
   currentNewsCategory=cat;
   $('newsCatLabor').className='news-cat-btn'+(cat==='labor'?' active':'');
-  $('newsCatEconomy').className='news-cat-btn'+(cat==='economy'?' active':'');
-  if(!newsData[cat]) loadNews(cat); else renderNewsItems(newsData[cat]);
+  $('newsCatLocal').className='news-cat-btn'+(cat==='local'?' active':'');
+  if(!newsData[cat]) loadNews(cat); else renderNewsItems(newsData[cat],false);
 }
 async function loadNews(cat,force){
   if(newsData[cat]&&!force){ renderNewsItems(newsData[cat]); return; }
@@ -1142,20 +1143,35 @@ async function loadNews(cat,force){
     const items=await resp.json();
     if(items.error) throw new Error(items.error);
     newsData[cat]=items;
-    renderNewsItems(items);
+    renderNewsItems(items,true);
   }catch(e){
     $('newsContainer').innerHTML=`<div class="news-loading">뉴스를 불러오지 못했습니다.<br><button class="news-refresh-btn" style="margin-top:10px" onclick="loadNews('${cat}',true)">다시 시도</button></div>`;
   }
 }
-function renderNewsItems(items){
+function renderNewsItems(items,reset){
+  const cat=currentNewsCategory;
   if(!items||!items.length){ $('newsContainer').innerHTML='<div class="news-loading">뉴스 항목이 없습니다.</div>'; return; }
-  $('newsContainer').innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="news-refresh-btn" onclick="loadNews('${currentNewsCategory}',true)">새로고침</button></div>`
-    +items.map((n,i)=>`<div class="news-card" id="nc-${i}">
+  if(reset) newsShownCount[cat]=10;
+  const shown=Math.min(newsShownCount[cat]||10, items.length);
+  const hasMore=shown<items.length;
+  $('newsContainer').innerHTML=`<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="news-refresh-btn" onclick="loadNews('${cat}',true)">새로고침</button></div>`
+    +items.slice(0,shown).map((n,i)=>`<div class="news-card" id="nc-${i}">
       <div class="news-card-title"><a href="${escHtml(n.link)}" target="_blank" rel="noopener">${escHtml(n.title)}</a></div>
       <div class="news-card-meta">${n.source?`<span class="news-source">${escHtml(n.source)}</span>`:''}<span>${fmtNewsDate(n.pubDate)}</span></div>
       <button class="news-summary-btn" onclick="toggleSummary(this,${i})">AI 요약 보기</button>
       <div class="news-summary" id="ns-${i}"></div>
-    </div>`).join('');
+    </div>`).join('')
+    +(hasMore?`<div id="newsMoreSentinel" style="text-align:center;padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>`:'');
+  if(hasMore){
+    const obs=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting) return;
+      obs.disconnect();
+      newsShownCount[cat]=(newsShownCount[cat]||10)+10;
+      renderNewsItems(newsData[cat]);
+    },{rootMargin:'200px'});
+    const sentinel=$('newsMoreSentinel');
+    if(sentinel) obs.observe(sentinel);
+  }
 }
 async function toggleSummary(btn,idx){
   const s=$(`ns-${idx}`);
@@ -1542,7 +1558,7 @@ function doLogout(){
   try{
     currentUser=''; posts=[]; events=[]; voteSessions=[]; likedPosts=new Set();
     userRoles={}; currentUserRole='user'; filterUser=null;
-    newsData={labor:null,economy:null}; postKeywords={}; userProfiles={}; activeUsers=[];
+    newsData={labor:null,local:null}; newsShownCount={labor:10,local:10}; postKeywords={}; userProfiles={}; activeUsers=[];
     eventsLoaded=false; votesLoaded=false;
     localStorage.removeItem('saved_id'); localStorage.removeItem('saved_pw');
     $('uid').value=''; $('upw').value=''; $('lerr').textContent='';
