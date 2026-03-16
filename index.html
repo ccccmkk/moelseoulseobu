@@ -358,7 +358,7 @@ body{overscroll-behavior-y:contain}
     <div class="appbar-btns">
       <span class="mileage-chip" id="mileageChip" onclick="openProfileModal(currentUser)">0P</span>
       <button class="appbar-btn" id="adminBtn" style="display:none" onclick="openAdminModal()">관리</button>
-      <button class="appbar-btn" id="logoutBtn">로그아웃</button>
+      <button class="appbar-btn" id="logoutBtn" onclick="doLogout()">로그아웃</button>
     </div>
   </div>
 
@@ -375,7 +375,6 @@ body{overscroll-behavior-y:contain}
   <div id="tabNews" class="tab-page">
     <div class="news-header-row">
       <span class="tab-title">뉴스 스크랩</span>
-      <button class="news-gyeongjo-btn" onclick="switchTab('events')">경조사</button>
     </div>
     <div class="news-cat-tabs">
       <button class="news-cat-btn active" id="newsCatLabor" onclick="switchNewsCategory('labor')">고용·노동</button>
@@ -1154,19 +1153,22 @@ function renderNewsItems(items){
     +items.map((n,i)=>`<div class="news-card" id="nc-${i}">
       <div class="news-card-title"><a href="${escHtml(n.link)}" target="_blank" rel="noopener">${escHtml(n.title)}</a></div>
       <div class="news-card-meta">${n.source?`<span class="news-source">${escHtml(n.source)}</span>`:''}<span>${fmtNewsDate(n.pubDate)}</span></div>
-      <button class="news-summary-btn" onclick="toggleSummary(this,'${i}','${escHtml(n.title.replace(/'/g,''))}','${encodeURIComponent(n.description||'')}')">AI 요약 보기</button>
+      <button class="news-summary-btn" onclick="toggleSummary(this,${i})">AI 요약 보기</button>
       <div class="news-summary" id="ns-${i}"></div>
     </div>`).join('');
 }
-async function toggleSummary(btn,idx,title,descEnc){
+async function toggleSummary(btn,idx){
   const s=$(`ns-${idx}`);
   if(s.classList.contains('open')){ s.classList.remove('open'); btn.textContent='AI 요약 보기'; return; }
+  const item=newsData[currentNewsCategory]?.[idx];
+  if(!item) return;
+  const {title,description,link}=item;
   btn.textContent='요약 중...'; btn.disabled=true;
   try{
-    const r=await fetch(`${API}/api/summarize`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:decodeURIComponent(descEnc)})});
+    const r=await fetch(`${API}/api/summarize`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:description||'',link:link||''})});
     const d=await r.json();
     if(d.summary){ s.textContent=d.summary; s.classList.add('open'); btn.textContent='요약 닫기'; }
-    else{ s.textContent=decodeURIComponent(descEnc)||'요약을 가져오지 못했습니다.'; s.classList.add('open'); btn.textContent='닫기'; }
+    else{ s.textContent=description||'요약을 가져오지 못했습니다.'; s.classList.add('open'); btn.textContent='닫기'; }
   }catch(e){ s.textContent='요약 실패'; s.classList.add('open'); btn.textContent='닫기'; }
   btn.disabled=false;
 }
@@ -1536,16 +1538,20 @@ $('registerBtn').onclick=doRegister;
   },{passive:true});
 })();
 
-$('logoutBtn').onclick=function(){
-  currentUser=''; posts=[]; events=[]; voteSessions=[]; likedPosts=new Set();
-  userRoles={}; currentUserRole='user'; filterUser=null;
-  newsData={labor:null,economy:null}; postKeywords={}; userProfiles={}; activeUsers=[];
-  eventsLoaded=false; votesLoaded=false;
-  localStorage.removeItem('saved_id'); localStorage.removeItem('saved_pw');
-  $('uid').value=''; $('upw').value=''; $('lerr').textContent='';
-  $('adminBtn').style.display='none'; $('praiseAdminRow').style.display='none';
+function doLogout(){
+  try{
+    currentUser=''; posts=[]; events=[]; voteSessions=[]; likedPosts=new Set();
+    userRoles={}; currentUserRole='user'; filterUser=null;
+    newsData={labor:null,economy:null}; postKeywords={}; userProfiles={}; activeUsers=[];
+    eventsLoaded=false; votesLoaded=false;
+    localStorage.removeItem('saved_id'); localStorage.removeItem('saved_pw');
+    $('uid').value=''; $('upw').value=''; $('lerr').textContent='';
+    $('adminBtn').style.display='none'; $('praiseAdminRow').style.display='none';
+    $('fab').className='fab';
+    $('mileageChip').textContent='0P';
+  }catch(e){}
   show('loginPage');
-};
+}
 </script>
 </body>
 </html>

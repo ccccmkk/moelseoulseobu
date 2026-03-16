@@ -482,7 +482,26 @@ export default {
       // ── AI 요약 (Claude Haiku) ──
       if (p === '/api/summarize' && m === 'POST') {
         if (!env.ANTHROPIC_API_KEY) return json({ summary: null, error: 'no_key' }, 200);
-        const { title, description } = await request.json();
+        const { title, description, link } = await request.json();
+        // 기사 본문 직접 fetch 시도
+        let articleText = description || '';
+        if (link) {
+          try {
+            const ar = await fetch(link, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+              redirect: 'follow',
+            });
+            if (ar.ok) {
+              const html = await ar.text();
+              const paras = (html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [])
+                .map(t => t.replace(/<[^>]+>/g, '').replace(/&[a-z#0-9]+;/gi, ' ').trim())
+                .filter(t => t.length > 40)
+                .slice(0, 10)
+                .join(' ');
+              if (paras.length > 100) articleText = paras.slice(0, 2000);
+            }
+          } catch (e) { /* 실패시 description 사용 */ }
+        }
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -492,8 +511,8 @@ export default {
           },
           body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 180,
-            messages: [{ role: 'user', content: `다음 뉴스 기사를 한국어로 핵심만 2~3문장으로 요약해줘. 불필요한 서론 없이 바로 내용만 써줘.\n제목: ${title}\n${description ? '내용: ' + description : ''}` }]
+            max_tokens: 200,
+            messages: [{ role: 'user', content: `다음 뉴스 기사를 한국어로 핵심만 2~3문장으로 요약해줘. 불필요한 서론 없이 바로 내용만 써줘.\n제목: ${title}\n${articleText ? '내용: ' + articleText : '(본문 없음 - 제목 기반으로 요약)'}` }]
           })
         });
         const d = await resp.json();
