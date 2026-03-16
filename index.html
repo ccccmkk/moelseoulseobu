@@ -174,7 +174,7 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
       <div class="lf-err" id="lerr"></div>
       <button class="btn-green" id="loginBtn">로그인</button>
     </div>
-    <div style="text-align:center;margin-top:14px;font-size:11px;color:#bbb">v1.2.0</div>
+    <div style="text-align:center;margin-top:14px;font-size:11px;color:#bbb">v1.3.0</div>
   </div>
 </div>
 
@@ -206,7 +206,7 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
 <!-- ════════ 앱 ════════ -->
 <div id="appPage" class="page">
   <div class="appbar">
-    <span class="appbar-title">내 밴드 아카이브<span class="appbar-version">v1.2.0</span></span>
+    <span class="appbar-title">내 밴드 아카이브<span class="appbar-version">v1.3.0</span></span>
     <div class="appbar-btns">
       <button class="appbar-btn" id="toggleSide">글 가져오기</button>
       <button class="appbar-btn" id="logoutBtn">로그아웃</button>
@@ -254,11 +254,12 @@ const USERS = [
   { id: "김창민", pw: "1234" },
   { id: "안혜지", pw: "1234" },
 ];
+const API = 'https://band-archive-api.cm99i.workers.dev';
 
 let posts = [];
 let currentUser = "";
 let editingKey = null;
-let editorBlocks = []; // [{type:'text',content:''} | {type:'image',url:'',caption:''}]
+let editorBlocks = [];
 
 function $(id){ return document.getElementById(id) }
 function show(id){ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active")); $(id).classList.add("active") }
@@ -278,37 +279,38 @@ function normalizePosts(data){
   return [];
 }
 function mergePosts(newPosts){
-  const keys=new Set(posts.map(p=>p.post_key||p.id||p._localKey||p.content));
+  const keys=new Set(posts.map(p=>p.id||p.post_key||p.content));
   let added=0;
-  newPosts.forEach(p=>{ const k=p.post_key||p.id||p._localKey||p.content; if(!keys.has(k)){posts.push(p);added++;} });
+  newPosts.forEach(p=>{ const k=p.id||p.post_key||p.content; if(!keys.has(k)){posts.push(p);added++;} });
   return added;
 }
-function saveLocal(){ try{ localStorage.setItem("band_archive_posts",JSON.stringify(posts)); }catch(e){} }
-function loadLocal(){ try{ const r=localStorage.getItem("band_archive_posts"); if(r) posts=JSON.parse(r); }catch(e){} }
+
+// ── Worker API ──
+async function fetchPosts(){
+  try{
+    const res=await fetch(`${API}/api/posts`);
+    posts=await res.json();
+    renderPosts();
+  }catch(e){ console.error("글 불러오기 실패:",e); }
+}
 
 // ── 렌더링 ──
 function renderBlocksHtml(p){
-  // 새 포맷 (blocks 배열)
   if(p.blocks && p.blocks.length){
-    return '<div class="post-blocks">' + p.blocks.map(b=>{
-      if(b.type==="text") return b.content ? `<div class="block-text">${b.content}</div>` : "";
-      if(b.type==="image") return `<div class="block-img-wrap">
-        <img src="${b.url}" onerror="this.parentElement.style.display='none'" loading="lazy"/>
-        ${b.caption ? `<div class="block-caption">${b.caption}</div>` : ""}
-      </div>`;
+    return '<div class="post-blocks">'+p.blocks.map(b=>{
+      if(b.type==="text") return b.content?`<div class="block-text">${b.content}`+"</div>":"";
+      if(b.type==="image") return `<div class="block-img-wrap"><img src="${b.url}" onerror="this.parentElement.style.display='none'" loading="lazy"/>${b.caption?`<div class="block-caption">${b.caption}`+"</div>":""}</div>`;
       return "";
-    }).join("") + "</div>";
+    }).join("")+"</div>";
   }
-  // 구 포맷 호환
-  const content = p.content||"";
-  const imgs = p.photos||p.images||[];
+  const content=p.content||"";
+  const imgs=p.photos||p.images||[];
   let imgHtml="";
   if(imgs.length===1) imgHtml=`<div class="post-imgs one"><div class="img-wrap"><img src="${imgs[0].url||imgs[0]}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div></div>`;
   else if(imgs.length===2) imgHtml=`<div class="post-imgs two">${imgs.map(im=>`<div class="img-wrap"><img src="${im.url||im}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div>`).join("")}</div>`;
   else if(imgs.length>=3) imgHtml=`<div class="post-imgs three">${imgs.slice(0,3).map(im=>`<div class="img-wrap"><img src="${im.url||im}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div>`).join("")}</div>`;
   return (content?`<div class="post-body">${content}</div>`:"") + imgHtml;
 }
-
 function countImgs(p){
   if(p.blocks) return p.blocks.filter(b=>b.type==="image").length;
   return (p.photos||p.images||[]).length;
@@ -316,13 +318,10 @@ function countImgs(p){
 
 function renderPosts(){
   const feed=$("feed");
-  const composeHtml=`<div class="compose-box" id="composeBox">
-    <div class="avatar">${initials(currentUser)}</div>
-    <span class="compose-placeholder">밴드에 글을 써보세요.</span>
-  </div>`;
+  const composeHtml=`<div class="compose-box" id="composeBox"><div class="avatar">${initials(currentUser)}</div><span class="compose-placeholder">밴드에 글을 써보세요.</span></div>`;
 
   if(!posts.length){
-    feed.innerHTML=composeHtml+`<div class="empty-feed"><div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="3" rx="1.5" fill="#ccc"/><rect x="3" y="11" width="13" height="3" rx="1.5" fill="#ccc"/><rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/></svg></div><div>글을 작성하거나 오른쪽에서 밴드 글을 불러오세요.</div></div>`;
+    feed.innerHTML=composeHtml+`<div class="empty-feed"><div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="3" rx="1.5" fill="#ccc"/><rect x="3" y="11" width="13" height="3" rx="1.5" fill="#ccc"/><rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/></svg></div><div>첫 번째 글을 작성해보세요!</div></div>`;
     $("statPosts").textContent="0"; $("statImgs").textContent="0";
     $("composeBox").onclick=openWriteModal; return;
   }
@@ -330,22 +329,12 @@ function renderPosts(){
   let imgCount=0;
   const sorted=[...posts].sort((a,b)=>(b.created_at||0)-(a.created_at||0));
   const cardsHtml=sorted.map(p=>{
-    const key=p.post_key||p.id||p._localKey||"";
+    const key=p.id||"";
     const author=p.author?.name||p.author||"알 수 없음";
+    const isMine=p.author===currentUser;
     imgCount+=countImgs(p);
-    const moreMenu=p._mine?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'menu-${key}')">⋯</button><div class="more-menu" id="menu-${key}"><button onclick="editPost('${key}')">수정</button><button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:"";
-    return `<div class="post-card" data-key="${key}">
-      <div class="post-header">
-        <div class="avatar">${initials(author)}</div>
-        <div class="post-header-info"><div class="post-author">${author}</div><div class="post-date">${fmtDate(p.created_at)}</div></div>
-        ${moreMenu}
-      </div>
-      ${renderBlocksHtml(p)}
-      <div class="post-footer">
-        <svg class="heart" viewBox="0 0 16 16"><path d="M8 13.7S1.5 9.8 1.5 5.5A3.5 3.5 0 018 3.1 3.5 3.5 0 0114.5 5.5C14.5 9.8 8 13.7 8 13.7z"/></svg>
-        <span class="like-count">${p.like_count||0}</span>
-      </div>
-    </div>`;
+    const moreMenu=isMine?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'menu-${key}')">⋯</button><div class="more-menu" id="menu-${key}"><button onclick="editPost('${key}')">수정</button><button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:"";
+    return `<div class="post-card" data-key="${key}"><div class="post-header"><div class="avatar">${initials(author)}</div><div class="post-header-info"><div class="post-author">${author}</div><div class="post-date">${fmtDate(p.created_at)}</div></div>${moreMenu}</div>${renderBlocksHtml(p)}<div class="post-footer"><svg class="heart" viewBox="0 0 16 16"><path d="M8 13.7S1.5 9.8 1.5 5.5A3.5 3.5 0 018 3.1 3.5 3.5 0 0114.5 5.5C14.5 9.8 8 13.7 8 13.7z"/></svg><span class="like-count">${p.like_count||0}</span></div></div>`;
   }).join("");
 
   feed.innerHTML=composeHtml+cardsHtml;
@@ -371,11 +360,7 @@ function renderEditor(){
       ta.oninput=()=>{ editorBlocks[i].content=ta.value; ta.style.height="auto"; ta.style.height=ta.scrollHeight+"px"; };
       ta.style.height="auto"; ta.style.height=(ta.scrollHeight||80)+"px";
     } else {
-      div.innerHTML=`<img src="${b.url}" loading="lazy"/>
-        <div class="caption-wrap">
-          <input class="caption-input" type="text" placeholder="사진 설명을 입력하세요 (선택)" value="${b.caption||''}"/>
-          <button class="block-del" title="삭제">×</button>
-        </div>`;
+      div.innerHTML=`<img src="${b.url}" loading="lazy"/><div class="caption-wrap"><input class="caption-input" type="text" placeholder="사진 설명을 입력하세요 (선택)" value="${b.caption||''}"/><button class="block-del" title="삭제">×</button></div>`;
       div.querySelector(".caption-input").oninput=e=>{ editorBlocks[i].caption=e.target.value };
       div.querySelector(".block-del").onclick=()=>{ editorBlocks.splice(i,1); renderEditor() };
     }
@@ -396,15 +381,14 @@ function openWriteModal(){
 }
 
 function editPost(key){
-  const p=posts.find(x=>(x.post_key||x.id||x._localKey)===key);
+  const p=posts.find(x=>x.id===key);
   if(!p) return;
   editingKey=key;
   if(p.blocks && p.blocks.length){
     editorBlocks=p.blocks.map(b=>({...b}));
   } else {
     editorBlocks=[{type:"text",content:p.content||""}];
-    const imgs=p.photos||p.images||[];
-    imgs.forEach(im=>editorBlocks.push({type:"image",url:im.url||im,caption:im.caption||""}));
+    (p.photos||p.images||[]).forEach(im=>editorBlocks.push({type:"image",url:im.url||im,caption:im.caption||""}));
   }
   $("modalTitle").textContent="글 수정";
   $("submitPost").textContent="수정";
@@ -414,56 +398,71 @@ function editPost(key){
   $("writeModal").classList.add("open");
 }
 
-function deletePost(key){
+async function deletePost(key){
   if(!confirm("이 글을 삭제할까요?")) return;
-  posts=posts.filter(p=>(p.post_key||p.id||p._localKey)!==key);
-  saveLocal(); renderPosts();
+  try{
+    await fetch(`${API}/api/posts/${key}`,{method:"DELETE"});
+    posts=posts.filter(p=>p.id!==key);
+    renderPosts();
+  }catch(e){ alert("삭제 실패: "+e.message); }
 }
 
 $("modalClose").onclick=()=>$("writeModal").classList.remove("open");
 $("writeModal").onclick=e=>{ if(e.target===$("writeModal")) $("writeModal").classList.remove("open") };
 
-// 사진 추가
+// 사진 추가 (R2 업로드)
 $("addImgBtn").onclick=()=>$("imgFileInput").click();
-$("imgFileInput").onchange=function(e){
-  Array.from(e.target.files).forEach(file=>{
-    const r=new FileReader();
-    r.onload=ev=>{
-      // 텍스트 마지막 블록 다음에 이미지 삽입, 그 뒤에 빈 텍스트 추가
-      editorBlocks.push({type:"image",url:ev.target.result,caption:""});
+$("imgFileInput").onchange=async function(e){
+  const files=Array.from(e.target.files);
+  this.value="";
+  $("addImgBtn").disabled=true;
+  $("addImgBtn").textContent="업로드 중...";
+  for(const file of files){
+    const fd=new FormData();
+    fd.append("file",file);
+    try{
+      const res=await fetch(`${API}/api/upload`,{method:"POST",body:fd});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      editorBlocks.push({type:"image",url:API+data.url,caption:""});
       editorBlocks.push({type:"text",content:""});
       renderEditor();
-    };
-    r.readAsDataURL(file);
-  });
-  this.value="";
+    }catch(err){ alert("이미지 업로드 실패: "+err.message); }
+  }
+  $("addImgBtn").disabled=false;
+  $("addImgBtn").innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> 사진 추가`;
 };
 
-$("submitPost").onclick=function(){
-  // 빈 텍스트 블록 정리 (앞뒤 trim)
-  const blocks=editorBlocks.filter((b,i)=>{ if(b.type==="image") return true; return b.content.trim()!=="" || (i===0 && editorBlocks.filter(x=>x.type==="image").length===0); });
+$("submitPost").onclick=async function(){
   const hasContent=editorBlocks.some(b=>b.type==="image"||(b.type==="text"&&b.content.trim()));
   if(!hasContent){ alert("내용을 입력해주세요."); return; }
   const finalBlocks=editorBlocks.filter(b=>b.type==="image"||(b.type==="text"&&b.content.trim()));
-
-  if(editingKey){
-    const p=posts.find(x=>(x.post_key||x.id||x._localKey)===editingKey);
-    if(p){ p.blocks=finalBlocks; p.content=undefined; p.photos=undefined; }
-  } else {
-    posts.unshift({_localKey:"local_"+Date.now(),_mine:true,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0});
-  }
-  saveLocal(); renderPosts();
-  $("writeModal").classList.remove("open");
+  $("submitPost").disabled=true;
+  try{
+    if(editingKey){
+      await fetch(`${API}/api/posts/${editingKey}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({blocks:finalBlocks})});
+      const p=posts.find(x=>x.id===editingKey);
+      if(p) p.blocks=finalBlocks;
+    } else {
+      const res=await fetch(`${API}/api/posts`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({author:currentUser,blocks:finalBlocks})});
+      const data=await res.json();
+      posts.unshift({id:data.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0});
+    }
+    renderPosts();
+    $("writeModal").classList.remove("open");
+  }catch(e){ alert("저장 실패: "+e.message); }
+  finally{ $("submitPost").disabled=false; }
 };
 
 // ── 로그인 ──
-$("loginBtn").onclick=function(){
+$("loginBtn").onclick=async function(){
   const id=$("uid").value.trim(), pw=$("upw").value;
   if(!id||!pw){ $("lerr").textContent="아이디와 비밀번호를 입력해주세요."; return; }
   if(USERS.some(u=>u.id===id&&u.pw===pw)){
     currentUser=id;
     localStorage.setItem("saved_id",id); localStorage.setItem("saved_pw",pw);
-    loadLocal(); show("appPage"); renderPosts();
+    show("appPage"); renderPosts();
+    await fetchPosts();
   } else { $("lerr").textContent="아이디 또는 비밀번호가 올바르지 않습니다."; }
 };
 $("upw").onkeydown=e=>e.key==="Enter"&&$("loginBtn").click();
@@ -472,10 +471,10 @@ $("uid").onkeydown=e=>e.key==="Enter"&&$("upw").focus();
 const savedId=localStorage.getItem("saved_id"), savedPw=localStorage.getItem("saved_pw");
 if(savedId&&savedPw){ $("uid").value=savedId; $("upw").value=savedPw; }
 
-$("logoutBtn").onclick=function(){ currentUser=""; $("uid").value=""; $("upw").value=""; $("lerr").textContent=""; show("loginPage") };
+$("logoutBtn").onclick=function(){ currentUser=""; posts=[]; $("uid").value=""; $("upw").value=""; $("lerr").textContent=""; show("loginPage") };
 $("toggleSide").onclick=()=>$("sideCol").classList.toggle("open");
 
-// ── API ──
+// ── 밴드 API 연동 ──
 $("fetchApiBtn").onclick=async function(){
   const token=$("tokenInp").value.trim(), bandKey=$("bandKeyInp").value.trim(), st=$("apiStatus");
   if(!token||!bandKey){ setStatus(st,"토큰과 밴드 키를 모두 입력해주세요.","err"); return; }
@@ -485,7 +484,7 @@ $("fetchApiBtn").onclick=async function(){
     const data=await res.json();
     if(data.result_code!==1) throw new Error(data.result_data?.message||"API 오류");
     const added=mergePosts(normalizePosts(data));
-    saveLocal(); setStatus(st,`✓ ${added}개 글 추가됨 (총 ${posts.length}개)`,"ok"); renderPosts();
+    setStatus(st,`✓ ${added}개 글 추가됨 (총 ${posts.length}개)`,"ok"); renderPosts();
   }catch(e){ setStatus(st,"오류: "+e.message+(e.message.includes("fetch")?"\n(CORS 제한)":""),"err"); }
 };
 
@@ -496,7 +495,7 @@ $("loadJsonBtn").onclick=function(){
   try{
     const data=JSON.parse(txt), newPosts=normalizePosts(data);
     if(!newPosts.length) throw new Error("글 데이터를 찾을 수 없습니다.");
-    const added=mergePosts(newPosts); saveLocal();
+    const added=mergePosts(newPosts);
     setStatus(st,`✓ ${added}개 글 추가됨 (총 ${posts.length}개)`,"ok");
     $("jsonPaste").value=""; renderPosts();
   }catch(e){ setStatus(st,"파싱 오류: "+e.message,"err"); }
@@ -509,7 +508,7 @@ $("jsonFile").onchange=function(e){
     try{
       const data=JSON.parse(ev.target.result), newPosts=normalizePosts(data);
       if(!newPosts.length) throw new Error("글 데이터를 찾을 수 없습니다.");
-      const added=mergePosts(newPosts); saveLocal();
+      const added=mergePosts(newPosts);
       setStatus(st,`✓ ${added}개 글 추가됨 (총 ${posts.length}개)`,"ok"); renderPosts();
     }catch(e){ setStatus(st,"파싱 오류: "+e.message,"err"); }
   };
@@ -520,8 +519,8 @@ $("exportBtn").onclick=function(){
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`band_archive_${Date.now()}.json`; a.click();
 };
 $("clearBtn").onclick=function(){
-  if(!confirm("모든 글 데이터를 삭제할까요?")) return;
-  posts=[]; saveLocal(); renderPosts();
+  if(!confirm("모든 글 데이터를 초기화할까요? (서버 데이터는 유지됩니다)")) return;
+  posts=[]; renderPosts();
 };
 </script>
 </body>
