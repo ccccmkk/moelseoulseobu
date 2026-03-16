@@ -59,6 +59,9 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS post_keywords (post_id TEXT PRIMARY KEY, keyword TEXT)`,
     `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, password TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS news_cache (category TEXT PRIMARY KEY, data TEXT, cached_at INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS user_presence (user_id TEXT PRIMARY KEY, last_seen INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, author TEXT, content TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS token_usage (id INTEGER PRIMARY KEY AUTOINCREMENT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, created_at INTEGER)`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   await env.DB.batch([
@@ -517,7 +520,52 @@ export default {
         });
         const d = await resp.json();
         if (!resp.ok) return json({ summary: null, error: d.error?.message || '요약 실패' });
+        const tokIn = d.usage?.input_tokens || 0, tokOut = d.usage?.output_tokens || 0;
+        if (tokIn || tokOut) {
+          await env.DB.prepare('INSERT INTO token_usage(tokens_in,tokens_out,created_at) VALUES(?,?,?)').bind(tokIn, tokOut, Math.floor(Date.now()/1000)).run().catch(()=>{});
+        }
         return json({ summary: d.content?.[0]?.text || null });
+      }
+
+      // ── 사용자 프레즌스 ──
+      if (p === '/api/presence' && m === 'POST') {
+        const { user_id } = await request.json();
+        if (!user_id) return json({ ok: false }, 400);
+        await env.DB.prepare('INSERT INTO user_presence(user_id,last_seen) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=?')
+          .bind(user_id, Math.floor(Date.now()/1000), Math.floor(Date.now()/1000)).run();
+        return json({ ok: true });
+      }
+      if (p === '/api/presence' && m === 'GET') {
+        const since = Math.floor(Date.now()/1000) - 180; // 3분 이내
+        const rows = await env.DB.prepare('SELECT user_id, last_seen FROM user_presence WHERE last_seen > ? ORDER BY last_seen DESC').bind(since).all();
+        return json(rows.results);
+      }
+
+      // ── 채팅 ──
+      if (p === '/api/chat' && m === 'GET') {
+        const since = parseInt(url.searchParams.get('since') || '0');
+        const rows = await env.DB.prepare('SELECT * FROM chat_messages WHERE created_at > ? ORDER BY created_at ASC LIMIT 100').bind(since).all();
+        return json(rows.results);
+      }
+      if (p === '/api/chat' && m === 'POST') {
+        const { author, content } = await request.json();
+        if (!author || !content?.trim()) return json({ error: '내용을 입력하세요' }, 400);
+        const id = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+        const now = Math.floor(Date.now()/1000);
+        await env.DB.prepare('INSERT INTO chat_messages(id,author,content,created_at) VALUES(?,?,?,?)').bind(id, author, content.trim(), now).run();
+        return json({ id, author, content: content.trim(), created_at: now });
+      }
+      if (p.match(/^\/api\/chat\/[^/]+$/) && m === 'DELETE') {
+        const id = p.split('/')[3];
+        await env.DB.prepare('DELETE FROM chat_messages WHERE id=?').bind(id).run();
+        return json({ ok: true });
+      }
+
+      // ── 관리자: AI 토큰 사용량 ──
+      if (p === '/api/admin/token-usage' && m === 'GET') {
+        const total = await env.DB.prepare('SELECT SUM(tokens_in) as tin, SUM(tokens_out) as tout, COUNT(*) as calls FROM token_usage').first();
+        const recent = await env.DB.prepare('SELECT * FROM token_usage ORDER BY created_at DESC LIMIT 20').all();
+        return json({ total: { tin: total?.tin||0, tout: total?.tout||0, calls: total?.calls||0 }, recent: recent.results });
       }
 
       return new Response('Not found', { status: 404, headers: CORS });

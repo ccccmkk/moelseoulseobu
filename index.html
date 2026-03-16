@@ -196,6 +196,15 @@ input,select,textarea{font-size:16px !important}
 .news-loading{text-align:center;padding:3rem 1rem;color:var(--text-hint);font-size:14px;line-height:1.9}
 .news-refresh-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:#fff;font-size:12px;cursor:pointer;font-family:inherit}
 
+/* ── 채팅 ── */
+.chat-msg{display:flex;gap:8px;align-items:flex-end}
+.chat-msg.mine{flex-direction:row-reverse}
+.chat-bubble{max-width:72%;background:#f0f0f0;border-radius:18px 18px 18px 4px;padding:9px 13px;font-size:14px;line-height:1.45;word-break:break-word}
+.chat-msg.mine .chat-bubble{background:var(--green);color:#fff;border-radius:18px 18px 4px 18px}
+.chat-meta{font-size:10px;color:var(--text-hint);margin-bottom:2px;flex-shrink:0}
+.chat-msg.mine .chat-meta{text-align:right}
+.chat-date-sep{text-align:center;font-size:11px;color:var(--text-hint);margin:4px 0}
+
 /* ── 이벤트(경조사) 탭 ── */
 .event-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start}
 .event-icon{width:46px;height:46px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:#f5f5f5}
@@ -356,7 +365,11 @@ body{overscroll-behavior-y:contain}
   <div class="appbar">
     <span class="appbar-title">STEP<span class="appbar-version">서울서부지청</span></span>
     <div class="appbar-btns">
-      <span class="mileage-chip" id="mileageChip" onclick="openProfileModal(currentUser)">0P</span>
+      <span class="mileage-chip" id="mileageChip" onclick="openProfileModal(currentUser)"><svg id="mileageStar" viewBox="0 0 24 24" fill="#fff" width="13" height="13" style="vertical-align:-1px;margin-right:2px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><span id="mileageNum">0</span>P</span>
+      <button class="appbar-btn" id="chatBtn" onclick="openChat()" style="position:relative;padding:6px 10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span id="chatBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e53935;color:#fff;border-radius:50%;width:8px;height:8px;font-size:0"></span>
+      </button>
       <button class="appbar-btn" id="adminBtn" style="display:none" onclick="openAdminModal()">관리</button>
       <button class="appbar-btn" id="logoutBtn" onclick="doLogout()">로그아웃</button>
     </div>
@@ -563,6 +576,21 @@ body{overscroll-behavior-y:contain}
   </div>
 </div>
 
+<!-- ════ 채팅 모달 ════ -->
+<div class="modal-overlay" id="chatModal" style="align-items:flex-end">
+  <div class="modal" style="border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:100%;max-height:85vh;display:flex;flex-direction:column;margin:0">
+    <div class="modal-header" style="flex-shrink:0">
+      <span class="modal-title">채팅</span>
+      <button class="modal-close" onclick="closeChat()">×</button>
+    </div>
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px;min-height:200px"></div>
+    <div style="flex-shrink:0;padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;background:#fff">
+      <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." style="flex:1;border:1px solid var(--border);border-radius:20px;padding:9px 14px;font-size:15px;font-family:inherit;outline:none"/>
+      <button onclick="sendChat()" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">전송</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 관리자 모달 ════ -->
 <div class="modal-overlay center" id="adminModal">
   <div class="modal write-modal">
@@ -572,8 +600,10 @@ body{overscroll-behavior-y:contain}
     </div>
     <div class="modal-body">
       <div class="admin-tab-row">
-        <button class="admin-tab-btn active" id="adminTab-users" onclick="switchAdminTab('users')">👥 사용자 관리</button>
-        <button class="admin-tab-btn" id="adminTab-mileage" onclick="switchAdminTab('mileage')">⭐ 마일리지 현황</button>
+        <button class="admin-tab-btn active" id="adminTab-users" onclick="switchAdminTab('users')">사용자</button>
+        <button class="admin-tab-btn" id="adminTab-mileage" onclick="switchAdminTab('mileage')">마일리지</button>
+        <button class="admin-tab-btn" id="adminTab-online" onclick="switchAdminTab('online')">접속자</button>
+        <button class="admin-tab-btn" id="adminTab-ai" onclick="switchAdminTab('ai')">AI 사용량</button>
       </div>
       <div class="admin-section">
         <div class="admin-tab-pane active" id="adminPane-users">
@@ -581,6 +611,12 @@ body{overscroll-behavior-y:contain}
         </div>
         <div class="admin-tab-pane" id="adminPane-mileage">
           <div id="mileageRankList"></div>
+        </div>
+        <div class="admin-tab-pane" id="adminPane-online">
+          <div id="onlineUserList"></div>
+        </div>
+        <div class="admin-tab-pane" id="adminPane-ai">
+          <div id="aiUsagePanel"></div>
         </div>
       </div>
     </div>
@@ -650,7 +686,7 @@ async function fetchAndUpdateMileage(){
     const r=await fetch(`${API}/api/mileage/${encodeURIComponent(currentUser)}`);
     const d=await r.json();
     const chip=$('mileageChip');
-    if(chip) chip.textContent=(d.points||0)+'P';
+    if(chip){ $('mileageNum').textContent=(d.points||0); }
   }catch(e){}
 }
 
@@ -1339,18 +1375,20 @@ $('profileImgInput').onchange=async function(e){
 
 // ── 관리자 ──
 function switchAdminTab(tab){
-  ['users','mileage'].forEach(t=>{
-    $(`adminTab-${t}`).className='admin-tab-btn'+(t===tab?' active':'');
-    $(`adminPane-${t}`).className='admin-tab-pane'+(t===tab?' active':'');
-  });
+  document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-pane').forEach(p=>p.classList.remove('active'));
+  $(`adminTab-${tab}`)?.classList.add('active');
+  $(`adminPane-${tab}`)?.classList.add('active');
 }
 
 async function openAdminModal(){
   $('adminModal').classList.add('open');
   try{
-    const [users,stats]=await Promise.all([
+    const [users,stats,online,aiUsage]=await Promise.all([
       fetch(`${API}/api/users`).then(r=>r.json()),
       fetch(`${API}/api/admin/stats`).then(r=>r.json()),
+      fetch(`${API}/api/presence`).then(r=>r.json()),
+      fetch(`${API}/api/admin/token-usage`).then(r=>r.json()),
     ]);
     const postMap={},cmtMap={},mileMap={};
     stats.posts.forEach(p=>{ postMap[p.author]=p.cnt });
@@ -1404,6 +1442,47 @@ async function openAdminModal(){
           <span style="font-size:15px;font-weight:700;color:var(--green-dark)">${m.points}P</span>
         </div>`).join('')
       : '<div style="padding:20px;text-align:center;color:#aaa">데이터가 없습니다.</div>';
+
+    // 접속자 탭
+    $('onlineUserList').innerHTML=`<div style="font-size:12px;color:var(--text-hint);margin-bottom:12px">최근 3분 이내 접속한 사용자</div>`
+      +(online.length
+        ? online.map(u=>{
+            const ago=Math.floor(Date.now()/1000)-u.last_seen;
+            const agoStr=ago<60?`${ago}초 전`:ago<3600?`${Math.floor(ago/60)}분 전`:`${Math.floor(ago/3600)}시간 전`;
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+              <span style="width:7px;height:7px;background:#37c272;border-radius:50%;flex-shrink:0"></span>
+              <span style="flex:1;font-size:14px">${escHtml(u.user_id)}</span>
+              <span style="font-size:12px;color:var(--text-hint)">${agoStr}</span>
+            </div>`;
+          }).join('')
+        : '<div style="padding:20px;text-align:center;color:#aaa">현재 접속자가 없습니다.</div>');
+
+    // AI 사용량 탭
+    const cost=((aiUsage.total?.tin||0)*0.00000025+(aiUsage.total?.tout||0)*0.00000125).toFixed(4);
+    $('aiUsagePanel').innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:var(--green-light);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:var(--green-dark)">${aiUsage.total?.calls||0}</div>
+          <div style="font-size:11px;color:var(--text-sub)">요약 횟수</div>
+        </div>
+        <div style="background:#fff3e0;border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:15px;font-weight:800;color:#e65100">${((aiUsage.total?.tin||0)+(aiUsage.total?.tout||0)).toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--text-sub)">총 토큰</div>
+        </div>
+        <div style="background:#f3e5f5;border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:16px;font-weight:800;color:#6a1b9a">$${cost}</div>
+          <div style="font-size:11px;color:var(--text-sub)">예상 비용</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">최근 요약 내역</div>
+      ${(aiUsage.recent||[]).map(r=>{
+        const d=new Date(r.created_at*1000);
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="color:var(--text-sub)">${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}</span>
+          <span>in: ${r.tokens_in} / out: ${r.tokens_out}</span>
+        </div>`;
+      }).join('')||'<div style="padding:16px;text-align:center;color:#aaa">기록 없음</div>'}
+    `;
   }catch(e){
     $('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">데이터를 불러오지 못했습니다.</div>';
   }
@@ -1442,10 +1521,12 @@ function switchLoginTab(t){
 
 // ── 로그인 ──
 function startApp(id){
-  currentUser=id;
+  currentUser=id; chatLastTs=0; chatUnread=0;
   localStorage.setItem('saved_id',id);
   show('appPage'); $('fab').className='fab show';
-  renderFeed(); initApp();
+  renderFeed(); initApp(); startPresence();
+  // 채팅 백그라운드 폴링 (미읽 배지용) - 30초마다
+  setInterval(()=>{ if(!$('chatModal').classList.contains('open')&&currentUser) loadChatMessages(); },30000);
 }
 
 async function doLogin(e){
@@ -1554,6 +1635,68 @@ $('registerBtn').onclick=doRegister;
   },{passive:true});
 })();
 
+// ── 채팅 ──
+let chatPollTimer=null, chatLastTs=0, chatUnread=0;
+function openChat(){
+  $('chatModal').classList.add('open');
+  chatUnread=0; $('chatBadge').style.display='none';
+  loadChatMessages();
+  chatPollTimer=setInterval(loadChatMessages,3000);
+  setTimeout(()=>$('chatInput').focus(),300);
+}
+function closeChat(){
+  $('chatModal').classList.remove('open');
+  clearInterval(chatPollTimer); chatPollTimer=null;
+}
+async function loadChatMessages(){
+  try{
+    const r=await fetch(`${API}/api/chat?since=0`);
+    const msgs=await r.json();
+    if(!Array.isArray(msgs)) return;
+    const box=$('chatMessages');
+    const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
+    const newMsgs=msgs.filter(m=>m.created_at>chatLastTs);
+    if(newMsgs.length===0) return;
+    chatLastTs=msgs.reduce((mx,m)=>Math.max(mx,m.created_at),chatLastTs);
+    // Show unread badge if chat is closed
+    if(!$('chatModal').classList.contains('open')){ chatUnread+=newMsgs.length; $('chatBadge').style.display=''; return; }
+    box.innerHTML=msgs.map(m=>{
+      const mine=m.author===currentUser;
+      const t=new Date(m.created_at*1000);
+      const ts=`${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')}`;
+      const del=currentUserRole==='admin'&&!mine?`<button onclick="deleteChatMsg('${m.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:11px;padding:0 4px;line-height:1">×</button>`:'';
+      return `<div class="chat-msg${mine?' mine':''}">
+        <div>
+          ${mine?'':`<div class="chat-meta">${escHtml(m.author)}</div>`}
+          <div class="chat-bubble">${escHtml(m.content)}</div>
+        </div>
+        <span class="chat-meta">${ts}${del}</span>
+      </div>`;
+    }).join('');
+    if(atBottom||newMsgs.some(m=>m.author===currentUser)) box.scrollTop=box.scrollHeight;
+  }catch(e){}
+}
+async function sendChat(){
+  const inp=$('chatInput'), txt=inp.value.trim();
+  if(!txt||!currentUser) return;
+  inp.value='';
+  try{
+    await fetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
+    await loadChatMessages();
+  }catch(e){ inp.value=txt; alert('전송 실패'); }
+}
+async function deleteChatMsg(id){
+  await fetch(`${API}/api/chat/${id}`,{method:'DELETE'});
+  await loadChatMessages();
+}
+// 채팅 엔터키
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.activeElement===$('chatInput')){ e.preventDefault(); sendChat(); }});
+// 프레즌스 하트비트 (60초마다)
+function startPresence(){
+  function ping(){ if(currentUser) fetch(`${API}/api/presence`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser})}).catch(()=>{}); }
+  ping(); setInterval(ping,60000);
+}
+
 function doLogout(){
   try{
     currentUser=''; posts=[]; events=[]; voteSessions=[]; likedPosts=new Set();
@@ -1564,7 +1707,7 @@ function doLogout(){
     $('uid').value=''; $('upw').value=''; $('lerr').textContent='';
     $('adminBtn').style.display='none'; $('praiseAdminRow').style.display='none';
     $('fab').className='fab';
-    $('mileageChip').textContent='0P';
+    $('mileageNum').textContent='0';
   }catch(e){}
   show('loginPage');
 }
