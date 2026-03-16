@@ -455,7 +455,8 @@ $("submitPost").onclick=async function(){
 };
 
 // ── 로그인 ──
-function doLogin(){
+function doLogin(e){
+  if(e) e.preventDefault();
   const id=$("uid").value.trim(), pw=$("upw").value.trim();
   if(!id||!pw){ $("lerr").textContent="아이디와 비밀번호를 입력해주세요."; return; }
   if(USERS.some(u=>u.id===id&&u.pw===pw)){
@@ -468,10 +469,15 @@ function doLogin(){
 $("loginForm").onsubmit=doLogin;
 $("loginBtn").onclick=doLogin;
 
+// 새로고침 시 자동 로그인
 const savedId=localStorage.getItem("saved_id"), savedPw=localStorage.getItem("saved_pw");
-if(savedId&&savedPw){ $("uid").value=savedId; $("upw").value=savedPw; }
+if(savedId&&savedPw&&USERS.some(u=>u.id===savedId&&u.pw===savedPw)){
+  currentUser=savedId;
+  show("appPage"); renderPosts();
+  fetchPosts();
+} else if(savedId){ $("uid").value=savedId; }
 
-$("logoutBtn").onclick=function(){ currentUser=""; posts=[]; $("uid").value=""; $("upw").value=""; $("lerr").textContent=""; show("loginPage") };
+$("logoutBtn").onclick=function(){ currentUser=""; posts=[]; localStorage.removeItem("saved_id"); localStorage.removeItem("saved_pw"); $("uid").value=""; $("upw").value=""; $("lerr").textContent=""; show("loginPage") };
 $("toggleSide").onclick=()=>$("sideCol").classList.toggle("open");
 
 // ── 밴드 API 연동 ──
