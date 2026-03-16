@@ -166,14 +166,14 @@ textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-famil
       <div class="logo-dot"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2L10.8 6.5H15.5L11.6 9.3L13.1 14L9 11.2L4.9 14L6.4 9.3L2.5 6.5H7.2L9 2Z" fill="white"/></svg></div>
       <span class="logo-text">내 밴드 아카이브</span>
     </div>
-    <div class="lf">
+    <form class="lf" id="loginForm" onsubmit="return false">
       <label>아이디</label>
-      <input type="text" id="uid" placeholder="아이디"/>
+      <input type="text" id="uid" placeholder="아이디" autocomplete="username"/>
       <label>비밀번호</label>
-      <input type="text" id="upw" placeholder="비밀번호"/>
+      <input type="text" id="upw" placeholder="비밀번호" autocomplete="off"/>
       <div class="lf-err" id="lerr"></div>
-      <button class="btn-green" id="loginBtn">로그인</button>
-    </div>
+      <button type="submit" class="btn-green" id="loginBtn">로그인</button>
+    </form>
     <div style="text-align:center;margin-top:14px;font-size:11px;color:#bbb">v1.3.0</div>
   </div>
 </div>
@@ -455,18 +455,18 @@ $("submitPost").onclick=async function(){
 };
 
 // ── 로그인 ──
-$("loginBtn").onclick=async function(){
-  const id=$("uid").value.trim(), pw=$("upw").value;
+function doLogin(){
+  const id=$("uid").value.trim(), pw=$("upw").value.trim();
   if(!id||!pw){ $("lerr").textContent="아이디와 비밀번호를 입력해주세요."; return; }
   if(USERS.some(u=>u.id===id&&u.pw===pw)){
     currentUser=id;
     localStorage.setItem("saved_id",id); localStorage.setItem("saved_pw",pw);
     show("appPage"); renderPosts();
-    await fetchPosts();
+    fetchPosts();
   } else { $("lerr").textContent="아이디 또는 비밀번호가 올바르지 않습니다."; }
-};
-$("upw").onkeydown=e=>e.key==="Enter"&&$("loginBtn").click();
-$("uid").onkeydown=e=>e.key==="Enter"&&$("upw").focus();
+}
+$("loginForm").onsubmit=doLogin;
+$("loginBtn").onclick=doLogin;
 
 const savedId=localStorage.getItem("saved_id"), savedPw=localStorage.getItem("saved_pw");
 if(savedId&&savedPw){ $("uid").value=savedId; $("upw").value=savedPw; }
