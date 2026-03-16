@@ -18,6 +18,28 @@ async function addMileageDB(env, userId, delta) {
   ).bind(userId, delta, delta).run();
 }
 
+function parseRSS(xml) {
+  const out = [];
+  const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  for (const b of blocks.slice(0, 20)) {
+    const tag = (t) => {
+      const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(b);
+      if (cd) return cd[1].trim();
+      const pl = new RegExp(`<${t}[^>]*>([^<]*)<\\/${t}>`, 'i').exec(b);
+      return pl ? pl[1].trim() : '';
+    };
+    let link = '';
+    const lm = /<link>([\s\S]*?)<\/link>/i.exec(b);
+    if (lm) link = lm[1].replace(/<!\[CDATA\[/, '').replace(/\]\]>/, '').trim();
+    const title = tag('title');
+    const desc = tag('description').replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' ').trim().slice(0, 400);
+    const pubDate = tag('pubDate');
+    const source = tag('source');
+    if (title) out.push({ title, link: link || tag('guid'), description: desc, pubDate, source });
+  }
+  return out;
+}
+
 async function initDB(env) {
   const tables = [
     `CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author TEXT, blocks TEXT, created_at INTEGER, like_count INTEGER DEFAULT 0)`,
@@ -33,12 +55,17 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS user_mileage (user_id TEXT PRIMARY KEY, points REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS user_profiles (user_id TEXT PRIMARY KEY, avatar_url TEXT)`,
     `CREATE TABLE IF NOT EXISTS post_keywords (post_id TEXT PRIMARY KEY, keyword TEXT)`,
+    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, password TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS news_cache (category TEXT PRIMARY KEY, data TEXT, cached_at INTEGER DEFAULT 0)`,
   ];
   for (const t of tables) await env.DB.exec(t);
-  // 관리자는 항상 admin
+  // 관리자는 항상 admin + active
   await env.DB.prepare(
     'INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?'
   ).bind('관리자', 'admin', 'admin').run();
+  await env.DB.prepare(
+    'INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING'
+  ).bind('관리자', '9999', 'active', 0).run();
 }
 
 export default {
@@ -76,9 +103,11 @@ export default {
         return json({ url: '/' + key });
       }
 
-      // ── 글 목록 ──
+      // ── 글 목록 (comment_count 포함) ──
       if (p === '/api/posts' && m === 'GET') {
-        const rows = await env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC').all();
+        const rows = await env.DB.prepare(
+          'SELECT p.*, COALESCE(cc.cnt,0) as comment_count FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id ORDER BY p.created_at DESC'
+        ).all();
         return json(rows.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })));
       }
 
@@ -382,6 +411,94 @@ export default {
           comments: commentCounts.results,
           mileage: mileageRows.results,
         });
+      }
+
+      // ── 로그인 ──
+      if (p === '/api/login' && m === 'POST') {
+        const { id, password } = await request.json();
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
+        if (!user || user.password !== password) return json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, 401);
+        if (user.status === 'pending') return json({ error: '관리자 승인 대기 중입니다.' }, 403);
+        return json({ ok: true, id: user.id });
+      }
+
+      // ── 회원가입 ──
+      if (p === '/api/register' && m === 'POST') {
+        const { id, password } = await request.json();
+        if (!id || !password) return json({ error: '필수 정보를 입력해주세요.' }, 400);
+        if (id.length < 2) return json({ error: '아이디는 2자 이상이어야 합니다.' }, 400);
+        const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
+        if (exists) return json({ error: '이미 사용 중인 아이디입니다.' }, 409);
+        await env.DB.prepare('INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?)')
+          .bind(id, password, 'pending', Math.floor(Date.now() / 1000)).run();
+        return json({ ok: true });
+      }
+
+      // ── 사용자 목록 ──
+      if (p === '/api/users' && m === 'GET') {
+        const rows = await env.DB.prepare('SELECT id, status, created_at FROM users ORDER BY created_at ASC').all();
+        return json(rows.results);
+      }
+
+      // ── 사용자 승인 ──
+      if (p.match(/^\/api\/users\/[^/]+\/approve$/) && m === 'PUT') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        await env.DB.prepare('UPDATE users SET status=? WHERE id=?').bind('active', userId).run();
+        return json({ ok: true });
+      }
+
+      // ── 사용자 삭제 ──
+      if (p.match(/^\/api\/users\/[^/]+$/) && m === 'DELETE') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        if (userId === '관리자') return json({ error: '관리자는 삭제할 수 없습니다.' }, 400);
+        await env.DB.prepare('DELETE FROM users WHERE id=?').bind(userId).run();
+        return json({ ok: true });
+      }
+
+      // ── 뉴스 프록시 (Worker 직접 fetch + D1 캐시 10분) ──
+      if (p === '/api/news' && m === 'GET') {
+        const cat = url.searchParams.get('category') || 'labor';
+        const feeds = {
+          labor: 'https://news.google.com/rss/search?q=' + encodeURIComponent('고용 노동 최저임금 근로 취업 노동부') + '&hl=ko&gl=KR&ceid=KR:ko',
+          economy: 'https://news.google.com/rss/search?q=' + encodeURIComponent('한국경제 금리 물가 환율 주식시장') + '&hl=ko&gl=KR&ceid=KR:ko',
+        };
+        if (!feeds[cat]) return json({ error: 'unknown' }, 400);
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
+        if (cached && (Math.floor(Date.now() / 1000) - cached.cached_at) < 600) {
+          return json(JSON.parse(cached.data));
+        }
+        const resp = await fetch(feeds[cat], {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        });
+        if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
+        const xml = await resp.text();
+        const items = parseRSS(xml);
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+          .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run();
+        return json(items);
+      }
+
+      // ── AI 요약 (Claude Haiku) ──
+      if (p === '/api/summarize' && m === 'POST') {
+        if (!env.ANTHROPIC_API_KEY) return json({ summary: null, error: 'no_key' }, 200);
+        const { title, description } = await request.json();
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 180,
+            messages: [{ role: 'user', content: `다음 뉴스 기사를 한국어로 핵심만 2~3문장으로 요약해줘. 불필요한 서론 없이 바로 내용만 써줘.\n제목: ${title}\n${description ? '내용: ' + description : ''}` }]
+          })
+        });
+        const d = await resp.json();
+        if (!resp.ok) return json({ summary: null, error: d.error?.message || '요약 실패' });
+        return json({ summary: d.content?.[0]?.text || null });
       }
 
       return new Response('Not found', { status: 404, headers: CORS });
