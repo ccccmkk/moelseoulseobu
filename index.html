@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>내 밴드 아카이브</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#37c272;--green-dark:#1a9e52;--green-light:#e8faf0;
+  --bg:#f5f5f5;--bg-card:#ffffff;--border:#e0e0e0;
+  --text:#1a1a1a;--text-sub:#666;--text-hint:#999;
+  --danger:#e53935;--success:#1a9e52;
+  --radius:12px;--radius-sm:8px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text)}
+
+.page{display:none;min-height:100vh}
+.page.active{display:block}
+
+/* ────── 로그인 ────── */
+#loginPage.active{display:flex;align-items:center;justify-content:center;padding:2rem}
+.login-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:360px;box-shadow:0 2px 16px rgba(0,0,0,0.07)}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:2rem}
+.logo-dot{width:32px;height:32px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-dot svg{width:18px;height:18px}
+.logo-text{font-size:18px;font-weight:600;color:var(--text)}
+.lf label{display:block;font-size:12px;color:var(--text-sub);margin-bottom:5px;font-weight:500}
+.lf input{
+  width:100%;height:42px;padding:0 12px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:#fff;color:var(--text);font-size:14px;outline:none;margin-bottom:12px;
+  transition:border-color .15s;
+}
+.lf input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(55,194,114,.12)}
+.lf-err{font-size:12px;color:var(--danger);min-height:16px;margin-bottom:10px}
+.btn-green{
+  width:100%;height:42px;background:var(--green);color:#fff;
+  border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:600;
+  cursor:pointer;transition:opacity .15s;
+}
+.btn-green:hover{opacity:.88}
+
+/* ────── 앱 레이아웃 ────── */
+#appPage.active{display:flex;flex-direction:column}
+.appbar{
+  background:var(--green);padding:0 1.25rem;height:52px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;flex-shrink:0;
+}
+.appbar-title{color:#fff;font-size:16px;font-weight:600}
+.appbar-btns{display:flex;gap:8px}
+.appbar-btn{
+  background:rgba(255,255,255,.22);color:#fff;border:none;
+  border-radius:var(--radius-sm);font-size:13px;padding:6px 12px;cursor:pointer;
+  transition:background .15s;
+}
+.appbar-btn:hover{background:rgba(255,255,255,.32)}
+
+.app-body{display:flex;flex:1;gap:0}
+.feed-col{flex:1;padding:1.25rem;display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:calc(100vh - 52px)}
+.side-col{
+  width:280px;flex-shrink:0;background:var(--bg-card);
+  border-left:1px solid var(--border);overflow-y:auto;
+  max-height:calc(100vh - 52px);
+}
+
+/* ────── 피드 카드 ────── */
+.post-card{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:box-shadow .15s;
+}
+.post-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+.post-header{display:flex;align-items:center;gap:10px;padding:14px 16px 8px}
+.avatar{
+  width:38px;height:38px;border-radius:50%;
+  background:var(--green-light);display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:600;color:var(--green-dark);flex-shrink:0;
+}
+.post-author{font-size:14px;font-weight:600;color:var(--text)}
+.post-date{font-size:12px;color:var(--text-hint);margin-top:2px}
+.post-body{
+  padding:0 16px 12px;font-size:14px;color:var(--text);
+  line-height:1.7;white-space:pre-wrap;
+}
+.post-imgs{display:grid;gap:2px}
+.post-imgs.one img{width:100%;max-height:320px;object-fit:cover;display:block}
+.post-imgs.two{grid-template-columns:1fr 1fr}
+.post-imgs.two img{width:100%;height:160px;object-fit:cover;display:block}
+.post-imgs.three{grid-template-columns:1fr 1fr}
+.post-imgs.three .img-wrap:first-child{grid-column:1/-1}
+.post-imgs.three .img-wrap:first-child img{height:200px;width:100%;object-fit:cover;display:block}
+.post-imgs.three .img-wrap:not(:first-child) img{width:100%;height:150px;object-fit:cover;display:block}
+.post-footer{
+  padding:10px 16px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;
+}
+.heart{width:17px;height:17px;fill:none;stroke:#bbb;stroke-width:1.5;cursor:pointer;transition:stroke .15s}
+.heart:hover{stroke:#ff4d6d}
+.heart.liked{fill:#ff4d6d;stroke:#ff4d6d}
+.like-count{font-size:12px;color:var(--text-hint)}
+
+/* ────── 사이드 패널 ────── */
+.side-section{padding:1.1rem 1.1rem;border-bottom:1px solid var(--border)}
+.side-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px}
+.side-hint{font-size:11px;color:var(--text-hint);line-height:1.65;margin-bottom:8px}
+.inp{
+  width:100%;height:36px;padding:0 10px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:#fff;color:var(--text);font-size:12px;outline:none;
+  font-family:monospace;transition:border-color .15s;
+}
+.inp:focus{border-color:var(--green)}
+textarea.inp{height:72px;resize:none;padding:7px 10px;line-height:1.5;font-family:inherit}
+.btn-s{
+  height:32px;padding:0 12px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:#fff;color:var(--text);
+  font-size:12px;cursor:pointer;transition:background .15s;width:100%;margin-top:6px;
+}
+.btn-s:hover{background:#f5f5f5}
+.btn-s.primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-s.primary:hover{opacity:.88}
+.btn-s.danger{color:var(--danger)}
+.side-status{font-size:11px;margin-top:7px;min-height:14px;color:var(--text-sub);line-height:1.5}
+.side-status.ok{color:var(--success)}
+.side-status.err{color:var(--danger)}
+
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+.stat-box{background:#f7f7f7;border-radius:var(--radius-sm);padding:10px;text-align:center}
+.stat-num{font-size:22px;font-weight:700;color:var(--text)}
+.stat-lbl{font-size:10px;color:var(--text-hint);margin-top:2px}
+
+/* ────── 빈 상태 ────── */
+.empty-feed{
+  text-align:center;padding:4rem 1rem;
+  color:var(--text-hint);font-size:14px;
+}
+.empty-feed .icon{
+  width:52px;height:52px;border-radius:50%;
+  background:#efefef;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 14px;
+}
+
+/* ────── 반응형 ────── */
+@media(max-width:600px){
+  .side-col{display:none}
+  .side-col.open{
+    display:block;position:fixed;right:0;top:52px;bottom:0;
+    width:100%;max-width:320px;z-index:200;overflow-y:auto;
+    box-shadow:-4px 0 20px rgba(0,0,0,0.1);
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════ 로그인 페이지 ════════ -->
+<div id="loginPage" class="page active">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="logo-dot">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M9 2L10.8 6.5H15.5L11.6 9.3L13.1 14L9 11.2L4.9 14L6.4 9.3L2.5 6.5H7.2L9 2Z" fill="white"/>
+        </svg>
+      </div>
+      <span class="logo-text">내 밴드 아카이브</span>
+    </div>
+    <div class="lf">
+      <label>아이디</label>
+      <input type="text" id="uid" placeholder="아이디를 입력하세요" autocomplete="off"/>
+      <label>비밀번호</label>
+      <input type="password" id="upw" placeholder="비밀번호를 입력하세요"/>
+      <div class="lf-err" id="lerr"></div>
+      <button class="btn-green" id="loginBtn">로그인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ 앱 페이지 ════════ -->
+<div id="appPage" class="page">
+  <div class="appbar">
+    <span class="appbar-title">내 밴드 아카이브</span>
+    <div class="appbar-btns">
+      <button class="appbar-btn" id="toggleSide">글 가져오기</button>
+      <button class="appbar-btn" id="logoutBtn">로그아웃</button>
+    </div>
+  </div>
+  <div class="app-body">
+
+    <!-- 피드 -->
+    <div class="feed-col" id="feed">
+      <div class="empty-feed">
+        <div class="icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="5" width="18" height="3" rx="1.5" fill="#ccc"/>
+            <rect x="3" y="11" width="13" height="3" rx="1.5" fill="#ccc"/>
+            <rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/>
+          </svg>
+        </div>
+        <div>오른쪽 [글 가져오기]에서 밴드 글을 불러오세요.</div>
+      </div>
+    </div>
+
+    <!-- 사이드 패널 -->
+    <div class="side-col" id="sideCol">
+
+      <!-- 현황 -->
+      <div class="side-section">
+        <div class="side-title">현황</div>
+        <div class="stats-row">
+          <div class="stat-box"><div class="stat-num" id="statPosts">0</div><div class="stat-lbl">글</div></div>
+          <div class="stat-box"><div class="stat-num" id="statImgs">0</div><div class="stat-lbl">이미지</div></div>
+        </div>
+      </div>
+
+      <!-- API 연동 -->
+      <div class="side-section">
+        <div class="side-title">밴드 API 연동</div>
+        <div class="side-hint">
+          밴드 개발자센터(<a href="https://developers.band.us" target="_blank" style="color:var(--green)">developers.band.us</a>)에서
+          Access Token과 Band Key를 발급받아 입력하세요.
+        </div>
+        <input class="inp" id="tokenInp" placeholder="access_token" style="margin-bottom:5px"/>
+        <input class="inp" id="bandKeyInp" placeholder="band_key"/>
+        <button class="btn-s primary" id="fetchApiBtn">API로 글 가져오기</button>
+        <div class="side-status" id="apiStatus"></div>
+      </div>
+
+      <!-- JSON 불러오기 -->
+      <div class="side-section">
+        <div class="side-title">JSON으로 불러오기</div>
+        <div class="side-hint">백업해둔 JSON을 붙여넣거나 파일을 업로드하세요.</div>
+        <textarea class="inp" id="jsonPaste" placeholder='{"posts":[...]} 또는 배열 형식'></textarea>
+        <button class="btn-s" id="loadJsonBtn">JSON 불러오기</button>
+        <input type="file" id="jsonFile" accept=".json" style="display:none"/>
+        <button class="btn-s" id="fileBtn">파일 업로드</button>
+        <div class="side-status" id="jsonStatus"></div>
+      </div>
+
+      <!-- 데이터 관리 -->
+      <div class="side-section">
+        <div class="side-title">데이터 관리</div>
+        <button class="btn-s" id="exportBtn">JSON 내보내기 (백업)</button>
+        <button class="btn-s danger" id="clearBtn">전체 초기화</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════ 설정: 아이디/비밀번호 여기서 변경하세요 ══════
+const CRED = { id: "admin", pw: "1234" };
+// ════════════════════════════════════════════════════
+
+let posts = [];
+
+// ── 유틸 ──
+function $(id){ return document.getElementById(id) }
+function show(id){
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  $(id).classList.add("active");
+}
+function setStatus(el, msg, type){
+  el.className = "side-status " + (type || "");
+  el.textContent = msg;
+}
+function initials(name){ return (name || "?").charAt(0).toUpperCase() }
+function fmtDate(ts){
+  if(!ts) return "";
+  const d = typeof ts === "number" ? new Date(ts * 1000) : new Date(ts);
+  if(isNaN(d)) return ts;
+  return d.toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
+}
+function normalizePosts(data){
+  if(Array.isArray(data)) return data;
+  if(data.posts) return data.posts;
+  if(data.result_data?.items) return data.result_data.items;
+  if(data.items) return data.items;
+  return [];
+}
+function mergePosts(newPosts){
+  const keys = new Set(posts.map(p => p.post_key || p.id || p.content));
+  let added = 0;
+  newPosts.forEach(p => {
+    const key = p.post_key || p.id || p.content;
+    if(!keys.has(key)){ posts.push(p); added++; }
+  });
+  return added;
+}
+function saveLocal(){
+  try{ localStorage.setItem("band_archive_posts", JSON.stringify(posts)); } catch(e){}
+}
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem("band_archive_posts");
+    if(raw){ posts = JSON.parse(raw); }
+  } catch(e){}
+}
+
+// ── 렌더링 ──
+function renderPosts(){
+  const feed = $("feed");
+  if(!posts.length){
+    feed.innerHTML = `<div class="empty-feed">
+      <div class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="3" rx="1.5" fill="#ccc"/>
+        <rect x="3" y="11" width="13" height="3" rx="1.5" fill="#ccc"/>
+        <rect x="3" y="17" width="15" height="3" rx="1.5" fill="#ccc"/>
+      </svg></div>
+      <div>오른쪽 [글 가져오기]에서 밴드 글을 불러오세요.</div>
+    </div>`;
+    $("statPosts").textContent = "0";
+    $("statImgs").textContent = "0";
+    return;
+  }
+  let imgCount = 0;
+  const sorted = [...posts].sort((a,b) => (b.created_at || 0) - (a.created_at || 0));
+  feed.innerHTML = sorted.map(p => {
+    const author = p.author?.name || p.author || "알 수 없음";
+    const content = p.content || "";
+    const dateStr = fmtDate(p.created_at);
+    const imgs = p.photos || p.images || [];
+    imgCount += imgs.length;
+    let imgHtml = "";
+    if(imgs.length === 1){
+      imgHtml = `<div class="post-imgs one"><div class="img-wrap"><img src="${imgs[0].url || imgs[0]}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div></div>`;
+    } else if(imgs.length === 2){
+      imgHtml = `<div class="post-imgs two">${imgs.map(im => `<div class="img-wrap"><img src="${im.url || im}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div>`).join("")}</div>`;
+    } else if(imgs.length >= 3){
+      imgHtml = `<div class="post-imgs three">${imgs.slice(0,3).map(im => `<div class="img-wrap"><img src="${im.url || im}" onerror="this.parentElement.style.display='none'" loading="lazy"/></div>`).join("")}</div>`;
+    }
+    const likes = p.like_count || 0;
+    return `<div class="post-card">
+      <div class="post-header">
+        <div class="avatar">${initials(author)}</div>
+        <div>
+          <div class="post-author">${author}</div>
+          <div class="post-date">${dateStr}</div>
+        </div>
+      </div>
+      ${content ? `<div class="post-body">${content}</div>` : ""}
+      ${imgHtml}
+      <div class="post-footer">
+        <svg class="heart" viewBox="0 0 16 16">
+          <path d="M8 13.7S1.5 9.8 1.5 5.5A3.5 3.5 0 018 3.1 3.5 3.5 0 0114.5 5.5C14.5 9.8 8 13.7 8 13.7z"/>
+        </svg>
+        <span class="like-count">${likes}</span>
+      </div>
+    </div>`;
+  }).join("");
+  $("statPosts").textContent = posts.length;
+  $("statImgs").textContent = imgCount;
+}
+
+// ── 로그인 ──
+$("loginBtn").onclick = function(){
+  const id = $("uid").value.trim();
+  const pw = $("upw").value;
+  if(!id || !pw){ $("lerr").textContent = "아이디와 비밀번호를 입력해주세요."; return; }
+  if(id === CRED.id && pw === CRED.pw){
+    loadLocal();
+    show("appPage");
+    renderPosts();
+  } else {
+    $("lerr").textContent = "아이디 또는 비밀번호가 올바르지 않습니다.";
+  }
+};
+$("upw").onkeydown = e => e.key === "Enter" && $("loginBtn").click();
+$("uid").onkeydown = e => e.key === "Enter" && $("upw").focus();
+
+$("logoutBtn").onclick = function(){
+  $("uid").value = ""; $("upw").value = ""; $("lerr").textContent = "";
+  show("loginPage");
+};
+
+// 사이드 토글 (모바일)
+$("toggleSide").onclick = function(){
+  $("sideCol").classList.toggle("open");
+};
+
+// ── API 가져오기 ──
+$("fetchApiBtn").onclick = async function(){
+  const token = $("tokenInp").value.trim();
+  const bandKey = $("bandKeyInp").value.trim();
+  const st = $("apiStatus");
+  if(!token || !bandKey){ setStatus(st, "토큰과 밴드 키를 모두 입력해주세요.", "err"); return; }
+  setStatus(st, "불러오는 중...", "");
+  try{
+    const url = `https://openapi.band.us/v2/band/posts?access_token=${encodeURIComponent(token)}&band_key=${encodeURIComponent(bandKey)}&locale=ko_KR&page_size=20`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.result_code !== 1) throw new Error(data.result_data?.message || "API 오류");
+    const added = mergePosts(normalizePosts(data));
+    saveLocal();
+    setStatus(st, `✓ ${added}개 글 추가됨 (총 ${posts.length}개)`, "ok");
+    renderPosts();
+  } catch(e){
+    setStatus(st, "오류: " + e.message + (e.message.includes("fetch") ? "\n(CORS 제한 — 서버 프록시 필요)" : ""), "err");
+  }
+};
+
+// ── JSON 불러오기 ──
+$("loadJsonBtn").onclick = function(){
+  const txt = $("jsonPaste").value.trim();
+  const st = $("jsonStatus");
+  if(!txt){ setStatus(st, "JSON을 붙여넣어 주세요.", "err"); return; }
+  try{
+    const data = JSON.parse(txt);
+    const newPosts = normalizePosts(data);
+    if(!newPosts.length) throw new Error("글 데이터를 찾을 수 없습니다.");
+    const added = mergePosts(newPosts);
+    saveLocal();
+    setStatus(st, `✓ ${added}개 글 추가됨 (총 ${posts.length}개)`, "ok");
+    $("jsonPaste").value = "";
+    renderPosts();
+  } catch(e){ setStatus(st, "파싱 오류: " + e.message, "err"); }
+};
+
+$("fileBtn").onclick = () => $("jsonFile").click();
+$("jsonFile").onchange = function(e){
+  const file = e.target.files[0]; if(!file) return;
+  const st = $("jsonStatus");
+  const r = new FileReader();
+  r.onload = function(ev){
+    try{
+      const data = JSON.parse(ev.target.result);
+      const newPosts = normalizePosts(data);
+      if(!newPosts.length) throw new Error("글 데이터를 찾을 수 없습니다.");
+      const added = mergePosts(newPosts);
+      saveLocal();
+      setStatus(st, `✓ ${added}개 글 추가됨 (총 ${posts.length}개)`, "ok");
+      renderPosts();
+    } catch(e){ setStatus(st, "파싱 오류: " + e.message, "err"); }
+  };
+  r.readAsText(file);
+};
+
+// ── 내보내기 / 초기화 ──
+$("exportBtn").onclick = function(){
+  const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), posts }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `band_archive_${Date.now()}.json`;
+  a.click();
+};
+$("clearBtn").onclick = function(){
+  if(!confirm("모든 글 데이터를 삭제할까요?")) return;
+  posts = [];
+  saveLocal();
+  renderPosts();
+};
+</script>
+</body>
+</html>
