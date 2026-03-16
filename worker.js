@@ -40,7 +40,9 @@ function parseRSS(xml) {
   return out;
 }
 
+let _dbReady = false;
 async function initDB(env) {
+  if (_dbReady) return;
   const tables = [
     `CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author TEXT, blocks TEXT, created_at INTEGER, like_count INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS usage (id INTEGER PRIMARY KEY, bytes INTEGER DEFAULT 0)`,
@@ -58,14 +60,12 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, password TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS news_cache (category TEXT PRIMARY KEY, data TEXT, cached_at INTEGER DEFAULT 0)`,
   ];
-  for (const t of tables) await env.DB.exec(t);
-  // 관리자는 항상 admin + active
-  await env.DB.prepare(
-    'INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?'
-  ).bind('관리자', 'admin', 'admin').run();
-  await env.DB.prepare(
-    'INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING'
-  ).bind('관리자', '9999', 'active', 0).run();
+  await env.DB.batch(tables.map(t => env.DB.prepare(t)));
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('관리자','admin','admin'),
+    env.DB.prepare('INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('관리자','9999','active',0),
+  ]);
+  _dbReady = true;
 }
 
 export default {
