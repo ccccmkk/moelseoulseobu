@@ -654,6 +654,7 @@ let newsData={labor:null,local:null};
 let currentNewsCategory='labor';
 let newsShownCount={labor:10,local:10};
 let activeUsers=[];
+let chatPollTimer=null, chatLastTs=0, chatUnread=0;
 
 // API-backed state (no localStorage)
 let postKeywords={};    // { postId: keyword }
@@ -1636,7 +1637,6 @@ $('registerBtn').onclick=doRegister;
 })();
 
 // ── 채팅 ──
-let chatPollTimer=null, chatLastTs=0, chatUnread=0;
 function openChat(){
   $('chatModal').classList.add('open');
   chatUnread=0; $('chatBadge').style.display='none';
