@@ -763,7 +763,8 @@ function renderFeed(){
     const key=p.id||'';
     const liked=likedPosts.has(key);
     const isMine=p.author===currentUser;
-    const moreMenu=isMine?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}"><button onclick="editPost('${key}')">수정</button><button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
+    const canDelete=isMine||currentUserRole==='admin';
+    const moreMenu=canDelete?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
     const kw=postKeywords[key]?`<span class="post-keyword-tag">${escHtml(postKeywords[key])}</span>`:'';
     const cc=p.comment_count||0;
     const url=userProfiles[p.author]?.avatarUrl;
