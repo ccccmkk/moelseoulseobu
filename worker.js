@@ -68,6 +68,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS nominations (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, nominated_by TEXT, message TEXT, is_anonymous INTEGER DEFAULT 0, created_at INTEGER, UNIQUE(contest_id, nominated_by))`,
     `CREATE TABLE IF NOT EXISTS nominee_msgs (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, content TEXT, author_display TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS contest_votes (contest_id TEXT, voter TEXT, nominee TEXT, PRIMARY KEY(contest_id, voter))`,
+    `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -770,8 +771,10 @@ export default {
           } catch(e) { apiError = 'Gemini 오류: ' + e.message; }
         }
 
-        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백
-        if (!replyContent) {
+        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백 (관리자가 켠 경우에만)
+        const claudeSetting = await env.DB.prepare("SELECT value FROM settings WHERE key='claude_enabled'").first();
+        const claudeEnabled = !claudeSetting || claudeSetting.value !== 'false';
+        if (!replyContent && claudeEnabled) {
           if (!env.ANTHROPIC_API_KEY) {
             apiError = (apiError ? apiError + ' | ' : '') + 'ANTHROPIC_API_KEY 미설정';
           } else {
@@ -817,6 +820,20 @@ export default {
         return json({ ok: true, comment_id: targetComment.id, api_used: apiUsed, used_model: usedModel, api_error: apiError });
       }
 
+      // ── 설정 조회/변경 ──
+      if (p === '/api/settings' && m === 'GET') {
+        const rows = await env.DB.prepare('SELECT * FROM settings').all();
+        const obj = {};
+        rows.results.forEach(r => { obj[r.key] = r.value; });
+        return json(obj);
+      }
+      if (p.match(/^\/api\/settings\/[^/]+$/) && m === 'POST') {
+        const key = p.split('/')[3];
+        const { value } = await request.json();
+        await env.DB.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=?').bind(key, value, value).run();
+        return json({ ok: true });
+      }
+
       // ── 용량 확인 ──
       if (p === '/api/usage' && m === 'GET') {
         const row = await env.DB.prepare('SELECT bytes FROM usage WHERE id=1').first();
@@ -829,11 +846,11 @@ export default {
     }
   },
 
-  // Cloudflare Cron 트리거 (대시보드에서 "* * * * *" 등 설정 시 자동 실행)
+  // Cloudflare Cron 트리거 (10분마다 자동 실행)
   async scheduled(event, env, ctx) {
     await initDB(env);
     ctx.waitUntil(
-      fetch('https://moelseoulseobu.workers.dev/api/agent/health/reply', {
+      fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',

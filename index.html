@@ -876,7 +876,16 @@ button,a,[role="button"]{touch-action:manipulation}
           <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
         </div>
         <div id="botAutoRow" style="display:none">
-          <span id="botAutoStatus" style="font-size:12px;color:#2e7d32">⏱ 자동 실행 중...</span>
+          <span id="botAutoStatus" style="font-size:12px;color:#2e7d32">⏱ 서버 자동 실행 중 (10분마다)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <span style="font-size:12px;color:var(--text-sub)">Claude 폴백</span>
+          <label style="position:relative;display:inline-block;width:38px;height:22px;cursor:pointer">
+            <input type="checkbox" id="claudeToggle" onchange="toggleClaude(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+            <span id="claudeToggleTrack" style="position:absolute;inset:0;background:#ccc;border-radius:22px;transition:.2s"></span>
+            <span id="claudeToggleThumb" style="position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+          </label>
+          <span id="claudeToggleLabel" style="font-size:11px;color:var(--text-hint)">불러오는 중...</span>
         </div>
         <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
       </div>
@@ -1836,10 +1845,30 @@ async function agentHealthReply(){
   finally{btn.disabled=false;}
 }
 
+async function loadClaudeSetting(){
+  try{
+    const s=await fetch(`${API}/api/settings`).then(r=>r.json());
+    const on=s.claude_enabled!=='false';
+    const cb=$('claudeToggle'),track=$('claudeToggleTrack'),thumb=$('claudeToggleThumb'),lbl=$('claudeToggleLabel');
+    cb.checked=on;
+    track.style.background=on?'var(--green)':'#ccc';
+    thumb.style.left=on?'19px':'3px';
+    lbl.textContent=on?'켜짐 (Gemini 실패 시 Claude 자동 사용)':'꺼짐 (Gemini만 사용)';
+  }catch(e){}
+}
+async function toggleClaude(on){
+  const track=$('claudeToggleTrack'),thumb=$('claudeToggleThumb'),lbl=$('claudeToggleLabel');
+  track.style.background=on?'var(--green)':'#ccc';
+  thumb.style.left=on?'19px':'3px';
+  lbl.textContent=on?'켜짐 (Gemini 실패 시 Claude 자동 사용)':'꺼짐 (Gemini만 사용)';
+  await fetch(`${API}/api/settings/claude_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
+}
+
 // ── 관리자 ──
 async function openAdminModal(){
   $('adminModal').classList.add('open');
   initBotMode();
+  loadClaudeSetting();
   $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
   // 저장공간
   fetch(`${API}/api/usage`).then(r=>r.json()).then(d=>{

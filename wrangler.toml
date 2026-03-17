@@ -10,3 +10,6 @@ database_id = "35d0a1ba-1023-4b63-a491-570d7463576f"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "band-archive"
+
+[triggers]
+crons = ["*/10 * * * *"]
