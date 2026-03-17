@@ -2,7 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="STEP"/>
+<meta name="theme-color" content="#37c272"/>
 <title>STEP</title>
 <style>
 html,body{overscroll-behavior-y:none}
@@ -291,6 +295,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .compose-placeholder{font-size:14px;color:var(--text-hint);flex:1}
 .anon-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sub);cursor:pointer;user-select:none}
 .anon-toggle input{width:16px;height:16px;cursor:pointer;accent-color:var(--green)}
+/* ── iOS / 모바일 호환성 ── */
+*{-webkit-tap-highlight-color:transparent}
+button,a,[role="button"]{touch-action:manipulation}
+.modal-body{-webkit-overflow-scrolling:touch}
+/* 하단 Safe Area (iPhone X 이상 홈 인디케이터) */
+.bottom-nav{height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
+.fab{bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+.tab-page{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+/* iOS 입력 자동 확대 방지 (font-size < 16px → 줌인) */
+@supports (-webkit-touch-callout:none){
+  input,select,textarea{font-size:16px !important}
+}
 </style>
 </head>
 <body>
@@ -307,25 +323,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
     </div>
     <!-- 로그인 폼 -->
     <form class="lf" id="loginForm" onsubmit="return false">
-      <label>아이디</label>
-      <input type="text" id="uid" placeholder="아이디" autocomplete="username"/>
+      <label>온나라 사번 (9자리)</label>
+      <input type="text" id="uid" placeholder="123456789" maxlength="9" inputmode="numeric" autocomplete="username"/>
       <label>비밀번호</label>
-      <input type="password" id="upw" placeholder="비밀번호" autocomplete="off"/>
+      <input type="password" id="upw" placeholder="비밀번호" autocomplete="current-password"/>
       <div class="lf-err" id="lerr"></div>
       <button type="submit" class="btn-green" id="loginBtn">로그인</button>
     </form>
-    <div class="lf-switch">계정이 없으신가요? <a onclick="toggleRegister(true)">회원가입</a></div>
-    <!-- 회원가입 폼 -->
-    <form class="lf" id="registerForm" onsubmit="return false" style="display:none">
-      <label>아이디 (2자 이상)</label>
-      <input type="text" id="reg_id" placeholder="사용할 아이디"/>
-      <label>비밀번호</label>
-      <input type="password" id="reg_pw" placeholder="비밀번호"/>
-      <div class="lf-err" id="reg_err"></div>
-      <div class="lf-success" id="reg_ok"></div>
-      <button type="submit" class="btn-green" id="registerBtn">회원가입 신청</button>
-    </form>
-    <div class="lf-switch" id="regSwitch" style="display:none">이미 계정이 있으신가요? <a onclick="toggleRegister(false)">로그인</a></div>
+    <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--text-hint)">계정이 없으면 관리자에게 문의하세요.</div>
   </div>
 </div>
 
@@ -457,7 +462,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       </div>
       <div class="keyword-row">
         <span>#태그</span>
-        <input type="text" id="postKeyword" placeholder="주제 태그 (예: 공지, 자유)" maxlength="20"/>
+        <select id="postKeyword" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;background:#fff;transition:border-color .15s">
+          <option value="">태그 없음</option>
+          <option value="맛집">🍽️ 맛집</option>
+          <option value="여행">✈️ 여행</option>
+          <option value="취미">🎨 취미</option>
+          <option value="재테크">💰 재테크</option>
+          <option value="기타">📌 기타</option>
+        </select>
       </div>
     </div>
     <div class="modal-footer">
@@ -610,6 +622,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
   </div>
 </div>
 
+<!-- ════ 비밀번호 변경 모달 ════ -->
+<div class="modal-overlay center" id="changePwModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🔐 비밀번호 변경</span>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <div id="changePwNotice" style="font-size:13px;color:#e65100;background:#fff3e0;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:none">
+        초기 비밀번호(1234)를 사용 중입니다. 보안을 위해 비밀번호를 변경해주세요.
+      </div>
+      <div class="form-row">
+        <label>현재 비밀번호</label>
+        <input type="password" id="cpOld" placeholder="현재 비밀번호" autocomplete="current-password"/>
+      </div>
+      <div class="form-row">
+        <label>새 비밀번호 (4자 이상)</label>
+        <input type="password" id="cpNew" placeholder="새 비밀번호" autocomplete="new-password"/>
+      </div>
+      <div class="form-row">
+        <label>새 비밀번호 확인</label>
+        <input type="password" id="cpNew2" placeholder="새 비밀번호 확인" autocomplete="new-password"/>
+      </div>
+      <div class="lf-err" id="cpErr"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" id="changePwSkip" onclick="$('changePwModal').classList.remove('open')" style="display:none">나중에</button>
+      <button class="btn-sm primary" onclick="doChangePassword()">변경하기</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 마일리지 모달 ════ -->
 <div class="modal-overlay center" id="mileageModal">
   <div class="modal">
@@ -684,6 +727,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
         <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
       <div class="admin-section">
+        <div class="admin-section-title">계정 만들기 (개별)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:110px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">온나라 사번 (9자리)</div>
+            <input type="text" id="newUserId" placeholder="123456789" maxlength="9" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
+          <div style="flex:1;min-width:80px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">이름</div>
+            <input type="text" id="newUserName" placeholder="홍길동" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
+          <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-hint);margin-top:4px">초기 비밀번호: 1234 (로그인 후 자동 변경 안내)</div>
+        <div id="newUserMsg" style="font-size:12px;margin-top:4px;min-height:16px"></div>
+      </div>
+      <div class="admin-section">
+        <div class="admin-section-title">계정 일괄 등록 (CSV)</div>
+        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택, 기본 1234)</div>
+        <textarea id="csvInput" placeholder="123456789,홍길동,1234&#10;987654321,김철수" style="width:100%;min-height:80px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none;line-height:1.6"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <button class="btn-sm primary" onclick="bulkCreateUsers()">일괄 등록</button>
+          <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none" onchange="loadCsvFile(this)"/>
+          <button class="btn-sm" onclick="$('csvFileInput').click()">📂 CSV 파일</button>
+        </div>
+        <div id="csvMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      </div>
+      <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
         <div id="userRoleList"></div>
       </div>
@@ -695,8 +765,8 @@ const API='https://band-archive-api.cm99i.workers.dev';
 const EVT_ICONS={결혼:'💍',출산:'👶',생일:'🎂',상:'🕯️',승진:'🎉',기타:'📌'};
 
 let posts=[],events=[],kudos=[],contests=[];
-let likedPosts=new Set(),userRoles={},profiles={};
-let currentUser='',currentUserRole='user';
+let likedPosts=new Set(),userRoles={},profiles={},userNames={};
+let currentUser='',currentUserName='',currentUserRole='user',sessionToken=null;
 let editingKey=null,editorBlocks=[];
 let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
@@ -705,7 +775,8 @@ let newsCache=null,newsLastFetch=0;
 
 function $(id){return document.getElementById(id)}
 function initials(n){return(n||'?').charAt(0)}
-function getAvatar(u){return profiles[u]||initials(u);}
+function userName(id){return userNames[id]||id;}
+function getAvatar(u){return profiles[u]||initials(userName(u));}
 function avatarEl(u,style=''){
   const av=profiles[u];
   const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
@@ -770,6 +841,7 @@ async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
 async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;});}catch(e){}}
+async function fetchUserNames(){try{const r=await fetch(`${API}/api/users`);const a=await r.json();userNames={};a.forEach(u=>{if(u.name)userNames[u.id]=u.name;});}catch(e){}}
 async function fetchRoles(){
   try{
     const r=await fetch(`${API}/api/roles`);const a=await r.json();userRoles={};
@@ -779,7 +851,7 @@ async function fetchRoles(){
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
-async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles()]);renderFeed();}
+async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
 
 // ── 뉴스 ──
 let newsCat='labor';
@@ -840,7 +912,7 @@ function renderFeed(){
     const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;
     const mm=isMine?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}"><button onclick="editPost('${key}')">수정</button><button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
     return`<div class="post-card">
-      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
       ${p.keyword?`<div class="post-tag">#${escHtml(p.keyword)}</div>`:''}
       ${renderBlocksInCard(p)}
       <div class="post-actions">
@@ -884,7 +956,7 @@ function renderComments(cmts){
     return`<div class="comment-item" id="ci-${c.id}">
       ${avatarEl(c.author)}
       <div class="comment-body">
-        <div class="comment-author">${escHtml(c.author)}</div>
+        <div class="comment-author">${escHtml(userName(c.author))}</div>
         <div class="comment-text">${escHtml(c.content)}</div>
         <div class="comment-meta">
           <span>${relDate(c.created_at)}</span>
@@ -929,7 +1001,7 @@ async function toggleReplyArea(cmtId){
 }
 function renderReplies(replies){
   if(!replies||!replies.length)return'';
-  return replies.map(r=>`<div class="reply-item">${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}<div class="reply-body"><div class="reply-author">${escHtml(r.author)}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
+  return replies.map(r=>`<div class="reply-item">${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}<div class="reply-body"><div class="reply-author">${escHtml(userName(r.author))}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
 }
 async function submitReply(cmtId){
   const input=$(`ri-${cmtId}`);const txt=input?.value.trim();if(!txt)return;
@@ -1274,10 +1346,50 @@ async function openAdminModal(){
     }else{$('pendingSection').style.display='none';}
     $('userRoleList').innerHTML=active.map(u=>{
       const role=userRoles[u.id]||'user';const isAdmin=role==='admin';
-      if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)} (나)</span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
-      return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)}</span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${escHtml(u.id)}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${escHtml(u.id)}','admin',this)">관리자</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${escHtml(u.id)}')">삭제</button></div></div>`;
+      const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
+      if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${dn} <span style="font-size:11px;color:var(--text-hint)">${di}</span> (나)</span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
+      return`<div class="user-role-row"><span class="user-role-name">${dn} <span style="font-size:11px;color:var(--text-hint)">${di}</span></span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button><button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button></div></div>`;
     }).join('');
   }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
+}
+async function createUserAdmin(){
+  const id=$('newUserId').value.trim(),name=$('newUserName').value.trim();
+  const msg=$('newUserMsg');
+  if(!/^\d{9}$/.test(id)){msg.style.color='var(--danger)';msg.textContent='온나라 사번은 9자리 숫자입니다.';return;}
+  if(!name){msg.style.color='var(--danger)';msg.textContent='이름을 입력해주세요.';return;}
+  try{
+    const r=await fetch(`${API}/api/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,password:'1234'})});
+    const d=await r.json();
+    if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
+    msg.style.color='#2e7d32';msg.textContent=`✓ ${name}(${id}) 계정 생성 완료. 초기 비밀번호: 1234`;
+    $('newUserId').value='';$('newUserName').value='';
+    setTimeout(()=>openAdminModal(),1000);
+  }catch(e){msg.style.color='var(--danger)';msg.textContent='오류가 발생했습니다.';}
+}
+async function bulkCreateUsers(){
+  const csv=$('csvInput').value.trim();const msg=$('csvMsg');
+  if(!csv){msg.style.color='var(--danger)';msg.textContent='CSV를 입력해주세요.';return;}
+  const lines=csv.split('\n').filter(l=>l.trim());
+  const users=lines.map(l=>{const cols=l.split(',').map(c=>c.trim());return{id:cols[0],name:cols[1],password:cols[2]||'1234'};});
+  try{
+    const r=await fetch(`${API}/api/users/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({users})});
+    const d=await r.json();
+    if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
+    msg.style.color='#2e7d32';msg.textContent=`✓ ${d.created}명 등록 완료${d.skipped>0?`, ${d.skipped}명 건너뜀(중복/형식오류)`:''}`;
+    $('csvInput').value='';
+    setTimeout(()=>openAdminModal(),1000);
+  }catch(e){msg.style.color='var(--danger)';msg.textContent='오류가 발생했습니다.';}
+}
+function loadCsvFile(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{$('csvInput').value=e.target.result;input.value='';};
+  reader.readAsText(file,'UTF-8');
+}
+async function resetPasswordAdmin(userId){
+  if(!confirm(`${userId}의 비밀번호를 1234로 초기화할까요?`))return;
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'PUT'});
+  alert('초기화되었습니다. 다음 로그인 시 비밀번호 변경 안내가 표시됩니다.');
 }
 async function approveUser(userId){
   await fetch(`${API}/api/users/${encodeURIComponent(userId)}/approve`,{method:'PUT'});
@@ -1373,68 +1485,77 @@ async function openUserProfile(userId){
   }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
 
-// ── 로그인 / 회원가입 ──
+// ── 로그인 / 세션 ──
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
-function toggleRegister(show){
-  $('loginForm').style.display=show?'none':'';
-  document.querySelectorAll('.lf-switch').forEach(el=>el.style.display='');
-  $('registerForm').style.display=show?'':'none';
-  $('regSwitch').style.display=show?'':'none';
-  if(!show)document.querySelector('.lf-switch:not(#regSwitch)').style.display='';
-  else document.querySelector('.lf-switch:not(#regSwitch)').style.display='none';
-  $('lerr').textContent='';$('reg_err').textContent='';$('reg_ok').textContent='';
+function onLoginSuccess(d){
+  currentUser=d.id;currentUserName=d.name||d.id;sessionToken=d.token;
+  userNames[d.id]=d.name||d.id;
+  localStorage.setItem('session_token',d.token);
+  // 이전 방식 삭제
+  localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
+  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();
+  if(d.must_change_password){
+    $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
+    $('cpOld').value='1234';$('cpNew').value='';$('cpNew2').value='';$('cpErr').textContent='';
+    $('changePwModal').classList.add('open');
+  }
 }
 async function doLogin(e){
   if(e)e.preventDefault();
   const id=$('uid').value.trim(),pw=$('upw').value.trim();
-  if(!id||!pw){$('lerr').textContent='아이디와 비밀번호를 입력해주세요.';return;}
+  if(!id||!pw){$('lerr').textContent='사번과 비밀번호를 입력해주세요.';return;}
   $('loginBtn').disabled=true;$('lerr').textContent='';
   try{
     const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
     const d=await r.json();
     if(d.error){$('lerr').textContent=d.error;return;}
-    currentUser=id;
-    localStorage.setItem('saved_id',id);localStorage.setItem('saved_pw',pw);
-    showPage('appPage');$('fab').className='fab show';renderFeed();initApp();
+    onLoginSuccess(d);
   }catch(e){$('lerr').textContent='서버 오류가 발생했습니다.';}
   finally{$('loginBtn').disabled=false;}
 }
-async function doRegister(e){
-  if(e)e.preventDefault();
-  const id=$('reg_id').value.trim(),pw=$('reg_pw').value.trim();
-  if(!id||id.length<2){$('reg_err').textContent='아이디는 2자 이상이어야 합니다.';return;}
-  if(!pw){$('reg_err').textContent='비밀번호를 입력해주세요.';return;}
-  $('registerBtn').disabled=true;$('reg_err').textContent='';$('reg_ok').textContent='';
+async function doChangePassword(){
+  const oldPw=$('cpOld').value.trim(),newPw=$('cpNew').value.trim(),newPw2=$('cpNew2').value.trim();
+  if(!newPw||newPw.length<4){$('cpErr').textContent='새 비밀번호는 4자 이상이어야 합니다.';return;}
+  if(newPw!==newPw2){$('cpErr').textContent='새 비밀번호가 일치하지 않습니다.';return;}
+  if(newPw==='1234'){$('cpErr').textContent='초기 비밀번호는 사용할 수 없습니다.';return;}
+  $('cpErr').textContent='';
   try{
-    const r=await fetch(`${API}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
+    const r=await fetch(`${API}/api/users/${encodeURIComponent(currentUser)}/change-password`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken,old_password:oldPw,new_password:newPw})});
     const d=await r.json();
-    if(d.error){$('reg_err').textContent=d.error;return;}
-    $('reg_ok').textContent='✓ 신청 완료! 관리자 승인 후 로그인 가능합니다.';
-    $('reg_id').value='';$('reg_pw').value='';
-  }catch(e){$('reg_err').textContent='서버 오류가 발생했습니다.';}
-  finally{$('registerBtn').disabled=false;}
+    if(d.error){$('cpErr').textContent=d.error;return;}
+    $('changePwModal').classList.remove('open');alert('비밀번호가 변경되었습니다.');
+  }catch(e){$('cpErr').textContent='오류가 발생했습니다.';}
 }
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
-$('registerForm').onsubmit=doRegister;$('registerBtn').onclick=doRegister;
 (async()=>{
+  const token=localStorage.getItem('session_token');
+  if(token){
+    try{
+      const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+      const d=await r.json();
+      if(d.ok){onLoginSuccess({...d,token});return;}
+    }catch(e){}
+    localStorage.removeItem('session_token');
+  }
+  // 이전 방식 호환
   const savedId=localStorage.getItem('saved_id'),savedPw=localStorage.getItem('saved_pw');
   if(savedId&&savedPw){
     try{
       const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,password:savedPw})});
       const d=await r.json();
-      if(!d.error){
-        currentUser=savedId;showPage('appPage');$('fab').className='fab show';renderFeed();initApp();return;
-      }
+      if(d.ok){onLoginSuccess(d);return;}
     }catch(e){}
     localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
   }
-  if(savedId)$('uid').value=savedId;
+  const savedId2=localStorage.getItem('saved_id');
+  if(savedId2)$('uid').value=savedId2;
 })();
 $('searchInput').oninput=function(){renderSearch(this.value.trim());};
-$('logoutBtn').onclick=function(){
-  currentUser='';posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};currentUserRole='user';
-  localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  $('uid').value='';$('upw').value='';$('lerr').textContent='';toggleRegister(false);
+$('logoutBtn').onclick=async function(){
+  if(sessionToken){try{await fetch(`${API}/api/sessions`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken})});}catch(e){}}
+  currentUser='';currentUserName='';sessionToken=null;posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
+  localStorage.removeItem('session_token');
+  $('uid').value='';$('upw').value='';$('lerr').textContent='';
   $('adminBtn').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };

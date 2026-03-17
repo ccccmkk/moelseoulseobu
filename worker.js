@@ -56,7 +56,8 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS user_mileage (user_id TEXT PRIMARY KEY, points REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS user_profiles (user_id TEXT PRIMARY KEY, avatar_url TEXT)`,
     `CREATE TABLE IF NOT EXISTS post_keywords (post_id TEXT PRIMARY KEY, keyword TEXT)`,
-    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, password TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT DEFAULT '', password TEXT NOT NULL, status TEXT DEFAULT 'active', created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS news_cache (category TEXT PRIMARY KEY, data TEXT, cached_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS user_presence (user_id TEXT PRIMARY KEY, last_seen INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, author TEXT, content TEXT, created_at INTEGER)`,
@@ -70,8 +71,10 @@ async function initDB(env) {
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   await env.DB.batch([
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('관리자','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('관리자','9999','active',0),
+    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('관리자','관리자','9999','active',0),
   ]);
+  // 마이그레이션: 기존 users 테이블에 name 컬럼 추가
+  try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
   _dbReady = true;
 }
 
@@ -114,7 +117,7 @@ export default {
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
         const queries = {
-          labor: '고용 노동 최저임금 근로 취업 노동부 고용보험 산업재해 워크넷 실업급여 직업훈련 일자리 채용',
+          labor: '고용노동부 취업 일자리',
           local: '마포구 OR 용산구 OR 서대문구 OR 은평구 고용 취업',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
@@ -414,36 +417,90 @@ export default {
 
       // ── 사용자 관리 ──
       if (p === '/api/users' && m === 'GET') {
-        const rows = await env.DB.prepare('SELECT id, status, created_at FROM users ORDER BY created_at ASC').all();
+        const rows = await env.DB.prepare('SELECT id, name, status, created_at FROM users ORDER BY created_at ASC').all();
         return json(rows.results);
       }
-      if (p.match(/^\/api\/users\/[^/]+\/approve$/) && m === 'PUT') {
+      if (p === '/api/users' && m === 'POST') {
+        const { id, name, password } = await request.json();
+        if (!id || !/^\d{9}$/.test(id)) return json({ error: '온나라 사번은 9자리 숫자입니다.' }, 400);
+        if (!name || !name.trim()) return json({ error: '이름을 입력해주세요.' }, 400);
+        const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
+        if (exists) return json({ error: '이미 등록된 사번입니다.' }, 409);
+        await env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?)')
+          .bind(id, name.trim(), password || '1234', 'active', Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(id, 'user').run();
+        return json({ ok: true });
+      }
+      if (p === '/api/users/bulk' && m === 'POST') {
+        const { users: list } = await request.json();
+        if (!Array.isArray(list)) return json({ error: 'invalid' }, 400);
+        let created = 0, skipped = 0;
+        for (const u of list) {
+          const uid = (u.id || '').trim(), uname = (u.name || '').trim(), upw = (u.password || '1234').trim();
+          if (!uid || !/^\d{9}$/.test(uid) || !uname) { skipped++; continue; }
+          const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(uid).first();
+          if (exists) { skipped++; continue; }
+          await env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?)')
+            .bind(uid, uname, upw, 'active', Math.floor(Date.now() / 1000)).run();
+          await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(uid, 'user').run();
+          created++;
+        }
+        return json({ ok: true, created, skipped });
+      }
+      if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
         const userId = decodeURIComponent(p.split('/')[3]);
-        await env.DB.prepare('UPDATE users SET status=? WHERE id=?').bind('active', userId).run();
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind('1234', userId).run();
+        await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
+        return json({ ok: true });
+      }
+      if (p.match(/^\/api\/users\/[^/]+\/change-password$/) && m === 'PUT') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        const { token, old_password, new_password } = await request.json();
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(userId).first();
+        if (!user) return json({ error: '사용자를 찾을 수 없습니다.' }, 404);
+        if (token) {
+          const sess = await env.DB.prepare('SELECT 1 FROM sessions WHERE token=? AND user_id=?').bind(token, userId).first();
+          if (!sess) return json({ error: '인증 오류' }, 401);
+        } else if (user.password !== old_password) {
+          return json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400);
+        }
+        if (!new_password || new_password.length < 4) return json({ error: '새 비밀번호는 4자 이상이어야 합니다.' }, 400);
+        if (new_password === '1234') return json({ error: '초기 비밀번호는 사용할 수 없습니다.' }, 400);
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(new_password, userId).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/users\/[^/]+$/) && m === 'DELETE') {
         const userId = decodeURIComponent(p.split('/')[3]);
         if (userId === '관리자') return json({ error: '관리자는 삭제할 수 없습니다.' }, 400);
         await env.DB.prepare('DELETE FROM users WHERE id=?').bind(userId).run();
+        await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
         return json({ ok: true });
       }
 
-      // ── 로그인 / 회원가입 ──
+      // ── 로그인 / 세션 ──
       if (p === '/api/login' && m === 'POST') {
         const { id, password } = await request.json();
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
-        if (!user || user.password !== password) return json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, 401);
+        if (!user || user.password !== password) return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401);
         if (user.status === 'pending') return json({ error: '관리자 승인 대기 중입니다.' }, 403);
-        return json({ ok: true, id: user.id });
+        const token = crypto.randomUUID();
+        await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, Math.floor(Date.now()/1000)).run();
+        // 오래된 세션 정리 (최근 5개만 유지)
+        await env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run();
+        return json({ ok: true, id: user.id, name: user.name || user.id, token, must_change_password: user.password === '1234' });
       }
-      if (p === '/api/register' && m === 'POST') {
-        const { id, password } = await request.json();
-        if (!id || !password || id.length < 2) return json({ error: '아이디는 2자 이상이어야 합니다.' }, 400);
-        const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
-        if (exists) return json({ error: '이미 사용 중인 아이디입니다.' }, 409);
-        await env.DB.prepare('INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?)')
-          .bind(id, password, 'pending', Math.floor(Date.now() / 1000)).run();
+      if (p === '/api/verify-session' && m === 'POST') {
+        const { token } = await request.json();
+        if (!token) return json({ error: 'no token' }, 401);
+        const sess = await env.DB.prepare('SELECT * FROM sessions WHERE token=?').bind(token).first();
+        if (!sess) return json({ error: 'invalid' }, 401);
+        const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(sess.user_id).first();
+        if (!user || user.status !== 'active') return json({ error: 'user not found' }, 401);
+        return json({ ok: true, id: user.id, name: user.name || user.id, must_change_password: user.password === '1234' });
+      }
+      if (p === '/api/sessions' && m === 'DELETE') {
+        const { token } = await request.json();
+        if (token) await env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(token).run();
         return json({ ok: true });
       }
 
