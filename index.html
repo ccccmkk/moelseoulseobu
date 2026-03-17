@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="STEP"/>
 <meta name="theme-color" content="#37c272"/>
 <title>STEP</title>
+<script src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=663rfknnj7" defer></script>
 <style>
 html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -442,17 +443,7 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="section-title">공덕·마포역 맛집</span>
         <button class="btn-sm primary" id="addRestBtn" style="display:none" onclick="openAddRestModal()">+ 맛집 추가</button>
       </div>
-      <div style="border-radius:var(--radius);overflow:hidden;margin-bottom:14px;border:1px solid var(--border)">
-        <iframe
-          src="https://www.openstreetmap.org/export/embed.html?bbox=126.9380%2C37.5410%2C126.9570%2C37.5530&layer=mapnik&marker=37.5455%2C126.9513"
-          style="width:100%;height:240px;border:none;display:block"
-          title="공덕·마포역 주변 지도"
-          loading="lazy"
-        ></iframe>
-        <div style="padding:6px 12px;font-size:11px;color:var(--text-hint);background:#fafafa;border-top:1px solid var(--border)">
-          공덕역 · 마포역 주변 · <a href="https://www.openstreetmap.org/#map=16/37.5483/37.5483" target="_blank" style="color:var(--green);text-decoration:none">더 크게 보기</a>
-        </div>
-      </div>
+      <div id="naverMap" style="width:100%;height:260px;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
       <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
     </div>
   </div>
@@ -1137,7 +1128,7 @@ function switchNewsMainTab(sub){
   });
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
-  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
+  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); initNaverMap(); }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
 // legacy stub
@@ -1173,6 +1164,22 @@ async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles
 
 // ── 뉴스 ──
 let newsCat='labor', lawLoaded=false, lunchLoaded=false;
+let _naverMapInited=false;
+function initNaverMap(){
+  if(_naverMapInited||!window.naver||!window.naver.maps)return;
+  _naverMapInited=true;
+  const map=new naver.maps.Map('naverMap',{
+    center:new naver.maps.LatLng(37.5474,126.9476),
+    zoom:16,mapTypeControl:false,zoomControl:true,
+    zoomControlOptions:{position:naver.maps.Position.TOP_RIGHT}
+  });
+  [{lat:37.5455,lng:126.9513,title:'공덕역'},{lat:37.5496,lng:126.9438,title:'마포역'}].forEach(s=>{
+    new naver.maps.Marker({position:new naver.maps.LatLng(s.lat,s.lng),map,
+      icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2)">${s.title}</div>`,anchor:new naver.maps.Point(0,0)}
+    });
+  });
+  window._naverMap=map;
+}
 function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
