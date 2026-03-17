@@ -856,9 +856,27 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div class="admin-section">
         <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
           <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
+          <span style="font-size:12px;color:var(--text-hint)">대댓글 모드:</span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="botMode" value="manual" id="botModeManual" onchange="setBotMode('manual')" checked/> 수동
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="botMode" value="auto" id="botModeAuto" onchange="setBotMode('auto')"/> 자동
+          </label>
+          <select id="botInterval" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;display:none" onchange="setBotMode('auto')">
+            <option value="1">1분마다</option>
+            <option value="3" selected>3분마다</option>
+            <option value="5">5분마다</option>
+            <option value="10">10분마다</option>
+          </select>
+        </div>
+        <div id="botManualRow">
           <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
+        </div>
+        <div id="botAutoRow" style="display:none">
+          <span id="botAutoStatus" style="font-size:12px;color:#2e7d32">⏱ 자동 실행 중...</span>
         </div>
         <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
       </div>
@@ -1767,6 +1785,30 @@ async function checkNotiBadge(){
   }catch(e){}
 }
 // ── 건강봇 에이전트 ──
+let _botTimer = null;
+function setBotMode(mode){
+  clearInterval(_botTimer);_botTimer=null;
+  localStorage.setItem('botMode', mode);
+  const isAuto = mode==='auto';
+  $('botManualRow').style.display = isAuto?'none':'';
+  $('botAutoRow').style.display = isAuto?'':'none';
+  $('botInterval').style.display = isAuto?'':'none';
+  if(isAuto){
+    const mins = parseInt($('botInterval').value)||3;
+    const tick = ()=>{
+      const now=new Date();
+      $('botAutoStatus').textContent=`⏱ 자동 실행 중 (${mins}분 간격) — 마지막: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+      agentHealthReply();
+    };
+    tick();
+    _botTimer = setInterval(tick, mins*60*1000);
+  }
+}
+function initBotMode(){
+  const saved=localStorage.getItem('botMode')||'manual';
+  if(saved==='auto'){$('botModeAuto').checked=true;setBotMode('auto');}
+  else{$('botModeManual').checked=true;}
+}
 async function agentHealthPost(){
   const btn=$('agentPostBtn');const msg=$('agentMsg');
   btn.disabled=true;msg.style.color='var(--text-hint)';msg.textContent='글 생성 중...';
@@ -1796,6 +1838,7 @@ async function agentHealthReply(){
 // ── 관리자 ──
 async function openAdminModal(){
   $('adminModal').classList.add('open');
+  initBotMode();
   $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
   // 저장공간
   fetch(`${API}/api/usage`).then(r=>r.json()).then(d=>{
