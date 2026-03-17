@@ -314,18 +314,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <div class="lf-err" id="lerr"></div>
       <button type="submit" class="btn-green" id="loginBtn">로그인</button>
     </form>
-    <div class="lf-switch">계정이 없으신가요? <a onclick="toggleRegister(true)">회원가입</a></div>
-    <!-- 회원가입 폼 -->
-    <form class="lf" id="registerForm" onsubmit="return false" style="display:none">
-      <label>아이디 (2자 이상)</label>
-      <input type="text" id="reg_id" placeholder="사용할 아이디"/>
-      <label>비밀번호</label>
-      <input type="password" id="reg_pw" placeholder="비밀번호"/>
-      <div class="lf-err" id="reg_err"></div>
-      <div class="lf-success" id="reg_ok"></div>
-      <button type="submit" class="btn-green" id="registerBtn">회원가입 신청</button>
-    </form>
-    <div class="lf-switch" id="regSwitch" style="display:none">이미 계정이 있으신가요? <a onclick="toggleRegister(false)">로그인</a></div>
+    <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--text-hint)">계정이 없으면 관리자에게 문의하세요.</div>
   </div>
 </div>
 
@@ -457,7 +446,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       </div>
       <div class="keyword-row">
         <span>#태그</span>
-        <input type="text" id="postKeyword" placeholder="주제 태그 (예: 공지, 자유)" maxlength="20"/>
+        <select id="postKeyword" style="flex:1;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;background:#fff;transition:border-color .15s">
+          <option value="">태그 없음</option>
+          <option value="맛집">🍽️ 맛집</option>
+          <option value="여행">✈️ 여행</option>
+          <option value="취미">🎨 취미</option>
+          <option value="재테크">💰 재테크</option>
+          <option value="기타">📌 기타</option>
+        </select>
       </div>
     </div>
     <div class="modal-footer">
@@ -682,6 +678,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <div class="admin-section">
         <div class="admin-section-title">Claude API 사용량</div>
         <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+      <div class="admin-section">
+        <div class="admin-section-title">계정 만들기</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:100px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">아이디</div>
+            <input type="text" id="newUserId" placeholder="아이디" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
+          <div style="flex:1;min-width:100px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">비밀번호</div>
+            <input type="text" id="newUserPw" placeholder="비밀번호" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
+          <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
+        </div>
+        <div id="newUserMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
       </div>
       <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
@@ -1279,6 +1290,20 @@ async function openAdminModal(){
     }).join('');
   }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
+async function createUserAdmin(){
+  const id=$('newUserId').value.trim(),pw=$('newUserPw').value.trim();
+  const msg=$('newUserMsg');
+  if(!id||id.length<2){msg.style.color='var(--danger)';msg.textContent='아이디는 2자 이상이어야 합니다.';return;}
+  if(!pw){msg.style.color='var(--danger)';msg.textContent='비밀번호를 입력해주세요.';return;}
+  try{
+    const r=await fetch(`${API}/api/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
+    const d=await r.json();
+    if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
+    msg.style.color='#2e7d32';msg.textContent=`✓ '${id}' 계정이 생성되었습니다.`;
+    $('newUserId').value='';$('newUserPw').value='';
+    setTimeout(()=>openAdminModal(),800);
+  }catch(e){msg.style.color='var(--danger)';msg.textContent='오류가 발생했습니다.';}
+}
 async function approveUser(userId){
   await fetch(`${API}/api/users/${encodeURIComponent(userId)}/approve`,{method:'PUT'});
   openAdminModal();
@@ -1373,17 +1398,8 @@ async function openUserProfile(userId){
   }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
 
-// ── 로그인 / 회원가입 ──
+// ── 로그인 ──
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
-function toggleRegister(show){
-  $('loginForm').style.display=show?'none':'';
-  document.querySelectorAll('.lf-switch').forEach(el=>el.style.display='');
-  $('registerForm').style.display=show?'':'none';
-  $('regSwitch').style.display=show?'':'none';
-  if(!show)document.querySelector('.lf-switch:not(#regSwitch)').style.display='';
-  else document.querySelector('.lf-switch:not(#regSwitch)').style.display='none';
-  $('lerr').textContent='';$('reg_err').textContent='';$('reg_ok').textContent='';
-}
 async function doLogin(e){
   if(e)e.preventDefault();
   const id=$('uid').value.trim(),pw=$('upw').value.trim();
@@ -1399,23 +1415,7 @@ async function doLogin(e){
   }catch(e){$('lerr').textContent='서버 오류가 발생했습니다.';}
   finally{$('loginBtn').disabled=false;}
 }
-async function doRegister(e){
-  if(e)e.preventDefault();
-  const id=$('reg_id').value.trim(),pw=$('reg_pw').value.trim();
-  if(!id||id.length<2){$('reg_err').textContent='아이디는 2자 이상이어야 합니다.';return;}
-  if(!pw){$('reg_err').textContent='비밀번호를 입력해주세요.';return;}
-  $('registerBtn').disabled=true;$('reg_err').textContent='';$('reg_ok').textContent='';
-  try{
-    const r=await fetch(`${API}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
-    const d=await r.json();
-    if(d.error){$('reg_err').textContent=d.error;return;}
-    $('reg_ok').textContent='✓ 신청 완료! 관리자 승인 후 로그인 가능합니다.';
-    $('reg_id').value='';$('reg_pw').value='';
-  }catch(e){$('reg_err').textContent='서버 오류가 발생했습니다.';}
-  finally{$('registerBtn').disabled=false;}
-}
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
-$('registerForm').onsubmit=doRegister;$('registerBtn').onclick=doRegister;
 (async()=>{
   const savedId=localStorage.getItem('saved_id'),savedPw=localStorage.getItem('saved_pw');
   if(savedId&&savedPw){
@@ -1434,7 +1434,7 @@ $('searchInput').oninput=function(){renderSearch(this.value.trim());};
 $('logoutBtn').onclick=function(){
   currentUser='';posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};currentUserRole='user';
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  $('uid').value='';$('upw').value='';$('lerr').textContent='';toggleRegister(false);
+  $('uid').value='';$('upw').value='';$('lerr').textContent='';
   $('adminBtn').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };

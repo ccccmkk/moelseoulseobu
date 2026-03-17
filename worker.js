@@ -114,7 +114,7 @@ export default {
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
         const queries = {
-          labor: '고용 노동 최저임금 근로 취업 노동부 고용보험 산업재해 워크넷 실업급여 직업훈련 일자리 채용',
+          labor: '고용노동부 취업 일자리',
           local: '마포구 OR 용산구 OR 서대문구 OR 은평구 고용 취업',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
@@ -413,6 +413,16 @@ export default {
       }
 
       // ── 사용자 관리 ──
+      if (p === '/api/users' && m === 'POST') {
+        const { id, password } = await request.json();
+        if (!id || !password || id.length < 2) return json({ error: '아이디는 2자 이상이어야 합니다.' }, 400);
+        const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
+        if (exists) return json({ error: '이미 사용 중인 아이디입니다.' }, 409);
+        await env.DB.prepare('INSERT INTO users(id,password,status,created_at) VALUES(?,?,?,?)')
+          .bind(id, password, 'active', Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(id, 'user').run();
+        return json({ ok: true });
+      }
       if (p === '/api/users' && m === 'GET') {
         const rows = await env.DB.prepare('SELECT id, status, created_at FROM users ORDER BY created_at ASC').all();
         return json(rows.results);
