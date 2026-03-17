@@ -62,6 +62,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS user_presence (user_id TEXT PRIMARY KEY, last_seen INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, author TEXT, content TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS claude_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS gemini_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS kudos (id TEXT PRIMARY KEY, tag TEXT, source TEXT, content TEXT, added_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS monthly_contests (id TEXT PRIMARY KEY, title TEXT, description TEXT, nominate_start INTEGER, nominate_end INTEGER, vote_start INTEGER, vote_end INTEGER, created_by TEXT, winner TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS nominations (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, nominated_by TEXT, message TEXT, is_anonymous INTEGER DEFAULT 0, created_at INTEGER, UNIQUE(contest_id, nominated_by))`,
@@ -637,6 +638,12 @@ export default {
         return json({ ok: true });
       }
 
+      // ── Gemini API 사용량 ──
+      if (p === '/api/gemini-usage' && m === 'GET') {
+        const row = await env.DB.prepare('SELECT * FROM gemini_usage WHERE id=1').first();
+        return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+      }
+
       // ── Claude API 사용량 ──
       if (p === '/api/claude-usage' && m === 'GET') {
         const row = await env.DB.prepare('SELECT * FROM claude_usage WHERE id=1').first();
@@ -752,6 +759,11 @@ export default {
                 replyContent = gText + FOOTER;
                 apiUsed = true;
                 usedModel = 'gemini';
+                const gIn = gData.usageMetadata?.promptTokenCount || 0;
+                const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
+                await env.DB.prepare(
+                  'INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
+                ).bind(gIn, gOut, Math.floor(Date.now()/1000), gIn, gOut, Math.floor(Date.now()/1000)).run();
               } else {
                 apiError = 'Gemini 응답 없음: ' + JSON.stringify(gData).slice(0, 100);
               }
