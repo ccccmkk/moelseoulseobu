@@ -743,7 +743,7 @@ export default {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+                  systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
                   contents: [{ role: 'user', parts: [{ text: targetComment.content }] }],
                   generationConfig: { maxOutputTokens: 300 },
                 }),
