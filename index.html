@@ -141,6 +141,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 /* 뉴스 */
 .news-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s;display:block;text-decoration:none;color:inherit}
 .news-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+/* 맛집 */
+.rest-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
 .news-source{display:inline-block;font-size:11px;font-weight:600;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:20px;margin-bottom:6px}
 .news-title{font-size:14px;font-weight:600;line-height:1.55;margin-bottom:5px}
 .news-date{font-size:11px;color:var(--text-hint)}
@@ -412,19 +414,54 @@ button,a,[role="button"]{touch-action:manipulation}
   <!-- 뉴스/정보 탭 -->
   <div id="tabNews" class="tab-page">
     <div class="sub-tabs">
-      <button class="sub-tab active" id="sub-news" onclick="switchSubTab('news')">뉴스</button>
-      <button class="sub-tab" id="sub-info" onclick="switchSubTab('info')">정보</button>
+      <button class="sub-tab active" id="sub-news" onclick="switchNewsMainTab('news')">뉴스</button>
+      <button class="sub-tab" id="sub-law" onclick="switchNewsMainTab('law')">법률</button>
+      <button class="sub-tab" id="sub-lunch" onclick="switchNewsMainTab('lunch')">점심</button>
     </div>
-    <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
-      <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
-      <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역뉴스</button>
+    <!-- 뉴스 -->
+    <div id="newsMainPane">
+      <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
+        <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
+        <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역뉴스</button>
+      </div>
+      <div id="newsContent"></div>
     </div>
-    <div id="newsContent"></div>
-    <div id="infoContent" style="display:none">
-      <div class="info-placeholder">
-        <div class="ip-icon">⚖️</div>
-        <h3>법령 AI 시스템</h3>
-        <p>고용노동 관련 법령 검색 및 AI 상담 기능이<br/>준비 중입니다.<br/><br/>빠른 시일 내에 서비스를 제공할 예정입니다.</p>
+    <!-- 법률 -->
+    <div id="lawMainPane" style="display:none">
+      <div id="lawContent"></div>
+    </div>
+    <!-- 점심 -->
+    <div id="lunchMainPane" style="display:none">
+      <div class="section-hd">
+        <span class="section-title">공덕·마포역 맛집</span>
+        <button class="btn-sm primary" id="addRestBtn" style="display:none" onclick="openAddRestModal()">+ 맛집 추가</button>
+      </div>
+      <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <!-- 맛집 추가 모달 -->
+  <div class="modal-overlay" id="addRestModal">
+    <div class="modal-card" style="max-width:400px">
+      <div class="modal-header">
+        <span class="modal-title">맛집 추가</span>
+        <button class="modal-close" onclick="$('addRestModal').classList.remove('open')">×</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <input id="restName" type="text" placeholder="식당 이름 *" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
+        <input id="restAddress" type="text" placeholder="주소 (예: 마포구 공덕동 123)" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
+        <div style="display:flex;gap:8px">
+          <select id="restCategory" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
+            <option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>분식</option><option>카페</option><option>기타</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;border:1px solid var(--border);border-radius:8px;padding:0 10px">
+            <span style="font-size:13px;white-space:nowrap;color:var(--text-sub)">도보</span>
+            <input id="restWalk" type="number" value="5" min="1" max="30" style="width:40px;border:none;font-size:14px;text-align:center;font-family:inherit"/>
+            <span style="font-size:13px;color:var(--text-sub)">분</span>
+          </div>
+        </div>
+        <textarea id="restNote" placeholder="한줄 설명 (예: 된장찌개 맛집, 점심 특선 7000원)" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none"></textarea>
+        <button onclick="submitAddRest()" class="btn-primary" style="width:100%;padding:12px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">추가</button>
       </div>
     </div>
   </div>
@@ -516,7 +553,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>서부소식
     </button>
     <button class="nav-btn" id="nav-news" onclick="switchTab('News')">
-      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스
+      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스/정보
     </button>
     <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
@@ -1055,12 +1092,20 @@ function switchTab(tab){
     $('moreUserSub').textContent=currentUser;
   }
 }
+let newsMainTab='news';
+function switchNewsMainTab(sub){
+  newsMainTab=sub;
+  ['news','law','lunch'].forEach(t=>{
+    $(`sub-${t}`).className='sub-tab'+(sub===t?' active':'');
+    $(`${t}MainPane`).style.display=sub===t?'':'none';
+  });
+  if(sub==='news'&&!newsCache) loadNews();
+  if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
+  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
+  if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
+}
+// legacy stub
 function switchSubTab(sub){
-  $('newsContent').style.display=sub==='news'?'':'none';
-  $('infoContent').style.display=sub==='info'?'':'none';
-  $('newsCatTabs').style.display=sub==='news'?'':'none';
-  $('sub-news').className='sub-tab'+(sub==='news'?' active':'');
-  $('sub-info').className='sub-tab'+(sub==='info'?' active':'');
   if(sub==='news')loadNews();
 }
 
@@ -1091,12 +1136,27 @@ async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchCon
 async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
 
 // ── 뉴스 ──
-let newsCat='labor';
+let newsCat='labor', lawLoaded=false, lunchLoaded=false;
 function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
   newsCache=null;loadNews();
+}
+async function loadLaw(){
+  const box=$('lawContent');
+  box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
+  try{
+    const items=await fetch(`${API}/api/news?category=law`).then(r=>r.json());
+    if(!Array.isArray(items)||!items.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">뉴스 없음</div>';return;}
+    box.innerHTML=items.map(it=>{
+      const d=it.pubDate?new Date(it.pubDate).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}):'';
+      return `<a class="news-card" href="${escHtml(it.link||'#')}" target="_blank" rel="noopener">
+        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:6px;color:var(--text)">${escHtml(it.title)}</div>
+        <div style="font-size:12px;color:var(--text-hint)">${escHtml(it.source||'')} ${d}</div>
+      </a>`;
+    }).join('');
+  }catch(e){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
 }
 async function loadNews(){
   const now=Date.now();
@@ -1843,6 +1903,103 @@ async function agentHealthReply(){
     msg.style.color=d.api_used?'#2e7d32':'var(--warning)';msg.textContent=`✓ 대댓글 작성 완료 ${apiStatus}`;
   }catch(e){msg.style.color='var(--danger)';msg.textContent='오류: '+e.message;}
   finally{btn.disabled=false;}
+}
+
+// ── 맛집 ──
+const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
+async function loadRestaurants(){
+  const box=$('restaurantList');
+  try{
+    const list=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`).then(r=>r.json());
+    if(!list.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
+    box.innerHTML=list.map(r=>renderRestCard(r)).join('');
+  }catch(e){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
+}
+function renderRestCard(r){
+  const catColor=CAT_COLORS[r.category]||'#90a4ae';
+  const upActive=r.my_vote===1?'background:var(--green);color:#fff;':'';
+  const dnActive=r.my_vote===-1?'background:#e53935;color:#fff;':'';
+  return `<div class="rest-card" id="rc-${r.id}">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:15px;font-weight:700">${escHtml(r.name)}</span>
+          <span style="font-size:11px;font-weight:600;color:#fff;background:${catColor};padding:2px 7px;border-radius:10px">${escHtml(r.category)}</span>
+          <span style="font-size:12px;color:var(--text-hint)">도보 ${r.walk_min}분</span>
+        </div>
+        ${r.address?`<div style="font-size:12px;color:var(--text-sub);margin-bottom:3px">${escHtml(r.address)}</div>`:''}
+        ${r.note?`<div style="font-size:13px;color:var(--text)">${escHtml(r.note)}</div>`:''}
+      </div>
+      ${currentUserRole==='admin'?`<button onclick="deleteRest('${r.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0">×</button>`:''}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button onclick="voteRest('${r.id}',1)" style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px;${upActive}background:${r.my_vote===1?'var(--green)':'#fff'};color:${r.my_vote===1?'#fff':'var(--text-sub)'}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+        추천 ${r.up_count}
+      </button>
+      <button onclick="voteRest('${r.id}',-1)" style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px;background:${r.my_vote===-1?'#e53935':'#fff'};color:${r.my_vote===-1?'#fff':'var(--text-sub)'}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>
+        비추천 ${r.down_count}
+      </button>
+      <button onclick="toggleRestReviews('${r.id}')" style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px;background:#fff;color:var(--text-sub)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        댓글 ${r.review_count}
+      </button>
+    </div>
+    <div id="rev-${r.id}" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+      <div id="revList-${r.id}" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="revInput-${r.id}" placeholder="한줄 평..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:20px;font-size:14px;font-family:inherit;outline:none"/>
+        <button onclick="submitRestReview('${r.id}')" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">등록</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function toggleRestReviews(id){
+  const box=$(`rev-${id}`);
+  if(box.style.display!=='none'){box.style.display='none';return;}
+  box.style.display='';
+  const revList=$(`revList-${id}`);
+  revList.innerHTML='<div style="font-size:12px;color:var(--text-hint)">불러오는 중...</div>';
+  const reviews=await fetch(`${API}/api/restaurants/${id}/reviews`).then(r=>r.json());
+  if(!reviews.length){revList.innerHTML='<div style="font-size:12px;color:var(--text-hint);padding:4px 0">아직 댓글이 없습니다.</div>';return;}
+  revList.innerHTML=reviews.map(r=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+    <span><b>${escHtml(r.author)}</b> <span style="color:var(--text-sub)">${escHtml(r.content)}</span></span>
+    ${(r.author===currentUser||currentUserRole==='admin')?`<button onclick="deleteRestReview('${r.id}','${id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:12px">삭제</button>`:''}
+  </div>`).join('');
+}
+async function submitRestReview(id){
+  const inp=$(`revInput-${id}`);
+  const txt=inp.value.trim();
+  if(!txt) return;
+  inp.value='';
+  await fetch(`${API}/api/restaurants/${id}/reviews`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
+  toggleRestReviews(id); setTimeout(()=>toggleRestReviews(id),100);
+}
+async function deleteRestReview(reviewId, restId){
+  await fetch(`${API}/api/restaurant-reviews/${reviewId}`,{method:'DELETE'});
+  toggleRestReviews(restId); setTimeout(()=>toggleRestReviews(restId),100);
+}
+async function voteRest(id, vote){
+  const r=await fetch(`${API}/api/restaurants/${id}/vote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser,vote})}).then(r=>r.json());
+  lunchLoaded=false; loadRestaurants();
+}
+async function deleteRest(id){
+  if(!confirm('이 맛집을 삭제할까요?')) return;
+  await fetch(`${API}/api/restaurants/${id}`,{method:'DELETE'});
+  loadRestaurants();
+}
+function openAddRestModal(){ $('addRestModal').classList.add('open'); }
+async function submitAddRest(){
+  const name=$('restName').value.trim();
+  if(!name){alert('식당 이름을 입력해주세요.');return;}
+  await fetch(`${API}/api/restaurants`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    name, address:$('restAddress').value.trim(), category:$('restCategory').value,
+    walk_min:parseInt($('restWalk').value)||5, note:$('restNote').value.trim(), added_by:currentUser
+  })});
+  $('addRestModal').classList.remove('open');
+  ['restName','restAddress','restNote'].forEach(id=>$(id).value='');
+  loadRestaurants();
 }
 
 async function loadClaudeSetting(){

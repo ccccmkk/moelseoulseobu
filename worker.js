@@ -69,6 +69,9 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS nominee_msgs (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, content TEXT, author_display TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS contest_votes (contest_id TEXT, voter TEXT, nominee TEXT, PRIMARY KEY(contest_id, voter))`,
     `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
+    `CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, name TEXT, address TEXT, category TEXT, walk_min INTEGER DEFAULT 5, note TEXT, added_by TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS restaurant_reviews (id TEXT PRIMARY KEY, restaurant_id TEXT, author TEXT, content TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS restaurant_votes (restaurant_id TEXT, user_id TEXT, vote INTEGER, PRIMARY KEY(restaurant_id, user_id))`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -139,6 +142,7 @@ export default {
           labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
           local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
           health: '질병관리청 OR 보건복지부 건강',
+          law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
         const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(queries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
@@ -831,6 +835,63 @@ export default {
         const key = p.split('/')[3];
         const { value } = await request.json();
         await env.DB.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=?').bind(key, value, value).run();
+        return json({ ok: true });
+      }
+
+      // ── 맛집 ──
+      if (p === '/api/restaurants' && m === 'GET') {
+        const userId = url.searchParams.get('user_id') || '';
+        const rows = await env.DB.prepare('SELECT r.*, COALESCE(up.up,0) as up_count, COALESCE(dn.dn,0) as down_count, COALESCE(rc.cnt,0) as review_count FROM restaurants r LEFT JOIN (SELECT restaurant_id, COUNT(*) as up FROM restaurant_votes WHERE vote=1 GROUP BY restaurant_id) up ON r.id=up.restaurant_id LEFT JOIN (SELECT restaurant_id, COUNT(*) as dn FROM restaurant_votes WHERE vote=-1 GROUP BY restaurant_id) dn ON r.id=dn.restaurant_id LEFT JOIN (SELECT restaurant_id, COUNT(*) as cnt FROM restaurant_reviews GROUP BY restaurant_id) rc ON r.id=rc.restaurant_id ORDER BY r.created_at DESC').all();
+        let myVotes = {};
+        if (userId) {
+          const vr = await env.DB.prepare('SELECT restaurant_id, vote FROM restaurant_votes WHERE user_id=?').bind(userId).all();
+          vr.results.forEach(v => { myVotes[v.restaurant_id] = v.vote; });
+        }
+        return json(rows.results.map(r => ({ ...r, my_vote: myVotes[r.id] || 0 })));
+      }
+      if (p === '/api/restaurants' && m === 'POST') {
+        const b = await request.json();
+        if (!b.name) return json({ error: '이름 필수' }, 400);
+        const id = 'rst_' + Date.now();
+        await env.DB.prepare('INSERT INTO restaurants(id,name,address,category,walk_min,note,added_by,created_at) VALUES(?,?,?,?,?,?,?,?)')
+          .bind(id, b.name, b.address||'', b.category||'기타', b.walk_min||5, b.note||'', b.added_by||'', Math.floor(Date.now()/1000)).run();
+        return json({ id });
+      }
+      if (p.match(/^\/api\/restaurants\/[^/]+$/) && m === 'DELETE') {
+        const id = p.split('/')[3];
+        await env.DB.prepare('DELETE FROM restaurants WHERE id=?').bind(id).run();
+        await env.DB.prepare('DELETE FROM restaurant_reviews WHERE restaurant_id=?').bind(id).run();
+        await env.DB.prepare('DELETE FROM restaurant_votes WHERE restaurant_id=?').bind(id).run();
+        return json({ ok: true });
+      }
+      if (p.match(/^\/api\/restaurants\/[^/]+\/vote$/) && m === 'POST') {
+        const restaurantId = p.split('/')[3];
+        const { user_id, vote } = await request.json(); // vote: 1 or -1
+        const existing = await env.DB.prepare('SELECT vote FROM restaurant_votes WHERE restaurant_id=? AND user_id=?').bind(restaurantId, user_id).first();
+        if (existing && existing.vote === vote) {
+          await env.DB.prepare('DELETE FROM restaurant_votes WHERE restaurant_id=? AND user_id=?').bind(restaurantId, user_id).run();
+          return json({ vote: 0 });
+        }
+        await env.DB.prepare('INSERT INTO restaurant_votes(restaurant_id,user_id,vote) VALUES(?,?,?) ON CONFLICT(restaurant_id,user_id) DO UPDATE SET vote=?').bind(restaurantId, user_id, vote, vote).run();
+        return json({ vote });
+      }
+      if (p.match(/^\/api\/restaurants\/[^/]+\/reviews$/) && m === 'GET') {
+        const restaurantId = p.split('/')[3];
+        const rows = await env.DB.prepare('SELECT * FROM restaurant_reviews WHERE restaurant_id=? ORDER BY created_at DESC').bind(restaurantId).all();
+        return json(rows.results);
+      }
+      if (p.match(/^\/api\/restaurants\/[^/]+\/reviews$/) && m === 'POST') {
+        const restaurantId = p.split('/')[3];
+        const { author, content } = await request.json();
+        if (!content?.trim()) return json({ error: '내용 필수' }, 400);
+        const id = 'rr_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+        await env.DB.prepare('INSERT INTO restaurant_reviews(id,restaurant_id,author,content,created_at) VALUES(?,?,?,?,?)')
+          .bind(id, restaurantId, author, content.trim(), Math.floor(Date.now()/1000)).run();
+        return json({ id });
+      }
+      if (p.match(/^\/api\/restaurant-reviews\/[^/]+$/) && m === 'DELETE') {
+        const id = p.split('/')[3];
+        await env.DB.prepare('DELETE FROM restaurant_reviews WHERE id=?').bind(id).run();
         return json({ ok: true });
       }
 
