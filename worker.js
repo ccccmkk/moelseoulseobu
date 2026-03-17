@@ -137,7 +137,7 @@ export default {
       // ── 글 목록 ──
       if (p === '/api/posts' && m === 'GET') {
         const rows = await env.DB.prepare(
-          'SELECT p.*, COALESCE(cc.cnt,0) as comment_count FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id ORDER BY p.created_at DESC'
+          'SELECT p.*, COALESCE(cc.cnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id ORDER BY p.created_at DESC'
         ).all();
         return json(rows.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })));
       }
@@ -149,6 +149,10 @@ export default {
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
           .bind(id, b.author, JSON.stringify(b.blocks), now).run();
+        if (b.keyword) {
+          await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
+            .bind(id, b.keyword, b.keyword).run();
+        }
         await addMileageDB(env, b.author, 2);
         return json({ id });
       }
@@ -158,6 +162,14 @@ export default {
         const id = p.split('/')[3];
         const b = await request.json();
         await env.DB.prepare('UPDATE posts SET blocks=? WHERE id=?').bind(JSON.stringify(b.blocks), id).run();
+        if (b.keyword !== undefined) {
+          if (b.keyword) {
+            await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
+              .bind(id, b.keyword, b.keyword).run();
+          } else {
+            await env.DB.prepare('DELETE FROM post_keywords WHERE post_id=?').bind(id).run();
+          }
+        }
         return json({ ok: true });
       }
 
@@ -199,8 +211,16 @@ export default {
       // ── 댓글 목록 ──
       if (p.match(/^\/api\/posts\/[^/]+\/comments$/) && m === 'GET') {
         const postId = p.split('/')[3];
-        const rows = await env.DB.prepare('SELECT * FROM comments WHERE post_id=? ORDER BY created_at ASC').bind(postId).all();
-        return json(rows.results);
+        const userId = url.searchParams.get('user_id');
+        const rows = await env.DB.prepare(
+          'SELECT c.*, COALESCE(cl.cnt,0) as like_count FROM comments c LEFT JOIN (SELECT comment_id, COUNT(*) as cnt FROM comment_likes GROUP BY comment_id) cl ON c.id=cl.comment_id WHERE c.post_id=? ORDER BY c.created_at ASC'
+        ).bind(postId).all();
+        let likedSet = new Set();
+        if (userId) {
+          const liked = await env.DB.prepare('SELECT comment_id FROM comment_likes WHERE user_id=?').bind(userId).all();
+          likedSet = new Set(liked.results.map(r => r.comment_id));
+        }
+        return json(rows.results.map(r => ({ ...r, user_liked: likedSet.has(r.id) })));
       }
 
       // ── 댓글 작성 ──
@@ -237,6 +257,13 @@ export default {
         }
         const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM comment_likes WHERE comment_id=?').bind(commentId).first();
         return json({ liked: !existing, count: cnt?.c || 0 });
+      }
+
+      // ── 답글 목록 ──
+      if (p.match(/^\/api\/comments\/[^/]+\/replies$/) && m === 'GET') {
+        const commentId = p.split('/')[3];
+        const rows = await env.DB.prepare('SELECT * FROM comment_replies WHERE comment_id=? ORDER BY created_at ASC').bind(commentId).all();
+        return json(rows.results);
       }
 
       // ── 답글 작성 ──
@@ -423,6 +450,19 @@ export default {
       if (p === '/api/mileage' && m === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM user_mileage ORDER BY points DESC').all();
         return json(rows.results);
+      }
+
+      // ── 프로필 ──
+      if (p === '/api/profiles' && m === 'GET') {
+        const rows = await env.DB.prepare('SELECT * FROM user_profiles').all();
+        return json(rows.results);
+      }
+      if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'PUT') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        const { avatar_url } = await request.json();
+        await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?')
+          .bind(userId, avatar_url, avatar_url).run();
+        return json({ ok: true });
       }
 
       // ── 프레즌스 ──
