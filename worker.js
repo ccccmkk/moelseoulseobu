@@ -474,7 +474,7 @@ export default {
 
       // ── 사용자 관리 ──
       if (p === '/api/users' && m === 'GET') {
-        const rows = await env.DB.prepare('SELECT u.id, u.name, u.status, u.created_at, up.last_seen FROM users u LEFT JOIN user_presence up ON u.id=up.user_id ORDER BY u.created_at ASC').all();
+        const rows = await env.DB.prepare('SELECT u.id, u.name, u.dept, u.status, u.created_at, up.last_seen FROM users u LEFT JOIN user_presence up ON u.id=up.user_id ORDER BY u.created_at ASC').all();
         return json(rows.results);
       }
       if (p === '/api/users' && m === 'POST') {
@@ -908,7 +908,7 @@ export default {
   },
 
   // Cloudflare Cron 트리거 (10분마다 자동 실행)
-  async scheduled(event, env, ctx) {
+  async scheduled(_event, env, ctx) {
     await initDB(env);
     ctx.waitUntil(
       fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
