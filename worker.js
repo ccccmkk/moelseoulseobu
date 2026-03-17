@@ -719,51 +719,91 @@ export default {
           if (targetComment) break;
         }
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
-        // Claude API로 답변 생성
+        // Gemini(무료) 우선 → 한도초과 시 Claude Haiku 폴백
+        const SYSTEM_PROMPT = '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.';
         const FOOTER = '\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
         let replyContent = null;
         let apiUsed = false;
         let apiError = null;
-        if (!env.ANTHROPIC_API_KEY) {
-          apiError = 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.';
-        } else {
+        let usedModel = null;
+
+        // 1단계: Gemini 무료 API 시도
+        if (env.GEMINI_API_KEY) {
           try {
-            const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-              },
-              body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 300,
-                system: '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.',
-                messages: [{ role: 'user', content: targetComment.content }],
-              }),
-            });
-            const aiData = await aiResp.json();
-            const aiText = aiData.content?.[0]?.text;
-            if (aiText) {
-              replyContent = aiText + FOOTER;
-              apiUsed = true;
+            const gResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+                  contents: [{ role: 'user', parts: [{ text: targetComment.content }] }],
+                  generationConfig: { maxOutputTokens: 300 },
+                }),
+              }
+            );
+            if (gResp.status === 429) {
+              // 분당 한도 초과 → Claude로 폴백
+              apiError = 'Gemini 한도초과(429), Claude로 폴백';
             } else {
-              apiError = aiData.error?.message || JSON.stringify(aiData);
+              const gData = await gResp.json();
+              const gText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (gText) {
+                replyContent = gText + FOOTER;
+                apiUsed = true;
+                usedModel = 'gemini';
+              } else {
+                apiError = 'Gemini 응답 없음: ' + JSON.stringify(gData).slice(0, 100);
+              }
             }
-            if (aiData.usage) {
-              await env.DB.prepare(
-                'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
-              ).bind(aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000), aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000)).run();
-            }
-          } catch(e) { apiError = e.message; }
+          } catch(e) { apiError = 'Gemini 오류: ' + e.message; }
         }
+
+        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백
+        if (!replyContent) {
+          if (!env.ANTHROPIC_API_KEY) {
+            apiError = (apiError ? apiError + ' | ' : '') + 'ANTHROPIC_API_KEY 미설정';
+          } else {
+            try {
+              const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': env.ANTHROPIC_API_KEY,
+                  'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                  model: 'claude-haiku-4-5-20251001',
+                  max_tokens: 300,
+                  system: SYSTEM_PROMPT,
+                  messages: [{ role: 'user', content: targetComment.content }],
+                }),
+              });
+              const aiData = await aiResp.json();
+              const aiText = aiData.content?.[0]?.text;
+              if (aiText) {
+                replyContent = aiText + FOOTER;
+                apiUsed = true;
+                usedModel = 'claude';
+              } else {
+                apiError = (apiError ? apiError + ' | ' : '') + (aiData.error?.message || JSON.stringify(aiData).slice(0, 100));
+              }
+              if (aiData.usage) {
+                await env.DB.prepare(
+                  'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
+                ).bind(aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000), aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000)).run();
+              }
+            } catch(e) { apiError = (apiError ? apiError + ' | ' : '') + 'Claude 오류: ' + e.message; }
+          }
+        }
+
         if (!replyContent) {
           replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
         }
         const replyId = 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(replyId, targetComment.id, AGENT_ID, replyContent, Math.floor(Date.now() / 1000)).run();
-        return json({ ok: true, comment_id: targetComment.id, api_used: apiUsed, api_error: apiError });
+        return json({ ok: true, comment_id: targetComment.id, api_used: apiUsed, used_model: usedModel, api_error: apiError });
       }
 
       // ── 용량 확인 ──
