@@ -73,6 +73,8 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE posts ADD COLUMN mode TEXT DEFAULT 'normal'"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_admin INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_top INTEGER DEFAULT 1"); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
   try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
@@ -546,6 +548,19 @@ export default {
         const rows = await env.DB.prepare('SELECT * FROM user_profiles').all();
         return json(rows.results);
       }
+      if (p.match(/^\/api\/profile\/[^/]+\/activity$/) && m === 'GET') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        const recentPosts = await env.DB.prepare(
+          'SELECT id, blocks, created_at, like_count, mode FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 5'
+        ).bind(userId).all();
+        const recentComments = await env.DB.prepare(
+          'SELECT id, content, created_at, post_id FROM comments WHERE author=? ORDER BY created_at DESC LIMIT 5'
+        ).bind(userId).all();
+        return json({
+          posts: recentPosts.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })),
+          comments: recentComments.results,
+        });
+      }
       if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'GET') {
         const userId = decodeURIComponent(p.split('/')[3]);
         const profile = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first();
@@ -555,6 +570,8 @@ export default {
         return json({
           user_id: userId,
           avatar_url: profile?.avatar_url || null,
+          show_badge_admin: profile?.show_badge_admin ?? 1,
+          show_badge_top: profile?.show_badge_top ?? 1,
           post_count: postCount?.c || 0,
           comment_count: commentCount?.c || 0,
           mileage: mileage?.points || 0,
@@ -562,9 +579,13 @@ export default {
       }
       if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'PUT') {
         const userId = decodeURIComponent(p.split('/')[3]);
-        const { avatar_url } = await request.json();
-        await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?')
-          .bind(userId, avatar_url, avatar_url).run();
+        const body = await request.json();
+        const existing = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first();
+        const avatar_url = body.avatar_url !== undefined ? body.avatar_url : (existing?.avatar_url ?? null);
+        const show_badge_admin = body.show_badge_admin !== undefined ? (body.show_badge_admin ? 1 : 0) : (existing?.show_badge_admin ?? 1);
+        const show_badge_top = body.show_badge_top !== undefined ? (body.show_badge_top ? 1 : 0) : (existing?.show_badge_top ?? 1);
+        await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url,show_badge_admin,show_badge_top) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?,show_badge_admin=?,show_badge_top=?')
+          .bind(userId, avatar_url, show_badge_admin, show_badge_top, avatar_url, show_badge_admin, show_badge_top).run();
         return json({ ok: true });
       }
 
