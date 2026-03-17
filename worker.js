@@ -60,6 +60,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS news_cache (category TEXT PRIMARY KEY, data TEXT, cached_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS user_presence (user_id TEXT PRIMARY KEY, last_seen INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, author TEXT, content TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS claude_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS kudos (id TEXT PRIMARY KEY, tag TEXT, source TEXT, content TEXT, added_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS monthly_contests (id TEXT PRIMARY KEY, title TEXT, description TEXT, nominate_start INTEGER, nominate_end INTEGER, vote_start INTEGER, vote_end INTEGER, created_by TEXT, winner TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS nominations (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, nominated_by TEXT, message TEXT, is_anonymous INTEGER DEFAULT 0, created_at INTEGER, UNIQUE(contest_id, nominated_by))`,
@@ -457,11 +458,38 @@ export default {
         const rows = await env.DB.prepare('SELECT * FROM user_profiles').all();
         return json(rows.results);
       }
+      if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'GET') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        const profile = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first();
+        const postCount = await env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE author=?').bind(userId).first();
+        const commentCount = await env.DB.prepare('SELECT COUNT(*) as c FROM comments WHERE author=?').bind(userId).first();
+        const mileage = await env.DB.prepare('SELECT points FROM user_mileage WHERE user_id=?').bind(userId).first();
+        return json({
+          user_id: userId,
+          avatar_url: profile?.avatar_url || null,
+          post_count: postCount?.c || 0,
+          comment_count: commentCount?.c || 0,
+          mileage: mileage?.points || 0,
+        });
+      }
       if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'PUT') {
         const userId = decodeURIComponent(p.split('/')[3]);
         const { avatar_url } = await request.json();
         await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?')
           .bind(userId, avatar_url, avatar_url).run();
+        return json({ ok: true });
+      }
+
+      // ── Claude API 사용량 ──
+      if (p === '/api/claude-usage' && m === 'GET') {
+        const row = await env.DB.prepare('SELECT * FROM claude_usage WHERE id=1').first();
+        return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+      }
+      if (p === '/api/claude-usage' && m === 'POST') {
+        const { tokens_in = 0, tokens_out = 0 } = await request.json();
+        await env.DB.prepare(
+          'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
+        ).bind(tokens_in, tokens_out, Math.floor(Date.now()/1000), tokens_in, tokens_out, Math.floor(Date.now()/1000)).run();
         return json({ ok: true });
       }
 

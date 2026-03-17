@@ -261,6 +261,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .emoji-picker{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0}
 .emoji-opt{width:46px;height:46px;border-radius:var(--radius-sm);border:2px solid var(--border);background:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
 .emoji-opt:hover,.emoji-opt.selected{border-color:var(--green);background:var(--green-light)}
+/* 유저 프로필 카드 */
+.userprofile-avatar{width:72px;height:72px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--green-dark);margin:0 auto 12px;overflow:hidden;flex-shrink:0}
+.userprofile-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.userprofile-name{font-size:18px;font-weight:700;text-align:center;margin-bottom:4px}
+.userprofile-stats{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:14px 0}
+.stat-item{flex:1;text-align:center;padding:12px 0;border-right:1px solid var(--border)}
+.stat-item:last-child{border-right:none}
+.stat-num{font-size:20px;font-weight:700;color:var(--green-dark)}
+.stat-label{font-size:11px;color:var(--text-hint);margin-top:2px}
+/* 관리자 통계 */
+.admin-stat-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.admin-stat-row:last-child{border-bottom:none}
+.admin-stat-label{font-size:13px;color:var(--text-sub)}
+.admin-stat-val{font-size:13px;font-weight:600;color:var(--text)}
+.storage-bar-wrap{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;margin-top:6px}
+.storage-bar{height:100%;background:var(--green);border-radius:4px;transition:width .5s}
+/* 프로필 사진 업로드 */
+.profile-photo-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.profile-photo-preview{width:64px;height:64px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--green-dark);overflow:hidden;flex-shrink:0}
+.profile-photo-preview img{width:100%;height:100%;object-fit:cover;display:block}
 /* 태그 입력 */
 .keyword-row{padding:4px 16px 10px;display:flex;align-items:center;gap:8px}
 .keyword-row span{font-size:12px;color:var(--text-hint);white-space:nowrap}
@@ -280,7 +300,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
   <div class="login-wrap">
     <div class="login-logo">
       <div class="logo-dot"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2L10.8 6.5H15.5L11.6 9.3L13.1 14L9 11.2L4.9 14L6.4 9.3L2.5 6.5H7.2L9 2Z" fill="white"/></svg></div>
-      <span class="logo-text">STEP</span>
+      <div>
+        <div class="logo-text">STEP</div>
+        <div style="font-size:10px;color:var(--text-hint);letter-spacing:.3px;margin-top:1px">Seobu Together Empathy Platform</div>
+      </div>
     </div>
     <!-- 로그인 폼 -->
     <form class="lf" id="loginForm" onsubmit="return false">
@@ -328,6 +351,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
     <div class="sub-tabs">
       <button class="sub-tab active" id="sub-news" onclick="switchSubTab('news')">뉴스</button>
       <button class="sub-tab" id="sub-info" onclick="switchSubTab('info')">정보</button>
+    </div>
+    <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
+      <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
+      <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역 취업</button>
     </div>
     <div id="newsContent"></div>
     <div id="infoContent" style="display:none">
@@ -602,14 +629,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <button class="modal-close" onclick="$('profileModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body" style="padding:16px">
+      <div class="profile-photo-row">
+        <div class="profile-photo-preview" id="profilePhotoPreview"></div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">프로필 사진</div>
+          <button class="btn-sm" onclick="$('profileImgInput').click()">📷 사진 업로드</button>
+          <input type="file" id="profileImgInput" accept="image/*" style="display:none"/>
+          <div style="font-size:11px;color:var(--text-hint);margin-top:4px">또는 아래 이모지 선택</div>
+        </div>
+      </div>
       <div class="form-row">
-        <label>아바타 선택</label>
+        <label>이모지 아바타</label>
         <div class="emoji-picker" id="emojiPicker"></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm" onclick="$('profileModal').classList.remove('open')">닫기</button>
       <button class="btn-sm primary" onclick="saveProfile()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 유저 프로필 카드 모달 ════ -->
+<div class="modal-overlay center" id="userProfileModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">프로필</span>
+      <button class="modal-close" onclick="$('userProfileModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:20px" id="userProfileBody">
+      <div style="text-align:center;padding:20px;color:#aaa">불러오는 중...</div>
     </div>
   </div>
 </div>
@@ -625,6 +674,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <div class="admin-section" id="pendingSection" style="display:none">
         <div class="admin-section-title">승인 대기 중</div>
         <div id="pendingList"></div>
+      </div>
+      <div class="admin-section">
+        <div class="admin-section-title">저장 공간</div>
+        <div id="storageStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+      <div class="admin-section">
+        <div class="admin-section-title">Claude API 사용량</div>
+        <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
       <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
@@ -649,6 +706,18 @@ let newsCache=null,newsLastFetch=0;
 function $(id){return document.getElementById(id)}
 function initials(n){return(n||'?').charAt(0)}
 function getAvatar(u){return profiles[u]||initials(u);}
+function avatarEl(u,style=''){
+  const av=profiles[u];
+  const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
+  if(isImg)return`<div class="avatar" style="${style}overflow:hidden;padding:0"><img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/></div>`;
+  return`<div class="avatar" style="${style}">${av||initials(u)}</div>`;
+}
+function updateAvatarEl(el,u){
+  const av=profiles[u];
+  const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
+  if(isImg){el.style.cssText=(el.getAttribute('style')||'')+';overflow:hidden;padding:0';el.innerHTML=`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/>`;}
+  else{el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av||initials(u);}
+}
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function relDate(ts){
   if(!ts)return'';
@@ -688,8 +757,10 @@ function switchTab(tab){
 function switchSubTab(sub){
   $('newsContent').style.display=sub==='news'?'':'none';
   $('infoContent').style.display=sub==='info'?'':'none';
+  $('newsCatTabs').style.display=sub==='news'?'':'none';
   $('sub-news').className='sub-tab'+(sub==='news'?' active':'');
   $('sub-info').className='sub-tab'+(sub==='info'?' active':'');
+  if(sub==='news')loadNews();
 }
 
 // ── API ──
@@ -711,14 +782,25 @@ async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchCon
 async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles()]);renderFeed();}
 
 // ── 뉴스 ──
+let newsCat='labor';
+function switchNewsCat(cat){
+  newsCat=cat;
+  $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
+  $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
+  newsCache=null;loadNews();
+}
 async function loadNews(){
   const now=Date.now();
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
   $('newsContent').innerHTML='<div class="empty-state"><div class="ei">📡</div>뉴스를 불러오는 중...</div>';
   try{
-    const r=await fetch(`${API}/api/news`);
-    newsCache=await r.json();newsLastFetch=now;renderNews(newsCache);
-  }catch(e){$('newsContent').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>뉴스를 불러오지 못했습니다.<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>';}
+    const r=await fetch(`${API}/api/news?category=${newsCat}`);
+    if(!r.ok)throw new Error('서버 오류 '+r.status);
+    const data=await r.json();
+    if(data.error)throw new Error(data.error);
+    if(!Array.isArray(data))throw new Error('잘못된 응답');
+    newsCache=data;newsLastFetch=now;renderNews(newsCache);
+  }catch(e){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'뉴스를 불러오지 못했습니다.')}<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>`;}
 }
 function renderNews(items){
   if(!items||!items.length){$('newsContent').innerHTML='<div class="empty-state"><div class="ei">📰</div>뉴스 기사를 찾지 못했습니다.</div>';return;}
@@ -752,13 +834,13 @@ function renderBlocksInCard(p){
 }
 function renderFeed(){
   const feed=$('feed');
-  const compose=`<div class="compose-box" id="composeBox"><div class="avatar">${getAvatar(currentUser)}</div><span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
+  const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
   if(!posts.length){feed.innerHTML=compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
   const cards=[...posts].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).map(p=>{
     const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;
     const mm=isMine?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}"><button onclick="editPost('${key}')">수정</button><button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
     return`<div class="post-card">
-      <div class="post-header"><div class="avatar">${getAvatar(p.author)}</div><div class="post-header-info"><div class="post-author">${escHtml(p.author||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
       ${p.keyword?`<div class="post-tag">#${escHtml(p.keyword)}</div>`:''}
       ${renderBlocksInCard(p)}
       <div class="post-actions">
@@ -786,7 +868,7 @@ async function openComments(postId){
   commentingPostId=postId;
   $('commentsList').innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">불러오는 중...</div>';
   $('commentInput').value='';$('submitComment').disabled=true;
-  $('cmtAvatar').textContent=getAvatar(currentUser);
+  updateAvatarEl($('cmtAvatar'),currentUser);
   $('commentsModal').classList.add('open');
   await loadComments(postId);
 }
@@ -800,7 +882,7 @@ function renderComments(cmts){
     const canDel=c.author===currentUser||currentUserRole==='admin';
     const liked=c.user_liked;
     return`<div class="comment-item" id="ci-${c.id}">
-      <div class="avatar">${getAvatar(c.author)}</div>
+      ${avatarEl(c.author)}
       <div class="comment-body">
         <div class="comment-author">${escHtml(c.author)}</div>
         <div class="comment-text">${escHtml(c.content)}</div>
@@ -847,7 +929,7 @@ async function toggleReplyArea(cmtId){
 }
 function renderReplies(replies){
   if(!replies||!replies.length)return'';
-  return replies.map(r=>`<div class="reply-item"><div class="avatar" style="width:24px;height:24px;font-size:11px;flex-shrink:0">${getAvatar(r.author)}</div><div class="reply-body"><div class="reply-author">${escHtml(r.author)}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
+  return replies.map(r=>`<div class="reply-item">${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}<div class="reply-body"><div class="reply-author">${escHtml(r.author)}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
 }
 async function submitReply(cmtId){
   const input=$(`ri-${cmtId}`);const txt=input?.value.trim();if(!txt)return;
@@ -880,11 +962,11 @@ function renderEditor(){
     editor.appendChild(div);
   });
 }
-function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';$('modalAvatar').textContent=getAvatar(currentUser);$('modalAuthorName').textContent=currentUser;$('postKeyword').value='';renderEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
+function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUser;$('postKeyword').value='';renderEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
 function editPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
   editingKey=key;editorBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
-  $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';$('modalAvatar').textContent=getAvatar(currentUser);$('modalAuthorName').textContent=currentUser;
+  $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUser;
   $('postKeyword').value=p.keyword||'';renderEditor();$('writeModal').classList.add('open');
 }
 async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);renderFeed();}
@@ -1156,6 +1238,26 @@ async function submitContest(){
 async function openAdminModal(){
   $('adminModal').classList.add('open');
   $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  // 저장공간
+  fetch(`${API}/api/usage`).then(r=>r.json()).then(d=>{
+    const used=d.bytes||0;const max=d.max||1;const pct=Math.round(used/max*100);
+    const fmtGB=b=>(b/1024/1024/1024).toFixed(2)+'GB';
+    $('storageStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">사용</span><span class="admin-stat-val">${fmtGB(used)}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">한도</span><span class="admin-stat-val">${fmtGB(max)}</span></div>
+      <div class="storage-bar-wrap"><div class="storage-bar" style="width:${pct}%"></div></div>
+      <div style="font-size:11px;color:var(--text-hint);margin-top:4px">${pct}% 사용 중</div>`;
+  }).catch(()=>{$('storageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
+  // Claude API 사용량
+  fetch(`${API}/api/claude-usage`).then(r=>r.json()).then(d=>{
+    const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
+    const costUSD=((tin/1000000)*3+(tout/1000000)*15).toFixed(4);
+    $('claudeStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">예상 비용</span><span class="admin-stat-val">$${costUSD}</span></div>`;
+  }).catch(()=>{$('claudeStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
   try{
     const users=await fetch(`${API}/api/users`).then(r=>r.json());
     const pending=users.filter(u=>u.status==='pending');
@@ -1202,7 +1304,7 @@ async function openMileageModal(){
     $('mileageList').innerHTML=a.map((u,i)=>{
       const rankClass=i===0?'top1':i===1?'top2':i===2?'top3':'';
       const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
-      return`<div class="mile-item"><div class="mile-rank ${rankClass}">${medal}</div><div class="avatar" style="width:32px;height:32px;font-size:14px">${getAvatar(u.user_id)}</div><div class="mile-name">${escHtml(u.user_id)}</div><div class="mile-pts">${Math.floor(u.points||0)}점</div></div>`;
+      return`<div class="mile-item"><div class="mile-rank ${rankClass}">${medal}</div>${avatarEl(u.user_id,'width:32px;height:32px;font-size:14px;')}<div class="mile-name" style="cursor:pointer" onclick="openUserProfile('${escHtml(u.user_id)}')">${escHtml(u.user_id)}</div><div class="mile-pts">${Math.floor(u.points||0)}점</div></div>`;
     }).join('');
   }catch(e){$('mileageList').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
@@ -1210,8 +1312,15 @@ async function openMileageModal(){
 // ── 프로필 ──
 const AVATARS=['😀','😊','😎','🤓','🥳','🤩','😄','😇','🦊','🐱','🐻','🦁','🐼','🐸','🦋','🌟','🎯','🎨','⚡','🌈'];
 let selectedAvatar=null;
+function updateProfilePreview(val){
+  const prev=$('profilePhotoPreview');
+  const isImg=val&&(val.startsWith('/')||val.startsWith('http'));
+  if(isImg){prev.style.cssText='overflow:hidden;padding:0;'+(prev.getAttribute('data-base-style')||'');prev.innerHTML=`<img src="${escHtml(val)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;}
+  else{prev.style.overflow='';prev.style.padding='';prev.innerHTML='';prev.textContent=val||initials(currentUser);}
+}
 async function openProfileModal(){
   selectedAvatar=profiles[currentUser]||null;
+  updateProfilePreview(selectedAvatar);
   $('emojiPicker').innerHTML=AVATARS.map(e=>`<button class="emoji-opt${selectedAvatar===e?' selected':''}" onclick="selectAvatar(this,'${e}')">${e}</button>`).join('');
   $('profileModal').classList.add('open');
 }
@@ -1219,7 +1328,21 @@ function selectAvatar(btn,emoji){
   selectedAvatar=emoji;
   $('emojiPicker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));
   btn.classList.add('selected');
+  updateProfilePreview(emoji);
 }
+$('profileImgInput').onchange=async function(e){
+  const file=e.target.files[0];this.value='';if(!file)return;
+  const btn=this.previousElementSibling;btn.disabled=true;btn.textContent='업로드 중...';
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd});const d=await r.json();
+    if(d.error)throw new Error(d.error);
+    selectedAvatar=API+d.url;
+    $('emojiPicker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));
+    updateProfilePreview(selectedAvatar);
+  }catch(err){alert('업로드 실패: '+err.message);}
+  btn.disabled=false;btn.textContent='📷 사진 업로드';
+};
 async function saveProfile(){
   if(!selectedAvatar){$('profileModal').classList.remove('open');return;}
   try{
@@ -1228,6 +1351,26 @@ async function saveProfile(){
     $('profileModal').classList.remove('open');
     renderFeed();
   }catch(e){alert('저장 실패');}
+}
+
+// ── 유저 프로필 카드 ──
+async function openUserProfile(userId){
+  $('userProfileBody').innerHTML='<div style="padding:20px;text-align:center;color:#aaa">불러오는 중...</div>';
+  $('userProfileModal').classList.add('open');
+  try{
+    const d=await fetch(`${API}/api/profile/${encodeURIComponent(userId)}`).then(r=>r.json());
+    const av=profiles[userId];
+    const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
+    const avHtml=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`:escHtml(av||initials(userId));
+    $('userProfileBody').innerHTML=`
+      <div class="userprofile-avatar" ${isImg?'style="overflow:hidden;padding:0"':''}>${avHtml}</div>
+      <div class="userprofile-name">${escHtml(userId)}</div>
+      <div class="userprofile-stats">
+        <div class="stat-item"><div class="stat-num">${d.post_count||0}</div><div class="stat-label">게시글</div></div>
+        <div class="stat-item"><div class="stat-num">${d.comment_count||0}</div><div class="stat-label">댓글</div></div>
+        <div class="stat-item"><div class="stat-num">${Math.floor(d.mileage||0)}</div><div class="stat-label">마일리지</div></div>
+      </div>`;
+  }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
 
 // ── 로그인 / 회원가입 ──
