@@ -154,7 +154,7 @@ export default {
       // ── 글 목록 ──
       if (p === '/api/posts' && m === 'GET') {
         const rows = await env.DB.prepare(
-          'SELECT p.*, COALESCE(cc.cnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id ORDER BY p.created_at DESC'
+          'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id ORDER BY p.created_at DESC'
         ).all();
         return json(rows.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })));
       }
@@ -225,7 +225,7 @@ export default {
         }
       }
 
-      // ── 댓글 목록 ──
+      // ── 댓글 목록 (대댓글 포함) ──
       if (p.match(/^\/api\/posts\/[^/]+\/comments$/) && m === 'GET') {
         const postId = p.split('/')[3];
         const userId = url.searchParams.get('user_id');
@@ -237,7 +237,21 @@ export default {
           const liked = await env.DB.prepare('SELECT comment_id FROM comment_likes WHERE user_id=?').bind(userId).all();
           likedSet = new Set(liked.results.map(r => r.comment_id));
         }
-        return json(rows.results.map(r => ({ ...r, user_liked: likedSet.has(r.id) })));
+        // 대댓글 일괄 조회
+        const allReplies = await env.DB.prepare(
+          'SELECT * FROM comment_replies WHERE comment_id IN (SELECT id FROM comments WHERE post_id=?) ORDER BY created_at ASC'
+        ).bind(postId).all();
+        const repliesByComment = {};
+        for (const r of allReplies.results) {
+          if (!repliesByComment[r.comment_id]) repliesByComment[r.comment_id] = [];
+          repliesByComment[r.comment_id].push(r);
+        }
+        return json(rows.results.map(r => ({
+          ...r,
+          user_liked: likedSet.has(r.id),
+          reply_count: (repliesByComment[r.id] || []).length,
+          replies: repliesByComment[r.id] || [],
+        })));
       }
 
       // ── 댓글 작성 ──
@@ -250,6 +264,13 @@ export default {
           .bind(id, postId, b.author, b.content, now).run();
         await addMileageDB(env, b.author, 1);
         return json({ id, post_id: postId, author: b.author, content: b.content, created_at: now });
+      }
+
+      // ── 대댓글 삭제 ──
+      if (p.match(/^\/api\/replies\/[^/]+$/) && m === 'DELETE') {
+        const id = p.split('/')[3];
+        await env.DB.prepare('DELETE FROM comment_replies WHERE id=?').bind(id).run();
+        return json({ ok: true });
       }
 
       // ── 댓글 삭제 ──

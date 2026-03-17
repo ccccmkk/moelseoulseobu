@@ -244,6 +244,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .comment-reply-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-hint);padding:0 3px;transition:color .15s}
 .comment-reply-btn:hover{color:var(--green)}
 .replies-area{margin-left:40px;border-left:2px solid var(--border);padding-left:10px;margin-top:6px}
+.show-more-replies{background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:4px 0;display:block;margin:2px 0}
+.show-more-replies:hover{text-decoration:underline}
 .reply-item{display:flex;gap:8px;margin-bottom:10px}
 .reply-body{flex:1}
 .reply-author{font-size:12px;font-weight:600}
@@ -861,7 +863,7 @@ let posts=[],events=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
 let badgePrefs={},mileageTopUser='';
 let currentUser='',currentUserName='',currentUserRole='user',sessionToken=null;
-let editingKey=null,editorBlocks=[];
+let editingKey=null,editorBlocks=[],commentRepliesCache={};
 let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
@@ -1057,11 +1059,72 @@ async function loadComments(postId){
   try{const r=await fetch(`${API}/api/posts/${postId}/comments?user_id=${encodeURIComponent(currentUser)}`);const c=await r.json();renderComments(c);}
   catch(e){$('commentsList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
+// ── 대댓글 렌더 (유튜브 스타일) ──
+const REPLY_FOLD=3;
+function buildRepliesHtml(cid,reps,expanded){
+  const hasMore=reps.length>REPLY_FOLD;
+  const visible=expanded||!hasMore?reps:reps.slice(0,REPLY_FOLD);
+  let html=visible.map(r=>{
+    const canDel=r.author===currentUser||currentUserRole==='admin';
+    return`<div class="reply-item" id="rep-${r.id}">
+      ${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}
+      <div class="reply-body">
+        <div class="reply-author">${escHtml(userName(r.author))}${badgeHtml(r.author)}</div>
+        <div class="reply-text">${escHtml(r.content)}</div>
+        <div class="reply-meta">${relDate(r.created_at)}${canDel?`<button class="comment-del" onclick="deleteReply('${r.id}','${cid}')">삭제</button>`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  if(!expanded&&hasMore)html+=`<button class="show-more-replies" onclick="expandReplies('${cid}')">▼ 답글 ${reps.length-REPLY_FOLD}개 더 보기</button>`;
+  else if(expanded&&hasMore)html+=`<button class="show-more-replies" onclick="collapseReplies('${cid}')">▲ 접기</button>`;
+  return html;
+}
+function expandReplies(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;ra.dataset.expanded='1';
+  const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid]||[],true);
+  if(inputRow)ra.appendChild(inputRow);
+}
+function collapseReplies(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;ra.dataset.expanded='0';
+  const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid]||[],false);
+  if(inputRow)ra.appendChild(inputRow);
+}
+function showReplyInput(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;
+  let inputRow=ra.querySelector('.reply-input-row');
+  if(!inputRow){
+    inputRow=document.createElement('div');inputRow.className='reply-input-row';
+    inputRow.innerHTML=`<input type="text" id="ri-${cid}" placeholder="답글 달기..."/><button onclick="submitReply('${cid}')">게시</button>`;
+    ra.appendChild(inputRow);
+  }
+  inputRow.style.display='';
+  setTimeout(()=>inputRow.querySelector('input')?.focus(),40);
+}
+function updateReplyBtn(cid){
+  const cnt=(commentRepliesCache[cid]||[]).length;
+  // 답글 버튼 카운트 갱신
+  const ci=$(`ci-${cid}`);if(!ci)return;
+  const btn=ci.querySelector('.comment-reply-btn');if(!btn)return;
+  btn.innerHTML='답글'+(cnt?` <span style="font-size:11px;color:var(--text-hint)">(${cnt})</span>`:'');
+}
+function updatePostCommentCount(postId,delta){
+  const p=posts.find(x=>x.id===postId);if(!p)return;
+  p.comment_count=Math.max(0,(p.comment_count||0)+delta);
+  document.querySelectorAll(`[onclick="openComments('${postId}')"]`).forEach(btn=>{
+    const sp=btn.querySelector('span');if(sp)sp.textContent=p.comment_count||'';
+  });
+}
 function renderComments(cmts){
+  commentRepliesCache={};
   if(!cmts.length){$('commentsList').innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">첫 댓글을 남겨보세요!</div>';return;}
   $('commentsList').innerHTML=cmts.map(c=>{
     const canDel=c.author===currentUser||currentUserRole==='admin';
     const liked=c.user_liked;
+    const replies=c.replies||[];
+    commentRepliesCache[c.id]=replies;
+    const cnt=replies.length;
     return`<div class="comment-item" id="ci-${c.id}">
       ${avatarEl(c.author)}
       <div class="comment-body">
@@ -1070,10 +1133,10 @@ function renderComments(cmts){
         <div class="comment-meta">
           <span>${relDate(c.created_at)}</span>
           <button class="comment-like-btn${liked?' liked':''}" onclick="toggleCommentLike('${c.id}','${escHtml(c.author)}',this)">♥ <span>${c.like_count||0}</span></button>
-          <button class="comment-reply-btn" onclick="toggleReplyArea('${c.id}')">답글</button>
+          <button class="comment-reply-btn" onclick="showReplyInput('${c.id}')">답글${cnt?` <span style="font-size:11px;color:var(--text-hint)">(${cnt})</span>`:''}</button>
           ${canDel?`<button class="comment-del" onclick="deleteComment('${c.id}')">삭제</button>`:''}
         </div>
-        <div class="replies-area" id="ra-${c.id}" style="display:none"></div>
+        <div class="replies-area" id="ra-${c.id}">${buildRepliesHtml(c.id,replies,false)}</div>
       </div>
     </div>`;
   }).join('');
@@ -1082,44 +1145,47 @@ $('commentInput').oninput=function(){$('submitComment').disabled=!this.value.tri
 $('submitComment').onclick=async function(){
   const txt=$('commentInput').value.trim();if(!txt||!commentingPostId)return;
   $('submitComment').disabled=true;
-  try{await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});$('commentInput').value='';await loadComments(commentingPostId);}
+  try{await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});$('commentInput').value='';await loadComments(commentingPostId);updatePostCommentCount(commentingPostId,1);}
   catch(e){alert('댓글 등록 실패');}
 };
 $('commentInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('submitComment').disabled)$('submitComment').click();}};
-async function deleteComment(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});await loadComments(commentingPostId);}
+async function deleteComment(id){
+  if(!confirm('삭제할까요?'))return;
+  const replies=commentRepliesCache[id]||[];
+  await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});
+  updatePostCommentCount(commentingPostId,-(1+replies.length));
+  await loadComments(commentingPostId);
+}
 async function toggleCommentLike(cmtId,cmtAuthor,btn){
   const wasLiked=btn.classList.contains('liked');
   btn.classList.toggle('liked',!wasLiked);
   const cnt=btn.querySelector('span');cnt.textContent=Math.max(0,parseInt(cnt.textContent)+(wasLiked?-1:1));
   try{await fetch(`${API}/api/comments/${cmtId}/like`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser,comment_author:cmtAuthor})});}catch(e){}
 }
-async function toggleReplyArea(cmtId){
-  const ra=$(`ra-${cmtId}`);
-  if(ra.style.display==='none'){
-    ra.style.display='';
-    if(!ra.dataset.loaded){
-      ra.innerHTML='<div style="font-size:12px;color:var(--text-hint);padding:4px 0">불러오는 중...</div>';
-      try{
-        const r=await fetch(`${API}/api/comments/${cmtId}/replies`);
-        const replies=await r.json();
-        ra.innerHTML=renderReplies(replies)+`<div class="reply-input-row"><input type="text" id="ri-${cmtId}" placeholder="답글 달기..."/><button onclick="submitReply('${cmtId}')">게시</button></div>`;
-      }catch(e){ra.innerHTML='<div style="font-size:12px;color:var(--danger)">오류</div>';}
-      ra.dataset.loaded='1';
-    }
-  }else{ra.style.display='none';}
-}
-function renderReplies(replies){
-  if(!replies||!replies.length)return'';
-  return replies.map(r=>`<div class="reply-item">${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}<div class="reply-body"><div class="reply-author">${escHtml(userName(r.author))}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
-}
-async function submitReply(cmtId){
-  const input=$(`ri-${cmtId}`);const txt=input?.value.trim();if(!txt)return;
+async function submitReply(cid){
+  const input=$(`ri-${cid}`);const txt=input?.value.trim();if(!txt)return;
   try{
-    await fetch(`${API}/api/comments/${cmtId}/replies`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
-    const ra=$(`ra-${cmtId}`);const inputRow=ra.querySelector('.reply-input-row');
-    const r=await fetch(`${API}/api/comments/${cmtId}/replies`);const replies=await r.json();
-    ra.innerHTML=renderReplies(replies);ra.appendChild(inputRow);input.value='';
+    const r=await fetch(`${API}/api/comments/${cid}/replies`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
+    const newReply=await r.json();if(newReply.error){alert(newReply.error);return;}
+    input.value='';
+    commentRepliesCache[cid]=[...(commentRepliesCache[cid]||[]),newReply];
+    const ra=$(`ra-${cid}`);const inputRow=ra.querySelector('.reply-input-row');
+    ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid],true);
+    ra.dataset.expanded='1';
+    if(inputRow)ra.appendChild(inputRow);
+    updateReplyBtn(cid);
+    updatePostCommentCount(commentingPostId,1);
   }catch(e){alert('답글 등록 실패');}
+}
+async function deleteReply(replyId,cid){
+  if(!confirm('삭제할까요?'))return;
+  await fetch(`${API}/api/replies/${replyId}`,{method:'DELETE'});
+  commentRepliesCache[cid]=(commentRepliesCache[cid]||[]).filter(r=>r.id!==replyId);
+  const ra=$(`ra-${cid}`);const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid],ra.dataset.expanded==='1');
+  if(inputRow)ra.appendChild(inputRow);
+  updateReplyBtn(cid);
+  updatePostCommentCount(commentingPostId,-1);
 }
 function openLightbox(url){$('lightboxImg').src=url;$('lightbox').classList.add('open');document.body.style.overflow='hidden';}
 function closeLightbox(){$('lightbox').classList.remove('open');document.body.style.overflow='';}
