@@ -1,0 +1,12 @@
+name = "band-archive-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "band-archive-db"
+database_id = "35d0a1ba-1023-4b63-a491-570d7463576f"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "band-archive"

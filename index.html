@@ -1829,7 +1829,8 @@ async function agentHealthReply(){
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
     const modelLabel=d.used_model==='gemini'?'Gemini':d.used_model==='claude'?'Claude':'';
-    const apiStatus=d.api_used?`(${modelLabel} AI답변)`:d.api_error?`(폴백: ${d.api_error})`:'(폴백)';
+    const errNote=d.api_error&&d.used_model!=='gemini'?` [${d.api_error.slice(0,120)}]`:'';
+    const apiStatus=d.api_used?`(${modelLabel} AI답변)${errNote}`:d.api_error?`(폴백: ${d.api_error})`:'(폴백)';
     msg.style.color=d.api_used?'#2e7d32':'var(--warning)';msg.textContent=`✓ 대댓글 작성 완료 ${apiStatus}`;
   }catch(e){msg.style.color='var(--danger)';msg.textContent='오류: '+e.message;}
   finally{btn.disabled=false;}
