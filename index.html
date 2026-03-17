@@ -295,6 +295,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .compose-placeholder{font-size:14px;color:var(--text-hint);flex:1}
 .anon-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sub);cursor:pointer;user-select:none}
 .anon-toggle input{width:16px;height:16px;cursor:pointer;accent-color:var(--green)}
+/* ── 이미지 캐러셀 ── */
+.img-carousel{position:relative;overflow:hidden;width:100%;background:#000}
+.img-carousel-track{display:flex;transition:transform .3s ease;will-change:transform}
+.img-carousel-track img{width:100%;flex-shrink:0;max-height:440px;object-fit:cover;display:block}
+.img-carousel-dots{display:flex;justify-content:center;gap:5px;padding:6px 0;background:#000}
+.img-carousel-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);border:none;padding:0;cursor:pointer;transition:background .15s}
+.img-carousel-dot.active{background:#fff}
+/* ── 블로그 모드 ── */
+.blog-thumb-wrap{position:relative;overflow:hidden}
+.blog-thumb-wrap img{width:100%;max-height:220px;object-fit:cover;display:block}
+.blog-excerpt{font-size:14px;line-height:1.7;padding:8px 14px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.btn-more{background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;padding:2px 14px 10px;display:block}
 /* ── iOS / 모바일 호환성 ── */
 *{-webkit-tap-highlight-color:transparent}
 button,a,[role="button"]{touch-action:manipulation}
@@ -471,6 +483,10 @@ button,a,[role="button"]{touch-action:manipulation}
           <option value="재테크">💰 재테크</option>
           <option value="기타">📌 기타</option>
         </select>
+      </div>
+      <div style="padding:4px 16px 10px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="blogModeToggle" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"/>
+        <label for="blogModeToggle" style="font-size:13px;color:var(--text-sub);cursor:pointer">블로그 모드 (피드에 요약만 표시)</label>
       </div>
     </div>
     <div class="modal-footer">
@@ -720,6 +736,14 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="pendingList"></div>
       </div>
       <div class="admin-section">
+        <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
+          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
+        </div>
+        <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      </div>
+      <div class="admin-section">
         <div class="admin-section-title">저장 공간</div>
         <div id="storageStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
@@ -738,6 +762,10 @@ button,a,[role="button"]{touch-action:manipulation}
             <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">이름</div>
             <input type="text" id="newUserName" placeholder="홍길동" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
           </div>
+          <div style="flex:1;min-width:80px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">소속 (선택)</div>
+            <input type="text" id="newUserDept" placeholder="서울서부지청" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
           <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
         </div>
         <div style="font-size:11px;color:var(--text-hint);margin-top:4px">초기 비밀번호: 1234 (로그인 후 자동 변경 안내)</div>
@@ -745,7 +773,7 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div class="admin-section">
         <div class="admin-section-title">계정 일괄 등록 (CSV)</div>
-        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택, 기본 1234)</div>
+        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택) · 4열: 소속(선택)</div>
         <textarea id="csvInput" placeholder="123456789,홍길동,1234&#10;987654321,김철수" style="width:100%;min-height:80px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none;line-height:1.6"></textarea>
         <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
           <button class="btn-sm primary" onclick="bulkCreateUsers()">일괄 등록</button>
@@ -755,17 +783,22 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="csvMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
       </div>
       <div class="admin-section">
-        <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
-          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
-        </div>
-        <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
-      </div>
-      <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
         <div id="userRoleList"></div>
       </div>
+    </div>
+  </div>
+</div>
+<!-- ════ 전체 글 보기 모달 ════ -->
+<div class="modal-overlay center" id="fullPostModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="fullPostTitle">게시글</span>
+      <button class="modal-close" onclick="$('fullPostModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" id="fullPostBody"></div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="$('fullPostModal').classList.remove('open')">닫기</button>
     </div>
   </div>
 </div>
@@ -898,18 +931,22 @@ function renderNews(items){
 }
 
 // ── 피드 ──
-function renderBlocksInCard(p){
+function renderBlocksInCard(p,blogMode){
   if(!p.blocks||!p.blocks.length)return'';
   const imgs=p.blocks.filter(b=>b.type==='image');
   const texts=p.blocks.filter(b=>b.type==='text'&&b.content.trim());
   let html='';
+  if(blogMode){
+    if(imgs.length){html+=`<div class="blog-thumb-wrap"><img src="${imgs[0].url}" loading="lazy"/></div>`;}
+    if(texts.length){html+=`<div class="blog-excerpt">${escHtml(texts[0].content)}</div>`;}
+    return html;
+  }
   if(imgs.length===1){
     html+=`<div class="post-img-wrap" onclick="openLightbox('${imgs[0].url}')"><img src="${imgs[0].url}" loading="lazy"/></div>`;
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
-  }else if(imgs.length===2){
-    html+=`<div class="post-img-grid two">${imgs.map(i=>`<img src="${i.url}" onclick="openLightbox('${i.url}')" loading="lazy"/>`).join('')}</div>`;
-  }else if(imgs.length>=3){
-    html+=`<div class="post-img-grid three"><div class="img-main"><img src="${imgs[0].url}" onclick="openLightbox('${imgs[0].url}')" loading="lazy"/></div>${imgs.slice(1,3).map(i=>`<img src="${i.url}" onclick="openLightbox('${i.url}')" loading="lazy"/>`).join('')}</div>`;
+  }else if(imgs.length>=2){
+    const cid='car-'+p.id;
+    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${i.url}" loading="lazy" onclick="openLightbox('${i.url}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
   }
   texts.forEach(b=>{html+=`<div class="block-text">${escHtml(b.content)}</div>`;});
   return html;
@@ -921,10 +958,12 @@ function renderFeed(){
   const cards=[...posts].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).map(p=>{
     const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
     const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
-    return`<div class="post-card">
-      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
-      ${p.keyword?`<div class="post-tag">#${escHtml(p.keyword)}</div>`:''}
-      ${renderBlocksInCard(p)}
+    const isBlog=p.mode==='blog';
+    return`<div class="post-card"${isBlog?` style="cursor:pointer" onclick="openFullPost('${key}')"`:''}>
+      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="event.stopPropagation();openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+      ${renderBlocksInCard(p,isBlog)}
+      ${isBlog?`<button class="btn-more" onclick="event.stopPropagation();openFullPost('${key}')">더보기 →</button>`:''}
+      ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
       <div class="post-actions">
         <button class="act-btn${liked?' liked':''}" onclick="toggleLike('${key}')"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="lc-${key}">${p.like_count||0}</span></button>
         <button class="act-btn" onclick="openComments('${key}')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span style="font-size:12px">${p.comment_count||''}</span></button>
@@ -933,6 +972,7 @@ function renderFeed(){
   }).join('');
   feed.innerHTML=compose+cards;
   $('composeBox').onclick=openWriteModal;
+  initCarousels();
 }
 function toggleMenu(e,id){e.stopPropagation();document.querySelectorAll('.more-menu.open').forEach(m=>{if(m.id!==id)m.classList.remove('open')});$(id).classList.toggle('open');}
 document.addEventListener('click',()=>document.querySelectorAll('.more-menu.open').forEach(m=>m.classList.remove('open')));
@@ -1044,12 +1084,12 @@ function renderEditor(){
     editor.appendChild(div);
   });
 }
-function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUser;$('postKeyword').value='';renderEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
+function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
 function editPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
   editingKey=key;editorBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
-  $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUser;
-  $('postKeyword').value=p.keyword||'';renderEditor();$('writeModal').classList.add('open');
+  $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
+  $('postKeyword').value=p.keyword||'';$('blogModeToggle').checked=p.mode==='blog';renderEditor();$('writeModal').classList.add('open');
 }
 async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);renderFeed();}
 $('modalClose').onclick=()=>$('writeModal').classList.remove('open');
@@ -1073,12 +1113,13 @@ $('submitPost').onclick=async function(){
   $('submitPost').disabled=true;
   const keyword=$('postKeyword').value.trim();
   try{
+    const mode=$('blogModeToggle').checked?'blog':'normal';
     if(editingKey){
-      await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword})});
-      const p=posts.find(x=>x.id===editingKey);if(p){p.blocks=finalBlocks;p.keyword=keyword||null;}
+      await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode})});
+      const p=posts.find(x=>x.id===editingKey);if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;}
     }else{
-      const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword})});
-      const d=await r.json();posts.unshift({id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,keyword:keyword||null});
+      const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode})});
+      const d=await r.json();posts.unshift({id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,keyword:keyword||null,mode});
     }
     renderFeed();$('writeModal').classList.remove('open');
   }catch(e){alert('저장 실패: '+e.message);}finally{$('submitPost').disabled=false;}
@@ -1316,6 +1357,32 @@ async function submitContest(){
   $('contestModal').classList.remove('open');await fetchContests();renderContests();
 }
 
+// ── 이미지 캐러셀 ──
+function initCarousels(){
+  document.querySelectorAll('.img-carousel').forEach(car=>{
+    let startX=0,cur=0;
+    const track=car.querySelector('.img-carousel-track');
+    const dots=[...car.querySelectorAll('.img-carousel-dot')];
+    const count=dots.length;if(count<=1)return;
+    function goTo(i){cur=Math.max(0,Math.min(count-1,i));track.style.transform=`translateX(-${cur*100}%)`;dots.forEach((d,j)=>d.className='img-carousel-dot'+(j===cur?' active':''));}
+    car.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;},{passive:true});
+    car.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-startX;if(Math.abs(dx)>40)goTo(cur+(dx<0?1:-1));},{passive:true});
+    dots.forEach((d,i)=>d.addEventListener('click',e=>{e.stopPropagation();goTo(i);}));
+  });
+}
+// ── 전체 글 보기 ──
+function openFullPost(key){
+  const p=posts.find(x=>x.id===key);if(!p)return;
+  $('fullPostTitle').textContent=userName(p.author)+' · '+relDate(p.created_at);
+  let html='';
+  (p.blocks||[]).forEach(b=>{
+    if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${b.url}')"><img src="${b.url}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
+    else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${escHtml(b.content)}</div>`;}
+  });
+  if(p.keyword)html+=`<div class="post-tag" style="margin:4px 14px 8px">#${escHtml(p.keyword)}</div>`;
+  $('fullPostBody').innerHTML=html;
+  $('fullPostModal').classList.add('open');
+}
 // ── 건강봇 에이전트 ──
 async function agentHealthPost(){
   const btn=$('agentPostBtn');const msg=$('agentMsg');
@@ -1383,18 +1450,19 @@ async function openAdminModal(){
       const role=userRoles[u.id]||'user';const isAdmin=role==='admin';
       const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
       const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
-      if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${dn} <span style="font-size:11px;color:var(--text-hint)">${di}</span> (나)<br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
-      return`<div class="user-role-row"><span class="user-role-name">${dn} <span style="font-size:11px;color:var(--text-hint)">${di}</span><br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button><button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button></div></div>`;
+      const deptStr=escHtml(u.dept||'');
+      if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${dn}${deptStr?` <span style="font-size:11px;color:#1565c0;background:#e8f4ff;padding:1px 6px;border-radius:10px">${deptStr}</span>`:''} <span style="font-size:11px;color:var(--text-hint)">${di}</span> (나)<br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
+      return`<div class="user-role-row"><span class="user-role-name">${dn}${deptStr?` <span style="font-size:11px;color:#1565c0;background:#e8f4ff;padding:1px 6px;border-radius:10px">${deptStr}</span>`:''} <span style="font-size:11px;color:var(--text-hint)">${di}</span><br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button><button class="role-btn" onclick="changeDeptAdmin('${di}','${deptStr}')">소속변경</button><button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button></div></div>`;
     }).join('');
   }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
 async function createUserAdmin(){
-  const id=$('newUserId').value.trim(),name=$('newUserName').value.trim();
+  const id=$('newUserId').value.trim(),name=$('newUserName').value.trim(),dept=$('newUserDept').value.trim();
   const msg=$('newUserMsg');
   if(!/^\d{9}$/.test(id)){msg.style.color='var(--danger)';msg.textContent='온나라 사번은 9자리 숫자입니다.';return;}
   if(!name){msg.style.color='var(--danger)';msg.textContent='이름을 입력해주세요.';return;}
   try{
-    const r=await fetch(`${API}/api/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,password:'1234'})});
+    const r=await fetch(`${API}/api/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,dept,password:'1234'})});
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
     msg.style.color='#2e7d32';msg.textContent=`✓ ${name}(${id}) 계정 생성 완료. 초기 비밀번호: 1234`;
@@ -1406,7 +1474,7 @@ async function bulkCreateUsers(){
   const csv=$('csvInput').value.trim();const msg=$('csvMsg');
   if(!csv){msg.style.color='var(--danger)';msg.textContent='CSV를 입력해주세요.';return;}
   const lines=csv.split('\n').filter(l=>l.trim());
-  const users=lines.map(l=>{const cols=l.split(',').map(c=>c.trim());return{id:cols[0],name:cols[1],password:cols[2]||'1234'};});
+  const users=lines.map(l=>{const cols=l.split(',').map(c=>c.trim());return{id:cols[0],name:cols[1],password:cols[2]||'1234',dept:cols[3]||''};});
   try{
     const r=await fetch(`${API}/api/users/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({users})});
     const d=await r.json();
@@ -1435,6 +1503,16 @@ async function deleteUserAdmin(userId){
   if(!confirm(userId+'을(를) 삭제할까요?'))return;
   await fetch(`${API}/api/users/${encodeURIComponent(userId)}`,{method:'DELETE'});
   openAdminModal();
+}
+async function changeDeptAdmin(userId,currentDept){
+  const dept=prompt(`${userId} 소속 변경\n현재: ${currentDept||'없음'}`,currentDept||'');
+  if(dept===null)return;
+  try{
+    const r=await fetch(`${API}/api/users/${encodeURIComponent(userId)}/dept`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dept})});
+    const d=await r.json();
+    if(d.error){alert(d.error);return;}
+    openAdminModal();
+  }catch(e){alert('오류: '+e.message);}
 }
 async function setUserRole(userId,role,btn){
   await fetch(`${API}/api/roles/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
