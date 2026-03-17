@@ -334,6 +334,34 @@ button,a,[role="button"]{touch-action:manipulation}
 .bottom-nav{height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
 .fab{bottom:calc(70px + env(safe-area-inset-bottom,0px))}
 .tab-page{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+/* ── Pull-to-refresh 인디케이터 ── */
+#ptrIndicator{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0}
+.ptr-spinner{width:16px;height:16px;border:2px solid #e0e0e0;border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;display:none;flex-shrink:0}
+.ptr-text{font-size:12px;color:var(--text-hint)}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── 더보기 탭 ── */
+.more-user-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.more-user-avatar{width:52px;height:52px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--green-dark);overflow:hidden;flex-shrink:0}
+.more-user-avatar img{width:100%;height:100%;object-fit:cover}
+.more-user-name{font-size:16px;font-weight:700;margin-bottom:3px}
+.more-user-sub{font-size:12px;color:var(--text-hint)}
+.more-group{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
+.more-row{width:100%;display:flex;align-items:center;padding:15px 16px;background:none;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-family:inherit;text-align:left;transition:background .12s}
+.more-row:last-child{border-bottom:none}
+.more-row:active{background:#f5f5f5}
+.more-row-label{flex:1;font-size:15px;color:var(--text)}
+.more-chev{width:16px;height:16px;stroke:var(--text-hint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.more-noti-dot{width:8px;height:8px;background:#ff4d6d;border-radius:50%;display:none;margin-right:6px;flex-shrink:0}
+.more-logout-btn{width:100%;height:44px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:var(--danger);cursor:pointer;font-family:inherit;font-weight:500;transition:background .15s}
+.more-logout-btn:active{background:#fff5f5}
+/* ── 수상 메달 ── */
+.award-medal{width:42px;height:42px;background:linear-gradient(135deg,#f5c842,#c8922a);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
+.award-medal svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8}
+/* ── 섹션 헤더 ── */
+.section-title{font-size:15px;font-weight:700;padding-left:9px;border-left:3px solid var(--green)}
+/* ── 네비 배지 ── */
+.nav-btn{position:relative}
+.nav-noti-dot{position:absolute;top:5px;right:calc(50% - 14px);width:7px;height:7px;background:#ff4d6d;border-radius:50%;display:none}
 /* iOS 입력 자동 확대 방지 (font-size < 16px → 줌인) */
 @supports (-webkit-touch-callout:none){
   input,select,textarea{font-size:16px !important}
@@ -372,17 +400,11 @@ button,a,[role="button"]{touch-action:manipulation}
       <div class="appbar-title">STEP</div>
       <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">Seobu Together Empathy Platform</div>
     </div>
-    <div class="appbar-btns">
-      <button class="appbar-btn" id="adminBtn" style="display:none" onclick="openAdminModal()">⚙️ 관리</button>
-      <button class="appbar-btn" onclick="openMileageModal()">🏅</button>
-      <button class="appbar-btn" onclick="openProfileModal()">👤</button>
-      <button class="appbar-btn" id="notiBtn" onclick="openNotiPanel()" style="position:relative">🔔<span id="notiBadge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;background:#ff4d6d;border-radius:50%"></span></button>
-      <button class="appbar-btn" id="logoutBtn">로그아웃</button>
-    </div>
   </div>
 
   <!-- 피드 탭 -->
   <div id="tabFeed" class="tab-page active">
+    <div id="ptrIndicator"><div class="ptr-spinner" id="ptrSpinner"></div><span class="ptr-text" id="ptrText">당겨서 새로고침</span></div>
     <div id="feed"></div>
   </div>
 
@@ -421,29 +443,64 @@ button,a,[role="button"]{touch-action:manipulation}
   <div id="tabChal" class="tab-page">
     <!-- 섹션 1: 칭찬합니다 -->
     <div class="section-hd">
-      <span class="section-title">🌟 친절스타</span>
+      <span class="section-title">친절스타</span>
       <button class="btn-sm primary" id="kudosAddBtn" style="display:none" onclick="openKudosModal()">+ 추가</button>
     </div>
     <div id="kudosList"></div>
 
     <!-- 섹션 2: 경조사 소식 -->
     <div class="section-hd">
-      <span class="section-title">🎊 경조사 소식</span>
+      <span class="section-title">경조사 소식</span>
       <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
     </div>
     <div id="chalEventsList"></div>
 
     <!-- 섹션 3: 이달의 서부인 -->
     <div class="section-hd">
-      <span class="section-title">⭐ 이달의 서부인</span>
+      <span class="section-title">이달의 서부인</span>
       <button class="btn-sm primary" id="contestAddBtn" style="display:none" onclick="openContestModal()">+ 만들기</button>
     </div>
     <div id="contestList"></div>
 
     <!-- 수상 기록 -->
     <div id="awardsSection" style="display:none">
-      <div class="section-hd"><span class="section-title">🏆 수상 기록</span></div>
+      <div class="section-hd"><span class="section-title">수상 기록</span></div>
       <div id="awardsList"></div>
+    </div>
+  </div>
+
+  <!-- 더보기 탭 -->
+  <div id="tabMore" class="tab-page">
+    <div class="more-user-card">
+      <div class="more-user-avatar" id="moreUserAvatar"></div>
+      <div>
+        <div class="more-user-name" id="moreUserName"></div>
+        <div class="more-user-sub" id="moreUserSub"></div>
+      </div>
+    </div>
+    <div class="more-group">
+      <button class="more-row" onclick="openProfileModal()">
+        <span class="more-row-label">내 프로필</span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="more-row" onclick="openMileageModal()">
+        <span class="more-row-label">마일리지 랭킹</span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="more-row" onclick="openNotiPanel()">
+        <span class="more-row-label">알림</span>
+        <span class="more-noti-dot" id="moreNotiBadge"></span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div class="more-group" id="moreAdminGroup" style="display:none">
+      <button class="more-row" onclick="openAdminModal()">
+        <span class="more-row-label">관리자 패널</span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div style="padding:0 0 12px">
+      <button class="more-logout-btn" id="logoutBtn">로그아웃</button>
     </div>
   </div>
 
@@ -453,13 +510,17 @@ button,a,[role="button"]{touch-action:manipulation}
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>피드
     </button>
     <button class="nav-btn" id="nav-news" onclick="switchTab('News')">
-      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스/정보
+      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스
     </button>
     <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
       <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>서부소식
     </button>
     <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
+    </button>
+    <button class="nav-btn" id="nav-more" onclick="switchTab('More')">
+      <span class="nav-noti-dot" id="navMoreNotiBadge"></span>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg>더보기
     </button>
   </nav>
 </div>
@@ -858,6 +919,11 @@ button,a,[role="button"]{touch-action:manipulation}
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
 const EVT_ICONS={결혼:'💍',출산:'👶',생일:'🎂',상:'🕯️',승진:'🎉',기타:'📌'};
+const TROPHY_SVG=`<svg viewBox="0 0 24 24"><path d="M6 9H5a2 2 0 000 4h1m12 0h1a2 2 0 000-4h-1M8 21h8M12 17v4M5 3h14l-2 9a5 5 0 01-10 0L5 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function updateNotiBadges(hasNew){
+  $('moreNotiBadge').style.display=hasNew?'':'none';
+  $('navMoreNotiBadge').style.display=hasNew?'':'none';
+}
 
 let posts=[],events=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
@@ -919,6 +985,11 @@ function switchTab(tab){
   if(tab==='News')loadNews();
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
   if(tab==='Chal'){fetchAll().then(renderChal);}
+  if(tab==='More'){
+    updateAvatarEl($('moreUserAvatar'),currentUser);
+    $('moreUserName').textContent=userNames[currentUser]||currentUser;
+    $('moreUserSub').textContent=currentUser;
+  }
 }
 function switchSubTab(sub){
   $('newsContent').style.display=sub==='news'?'':'none';
@@ -949,7 +1020,7 @@ async function fetchRoles(){
     const r=await fetch(`${API}/api/roles`);const a=await r.json();userRoles={};
     a.forEach(x=>{userRoles[x.user_id]=x.role;});
     currentUserRole=userRoles[currentUser]||'user';
-    if(currentUserRole==='admin'){$('adminBtn').style.display='';$('kudosAddBtn').style.display='';$('contestAddBtn').style.display='';}
+    if(currentUserRole==='admin'){$('moreAdminGroup').style.display='';$('kudosAddBtn').style.display='';$('contestAddBtn').style.display='';}
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
@@ -1381,7 +1452,7 @@ async function renderContests(){
   }
   if(past.length){
     $('awardsSection').style.display='';
-    $('awardsList').innerHTML=past.map(c=>`<div class="award-card"><div class="award-medal">🏆</div><div class="award-info"><div class="award-name">${escHtml(userName(c.winner)||c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div></div>`).join('');
+    $('awardsList').innerHTML=past.map(c=>`<div class="award-card"><div class="award-medal">${TROPHY_SVG}</div><div class="award-info"><div class="award-name">${escHtml(userName(c.winner)||c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div></div>`).join('');
   }else{$('awardsSection').style.display='none';}
 }
 async function buildContestCard(c){
@@ -1536,24 +1607,33 @@ async function submitContest(){
 // ── Pull-to-refresh ──
 (function(){
   let startY=0,pulling=false;
-  const ind=document.createElement('div');
-  ind.id='ptr-ind';
-  ind.style.cssText='position:fixed;top:52px;left:50%;transform:translateX(-50%) translateY(-40px);background:#fff;border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text-sub);box-shadow:0 2px 8px rgba(0,0,0,.1);transition:transform .2s;z-index:99;pointer-events:none;opacity:0';
-  ind.textContent='↓ 당겨서 새로고침';
-  document.body.appendChild(ind);
+  const ind=$('ptrIndicator'),spinner=$('ptrSpinner'),txt=$('ptrText'),tabFeedEl=$('tabFeed');
+  function reset(){
+    ind.style.transition='height .3s,opacity .3s';
+    ind.style.height='0';ind.style.opacity='0';
+    spinner.style.display='none';txt.textContent='당겨서 새로고침';
+  }
   document.addEventListener('touchstart',e=>{
-    if(window.scrollY===0)startY=e.touches[0].clientY;
+    if(window.scrollY===0&&tabFeedEl.classList.contains('active'))startY=e.touches[0].clientY;
   },{passive:true});
   document.addEventListener('touchmove',e=>{
     if(!startY)return;
     const dy=e.touches[0].clientY-startY;
-    if(dy>10){pulling=true;const prog=Math.min(dy/80,1);ind.style.opacity=prog;ind.style.transform=`translateX(-50%) translateY(${Math.min(dy*.4,20)-40}px)`;ind.textContent=dy>80?'↑ 놓아서 새로고침':'↓ 당겨서 새로고침';}
+    if(dy>5){
+      pulling=true;
+      const h=Math.min(dy*0.45,60);
+      ind.style.transition='none';
+      ind.style.height=h+'px';
+      ind.style.opacity=String(Math.min(h/25,1));
+      txt.textContent=dy>110?'놓아서 새로고침':'당겨서 새로고침';
+    }
   },{passive:true});
   document.addEventListener('touchend',e=>{
-    if(pulling&&(e.changedTouches[0].clientY-startY)>80){
-      ind.textContent='새로고침 중...';
-      fetchPosts().then(()=>{renderFeed();ind.style.opacity=0;ind.style.transform='translateX(-50%) translateY(-40px)';});
-    }else{ind.style.opacity=0;ind.style.transform='translateX(-50%) translateY(-40px)';}
+    if(pulling&&(e.changedTouches[0].clientY-startY)>110){
+      ind.style.transition='none';ind.style.height='48px';
+      txt.textContent='새로고침 중...';spinner.style.display='block';
+      fetchPosts().then(()=>{renderFeed();reset();});
+    }else{reset();}
     startY=0;pulling=false;
   },{passive:true});
 })();
@@ -1601,15 +1681,14 @@ async function openNotiPanel(){
     // 마지막 알림 시간 기준으로 뱃지 갱신
     if(items.length)notiLastSeen=items[0].created_at||0;
     localStorage.setItem('noti_last_seen',notiLastSeen);
-    $('notiBadge').style.display='none';
+    updateNotiBadges(false);
   }catch(e){$('notiList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
 async function checkNotiBadge(){
   try{
     const r=await fetch(`${API}/api/notifications?user_id=${encodeURIComponent(currentUser)}`);
     const items=await r.json();
-    if(items.length&&(items[0].created_at||0)>notiLastSeen)$('notiBadge').style.display='';
-    else $('notiBadge').style.display='none';
+    updateNotiBadges(items.length&&(items[0].created_at||0)>notiLastSeen);
   }catch(e){}
 }
 // ── 건강봇 에이전트 ──
@@ -1654,7 +1733,7 @@ async function openAdminModal(){
   // Claude API 사용량
   fetch(`${API}/api/claude-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
-    const costUSD=((tin/1000000)*3+(tout/1000000)*15).toFixed(4);
+    const costUSD=((tin/1000000)*0.25+(tout/1000000)*1.25).toFixed(4);
     $('claudeStats').innerHTML=`
       <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
@@ -1948,7 +2027,7 @@ $('logoutBtn').onclick=async function(){
   currentUser='';currentUserName='';sessionToken=null;posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';
-  $('adminBtn').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
+  $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };
 </script>

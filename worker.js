@@ -716,7 +716,7 @@ export default {
                 'anthropic-version': '2023-06-01',
               },
               body: JSON.stringify({
-                model: 'claude-haiku-4-5-20251001',
+                model: 'claude-3-haiku-20240307',
                 max_tokens: 300,
                 system: '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 필요시 질병관리청(☎1339) 또는 보건복지부(☎129)를 안내하세요. 인사말 없이 바로 내용으로 시작하세요.',
                 messages: [{ role: 'user', content: targetComment.content }],
