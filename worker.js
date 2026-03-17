@@ -521,6 +521,20 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 알림 ──
+      if (p === '/api/notifications' && m === 'GET') {
+        const userId = url.searchParams.get('user_id');
+        if (!userId) return json([]);
+        const comments = await env.DB.prepare(
+          'SELECT "comment" as type, c.author, substr(c.content,1,60) as excerpt, c.post_id as ref_id, c.created_at FROM comments c JOIN posts p ON c.post_id=p.id WHERE p.author=? AND c.author!=? ORDER BY c.created_at DESC LIMIT 10'
+        ).bind(userId, userId).all();
+        const replies = await env.DB.prepare(
+          'SELECT "reply" as type, r.author, substr(r.content,1,60) as excerpt, r.comment_id as ref_id, r.created_at FROM comment_replies r JOIN comments c ON r.comment_id=c.id WHERE c.author=? AND r.author!=? ORDER BY r.created_at DESC LIMIT 10'
+        ).bind(userId, userId).all();
+        const items = [...comments.results, ...replies.results].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).slice(0,20);
+        return json(items);
+      }
+
       // ── 마일리지 ──
       if (p === '/api/mileage' && m === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM user_mileage ORDER BY points DESC').all();
@@ -599,13 +613,16 @@ export default {
       // ── 건강봇 에이전트 ──
       const AGENT_ID = '000000099';
       if (p === '/api/agent/health/post' && m === 'POST') {
-        const healthQueries = ['질병관리청 건강 예방 안내', '보건복지부 건강 정책', '국민건강보험 건강 생활'];
-        const q = healthQueries[Math.floor(Math.random() * healthQueries.length)];
-        const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q) + '&hl=ko&gl=KR&ceid=KR:ko';
-        const resp = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
-        if (!resp.ok) return json({ error: '뉴스 로드 실패' }, 502);
-        const xml = await resp.text();
-        const items = parseRSS(xml);
+        // 기존 health 뉴스 캐시 우선 사용, 없으면 직접 fetch
+        let items = [];
+        const cached = await env.DB.prepare('SELECT data FROM news_cache WHERE category=?').bind('health').first();
+        if (cached) { try { items = JSON.parse(cached.data); } catch(e) {} }
+        if (!items.length) {
+          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 OR 보건복지부 건강') + '&hl=ko&gl=KR&ceid=KR:ko';
+          const resp = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
+          if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다. 건강 탭에서 먼저 뉴스를 로드해주세요.' }, 502);
+          items = parseRSS(await resp.text());
+        }
         if (!items.length) return json({ error: '기사를 찾지 못했습니다' }, 404);
         // 최근 5개 중 랜덤 선택
         const item = items[Math.floor(Math.random() * Math.min(5, items.length))];
@@ -633,17 +650,20 @@ export default {
           if (targetComment) break;
         }
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
-        // 건강 정보 가져오기
-        const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 건강 예방') + '&hl=ko&gl=KR&ceid=KR:ko';
+        // 건강 정보 캐시 우선 사용
         let replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
         try {
-          const resp = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-          if (resp.ok) {
-            const items = parseRSS(await resp.text());
-            if (items.length) {
-              const item = items[Math.floor(Math.random() * Math.min(5, items.length))];
-              replyContent = `관련 정보를 공유드립니다 📋\n\n[${item.source || '건강 정보'}] ${item.title}${item.link ? `\n🔗 ${item.link}` : ''}\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부(☎129)로 문의하세요.`;
-            }
+          let ritems = [];
+          const rc = await env.DB.prepare('SELECT data FROM news_cache WHERE category=?').bind('health').first();
+          if (rc) { try { ritems = JSON.parse(rc.data); } catch(e) {} }
+          if (!ritems.length) {
+            const ru = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 OR 보건복지부 건강') + '&hl=ko&gl=KR&ceid=KR:ko';
+            const rr = await fetch(ru, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            if (rr.ok) ritems = parseRSS(await rr.text());
+          }
+          if (ritems.length) {
+            const item = ritems[Math.floor(Math.random() * Math.min(5, ritems.length))];
+            replyContent = `관련 정보를 공유드립니다 📋\n\n[${item.source || '건강 정보'}] ${item.title}${item.link ? `\n🔗 ${item.link}` : ''}\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부(☎129)로 문의하세요.`;
           }
         } catch(e) {}
         const replyId = 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);

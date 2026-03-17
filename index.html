@@ -349,11 +349,15 @@ button,a,[role="button"]{touch-action:manipulation}
 <!-- ════ 앱 ════ -->
 <div id="appPage" class="page">
   <div class="appbar">
-    <span class="appbar-title">STEP</span>
+    <div>
+      <div class="appbar-title">STEP</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">Seobu Together Empathy Platform</div>
+    </div>
     <div class="appbar-btns">
       <button class="appbar-btn" id="adminBtn" style="display:none" onclick="openAdminModal()">⚙️ 관리</button>
       <button class="appbar-btn" onclick="openMileageModal()">🏅</button>
       <button class="appbar-btn" onclick="openProfileModal()">👤</button>
+      <button class="appbar-btn" id="notiBtn" onclick="openNotiPanel()" style="position:relative">🔔<span id="notiBadge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;background:#ff4d6d;border-radius:50%"></span></button>
       <button class="appbar-btn" id="logoutBtn">로그아웃</button>
     </div>
   </div>
@@ -372,7 +376,6 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
       <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
       <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역 취업</button>
-      <button class="sub-tab" id="nc-health" onclick="switchNewsCat('health')">건강</button>
     </div>
     <div id="newsContent"></div>
     <div id="infoContent" style="display:none">
@@ -384,14 +387,7 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
   </div>
 
-  <!-- 서부소식 탭 -->
-  <div id="tabSeobusosik" class="tab-page">
-    <div class="section-hd">
-      <span class="section-title">📢 서부소식</span>
-      <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
-    </div>
-    <div id="eventsList"></div>
-  </div>
+  <!-- 서부소식 탭 제거됨 - 칭찬합니다 탭으로 통합 -->
 
   <!-- 검색 탭 -->
   <div id="tabSearch" class="tab-page">
@@ -414,6 +410,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <!-- 섹션 2: 경조사 소식 -->
     <div class="section-hd">
       <span class="section-title">🎊 경조사 소식</span>
+      <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
     </div>
     <div id="chalEventsList"></div>
 
@@ -439,14 +436,11 @@ button,a,[role="button"]{touch-action:manipulation}
     <button class="nav-btn" id="nav-news" onclick="switchTab('News')">
       <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스/정보
     </button>
-    <button class="nav-btn" id="nav-seobusosik" onclick="switchTab('Seobusosik')">
+    <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
       <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>서부소식
     </button>
     <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
-    </button>
-    <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
-      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>칭찬합니다
     </button>
   </nav>
 </div>
@@ -764,7 +758,17 @@ button,a,[role="button"]{touch-action:manipulation}
           </div>
           <div style="flex:1;min-width:80px">
             <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">소속 (선택)</div>
-            <input type="text" id="newUserDept" placeholder="서울서부지청" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+            <select id="newUserDept" style="width:100%;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;background:#fff">
+              <option value="">선택 없음</option>
+              <option>서울서부고용센터</option>
+              <option>지역협력과</option>
+              <option>고용관리과</option>
+              <option>노동기준조사1과</option>
+              <option>노동기준조사2과</option>
+              <option>노동기준조사3과</option>
+              <option>노동기준감독과</option>
+              <option>산재예방감독과</option>
+            </select>
           </div>
           <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
         </div>
@@ -787,6 +791,16 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="userRoleList"></div>
       </div>
     </div>
+  </div>
+</div>
+<!-- ════ 알림 패널 ════ -->
+<div class="modal-overlay" id="notiModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🔔 알림</span>
+      <button class="modal-close" onclick="$('notiModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" id="notiList" style="padding:0"></div>
   </div>
 </div>
 <!-- ════ 전체 글 보기 모달 ════ -->
@@ -863,7 +877,6 @@ function switchTab(tab){
   $('nav-'+tab.toLowerCase()).classList.add('active');
   $('fab').className='fab'+(tab==='Feed'?' show':'');
   if(tab==='News')loadNews();
-  if(tab==='Seobusosik'){fetchEvents().then(renderEvents);}
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
   if(tab==='Chal'){fetchAll().then(renderChal);}
 }
@@ -901,7 +914,6 @@ function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
-  $('nc-health').className='sub-tab'+(cat==='health'?' active':'');
   newsCache=null;loadNews();
 }
 async function loadNews(){
@@ -1191,7 +1203,7 @@ async function deleteKudos(id){if(!confirm('삭제할까요?'))return;await fetc
 // ── 경조사 소식 (칭찬 탭 내) ──
 function renderChalEvents(){
   if(!events.length){$('chalEventsList').innerHTML='<div class="empty-state" style="padding:1.5rem"><div class="ei">🎊</div>등록된 경조사 소식이 없습니다.</div>';return;}
-  $('chalEventsList').innerHTML=events.slice(0,5).map(e=>`<div class="event-card" style="margin-bottom:8px"><div class="event-icon" style="width:36px;height:36px;font-size:16px">${EVT_ICONS[e.type]||'📌'}</div><div class="event-info"><span class="event-type-badge">${e.type}</span><div class="event-title" style="font-size:14px">${escHtml(e.title)}</div><div class="event-meta">${relDate(e.created_at)}</div></div></div>`).join('');
+  $('chalEventsList').innerHTML=events.map(e=>`<div class="event-card" style="margin-bottom:8px"><div class="event-icon" style="width:36px;height:36px;font-size:16px">${EVT_ICONS[e.type]||'📌'}</div><div class="event-info"><span class="event-type-badge">${e.type}</span><div class="event-title" style="font-size:14px">${escHtml(e.title)}</div><div class="event-meta">${relDate(e.created_at)}</div></div></div>`).join('');
 }
 
 // ── 이달의 서부인 ──
@@ -1357,6 +1369,30 @@ async function submitContest(){
   $('contestModal').classList.remove('open');await fetchContests();renderContests();
 }
 
+// ── Pull-to-refresh ──
+(function(){
+  let startY=0,pulling=false;
+  const ind=document.createElement('div');
+  ind.id='ptr-ind';
+  ind.style.cssText='position:fixed;top:52px;left:50%;transform:translateX(-50%) translateY(-40px);background:#fff;border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text-sub);box-shadow:0 2px 8px rgba(0,0,0,.1);transition:transform .2s;z-index:99;pointer-events:none;opacity:0';
+  ind.textContent='↓ 당겨서 새로고침';
+  document.body.appendChild(ind);
+  document.addEventListener('touchstart',e=>{
+    if(window.scrollY===0)startY=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!startY)return;
+    const dy=e.touches[0].clientY-startY;
+    if(dy>10){pulling=true;const prog=Math.min(dy/80,1);ind.style.opacity=prog;ind.style.transform=`translateX(-50%) translateY(${Math.min(dy*.4,20)-40}px)`;ind.textContent=dy>80?'↑ 놓아서 새로고침':'↓ 당겨서 새로고침';}
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(pulling&&(e.changedTouches[0].clientY-startY)>80){
+      ind.textContent='새로고침 중...';
+      fetchPosts().then(()=>{renderFeed();ind.style.opacity=0;ind.style.transform='translateX(-50%) translateY(-40px)';});
+    }else{ind.style.opacity=0;ind.style.transform='translateX(-50%) translateY(-40px)';}
+    startY=0;pulling=false;
+  },{passive:true});
+})();
 // ── 이미지 캐러셀 ──
 function initCarousels(){
   document.querySelectorAll('.img-carousel').forEach(car=>{
@@ -1382,6 +1418,35 @@ function openFullPost(key){
   if(p.keyword)html+=`<div class="post-tag" style="margin:4px 14px 8px">#${escHtml(p.keyword)}</div>`;
   $('fullPostBody').innerHTML=html;
   $('fullPostModal').classList.add('open');
+}
+// ── 알림 ──
+let notiLastSeen = parseInt(localStorage.getItem('noti_last_seen')||'0');
+async function openNotiPanel(){
+  $('notiModal').classList.add('open');
+  $('notiList').innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">불러오는 중...</div>';
+  try{
+    const r=await fetch(`${API}/api/notifications?user_id=${encodeURIComponent(currentUser)}`);
+    const items=await r.json();
+    if(!items.length){$('notiList').innerHTML='<div style="padding:24px;text-align:center;color:#aaa;font-size:13px">새로운 알림이 없습니다</div>';return;}
+    $('notiList').innerHTML=items.map(n=>{
+      const typeLabel=n.type==='comment'?'댓글':'답글';
+      const actorName=escHtml(userName(n.author));
+      const excerpt=escHtml((n.excerpt||'').slice(0,40)+(n.excerpt&&n.excerpt.length>40?'...':''));
+      return`<div style="padding:12px 16px;border-bottom:1px solid var(--border)"><div style="font-size:13px"><strong>${actorName}</strong>님이 ${typeLabel}을 달았습니다</div><div style="font-size:12px;color:var(--text-sub);margin-top:3px">${excerpt}</div><div style="font-size:11px;color:var(--text-hint);margin-top:2px">${relDate(n.created_at)}</div></div>`;
+    }).join('');
+    // 마지막 알림 시간 기준으로 뱃지 갱신
+    if(items.length)notiLastSeen=items[0].created_at||0;
+    localStorage.setItem('noti_last_seen',notiLastSeen);
+    $('notiBadge').style.display='none';
+  }catch(e){$('notiList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
+}
+async function checkNotiBadge(){
+  try{
+    const r=await fetch(`${API}/api/notifications?user_id=${encodeURIComponent(currentUser)}`);
+    const items=await r.json();
+    if(items.length&&(items[0].created_at||0)>notiLastSeen)$('notiBadge').style.display='';
+    else $('notiBadge').style.display='none';
+  }catch(e){}
 }
 // ── 건강봇 에이전트 ──
 async function agentHealthPost(){
@@ -1504,14 +1569,21 @@ async function deleteUserAdmin(userId){
   await fetch(`${API}/api/users/${encodeURIComponent(userId)}`,{method:'DELETE'});
   openAdminModal();
 }
+const DEPT_OPTIONS=['서울서부고용센터','지역협력과','고용관리과','노동기준조사1과','노동기준조사2과','노동기준조사3과','노동기준감독과','산재예방감독과'];
 async function changeDeptAdmin(userId,currentDept){
-  const dept=prompt(`${userId} 소속 변경\n현재: ${currentDept||'없음'}`,currentDept||'');
-  if(dept===null)return;
+  const opts=DEPT_OPTIONS.map(d=>`<option value="${d}"${d===currentDept?' selected':''}>${d}</option>`).join('');
+  const html=`<div style="padding:16px"><div style="font-size:13px;margin-bottom:10px"><b>${userId}</b> 소속 변경</div><select id="deptSelectTmp" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none"><option value="">선택 없음</option>${opts}</select><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn-sm" onclick="$('deptChangeModal').classList.remove('open')">취소</button><button class="btn-sm primary" onclick="confirmDeptChange('${userId}')">변경</button></div></div>`;
+  let modal=$('deptChangeModal');
+  if(!modal){modal=document.createElement('div');modal.id='deptChangeModal';modal.className='modal-overlay center';modal.innerHTML=`<div class="modal" style="max-width:320px">${html}</div>`;document.body.appendChild(modal);}
+  else modal.querySelector('.modal').innerHTML=html;
+  modal.classList.add('open');
+}
+async function confirmDeptChange(userId){
+  const dept=$('deptSelectTmp').value;
   try{
     const r=await fetch(`${API}/api/users/${encodeURIComponent(userId)}/dept`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dept})});
-    const d=await r.json();
-    if(d.error){alert(d.error);return;}
-    openAdminModal();
+    const d=await r.json();if(d.error){alert(d.error);return;}
+    $('deptChangeModal').classList.remove('open');openAdminModal();
   }catch(e){alert('오류: '+e.message);}
 }
 async function setUserRole(userId,role,btn){
@@ -1607,7 +1679,7 @@ function onLoginSuccess(d){
   localStorage.setItem('session_token',d.token);
   // 이전 방식 삭제
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();
+  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();setTimeout(checkNotiBadge,2000);
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
     $('cpOld').value='1234';$('cpNew').value='';$('cpNew2').value='';$('cpErr').textContent='';
