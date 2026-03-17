@@ -69,18 +69,18 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS contest_votes (contest_id TEXT, voter TEXT, nominee TEXT, PRIMARY KEY(contest_id, voter))`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
+  // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
+  try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
+  // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
+  try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
+  try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
+  try { await env.DB.exec("DELETE FROM users WHERE id='관리자'"); } catch(e) {}
   await env.DB.batch([
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000001','admin','admin'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000001','관리자','9999','active',0),
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('050007557','admin','admin'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('050007557','김창민','1234','active',0),
   ]);
-  // 마이그레이션
-  try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
-  // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
-  try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
-  try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
-  try { await env.DB.exec("DELETE FROM users WHERE id='관리자'"); } catch(e) {}
   _dbReady = true;
 }
 
