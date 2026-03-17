@@ -83,6 +83,7 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_admin INTEGER DEFAULT 0"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE kudos ADD COLUMN user_target TEXT DEFAULT ''"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE events ADD COLUMN tagged_user TEXT DEFAULT ''"); } catch(e) {}
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
@@ -335,8 +336,8 @@ export default {
       if (p === '/api/events' && m === 'POST') {
         const b = await request.json();
         const id = 'evt_' + Date.now();
-        await env.DB.prepare('INSERT INTO events(id,author,type,title,content,created_at) VALUES(?,?,?,?,?,?)')
-          .bind(id, b.author, b.type || '기타', b.title, b.content || '', Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO events(id,author,type,title,content,tagged_user,created_at) VALUES(?,?,?,?,?,?,?)')
+          .bind(id, b.author, b.type || '기타', b.title, b.content || '', b.tagged_user || '', Math.floor(Date.now() / 1000)).run();
         return json({ id });
       }
       if (p.match(/^\/api\/events\/[^/]+$/) && m === 'DELETE') {
