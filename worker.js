@@ -128,7 +128,7 @@ export default {
         const cat = url.searchParams.get('category') || 'labor';
         const queries = {
           labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
-          local: '마포구 OR 용산구 OR 서대문구 OR 은평구 고용 취업',
+          local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
           health: '질병관리청 OR 보건복지부 건강',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
