@@ -861,7 +861,7 @@ const EVT_ICONS={결혼:'💍',출산:'👶',생일:'🎂',상:'🕯️',승진:
 
 let posts=[],events=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
-let badgePrefs={},mileageTopUser='';
+let badgePrefs={};
 let currentUser='',currentUserName='',currentUserRole='user',sessionToken=null;
 let editingKey=null,editorBlocks=[],commentRepliesCache={};
 let commentingPostId=null;
@@ -935,15 +935,13 @@ async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${
 async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events=await r.json();}catch(e){events=[];}}
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
-async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1};});}catch(e){}}
+async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1,granted_badge_admin:x.granted_badge_admin??0,granted_badge_top:x.granted_badge_top??0};});}catch(e){}}
 async function fetchUserNames(){try{const r=await fetch(`${API}/api/users`);const a=await r.json();userNames={};a.forEach(u=>{if(u.name)userNames[u.id]=u.name;});}catch(e){}}
-async function fetchMileage(){try{const r=await fetch(`${API}/api/mileage`);const a=await r.json();if(a.length)mileageTopUser=a[0].user_id;}catch(e){}}
 function badgeHtml(userId){
   const prefs=badgePrefs[userId]||{};
-  const role=userRoles[userId]||'user';
   let b='';
-  if(role==='admin'&&(prefs.show_badge_admin??1))b+='<span class="badge badge-admin">관리자</span>';
-  if(mileageTopUser&&userId===mileageTopUser&&(prefs.show_badge_top??1))b+='<span class="badge badge-top">소통왕</span>';
+  if(prefs.granted_badge_admin&&(prefs.show_badge_admin??1))b+='<span class="badge badge-admin">관리자</span>';
+  if(prefs.granted_badge_top&&(prefs.show_badge_top??1))b+='<span class="badge badge-top">소통왕</span>';
   return b;
 }
 async function fetchRoles(){
@@ -955,7 +953,7 @@ async function fetchRoles(){
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
-async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames(),fetchMileage()]);renderFeed();}
+async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
 
 // ── 뉴스 ──
 let newsCat='labor';
@@ -1383,7 +1381,7 @@ async function renderContests(){
   }
   if(past.length){
     $('awardsSection').style.display='';
-    $('awardsList').innerHTML=past.map(c=>`<div class="award-card"><div class="award-medal">🏆</div><div class="award-info"><div class="award-name">${escHtml(c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div></div>`).join('');
+    $('awardsList').innerHTML=past.map(c=>`<div class="award-card"><div class="award-medal">🏆</div><div class="award-info"><div class="award-name">${escHtml(userName(c.winner)||c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div></div>`).join('');
   }else{$('awardsSection').style.display='none';}
 }
 async function buildContestCard(c){
@@ -1404,7 +1402,7 @@ async function buildContestCard(c){
   if(c.description)html+=`<div style="font-size:13px;color:var(--text-sub);margin-bottom:8px;line-height:1.6">${escHtml(c.description)}</div>`;
   html+=`<div class="contest-period">추천기간: ${fmtDT(c.nominate_start)} ~ ${fmtDT(c.nominate_end)}<br/>투표기간: ${fmtDT(c.vote_start)} ~ ${fmtDT(c.vote_end)}</div>`;
   if(c.winner){
-    html+=`<div class="winner-banner"><div class="wb-label">🏆 이달의 서부인</div><div class="wb-name">${escHtml(c.winner)}</div></div>`;
+    html+=`<div class="winner-banner"><div class="wb-label">🏆 이달의 서부인</div><div class="wb-name">${escHtml(userName(c.winner)||c.winner)}</div></div>`;
   }
   // 후보자 목록 with votes
   if(nominees.length){
@@ -1413,9 +1411,9 @@ async function buildContestCard(c){
       const vr=voteResults.find(r=>r.nominee===n.nominee)||{count:0};
       const pct=totalVotes?Math.round((vr.count/totalVotes)*100):0;
       const nomMsgs=msgs.filter(m=>m.nominee===n.nominee);
-      const authorObj=nomMsgs.map(m=>{try{return JSON.parse(m.author_display);}catch{return{display:m.author_display,voter:''};}}); 
+      const authorObj=nomMsgs.map(m=>{try{return JSON.parse(m.author_display);}catch{return{display:m.author_display,voter:''};}});
       html+=`<div class="nominee-block">
-        <div class="nominee-hd"><span class="nominee-name">${escHtml(n.nominee)}</span><span class="nominee-count">추천 ${nominees.filter(x=>x.nominee===n.nominee).length}명</span></div>`;
+        <div class="nominee-hd"><span class="nominee-name">${escHtml(userName(n.nominee)||n.nominee)}</span><span class="nominee-count">추천 ${nominees.filter(x=>x.nominee===n.nominee).length}명</span></div>`;
       if(st==='vote'||st==='end'||st==='done'){
         html+=`<div class="vote-bar-row"><span style="font-size:12px;width:30px">${pct}%</span><div class="vote-bar-wrap"><div class="vote-bar" style="width:${pct}%"></div></div><span class="nominee-count">${vr.count}표</span></div>`;
       }
@@ -1430,18 +1428,18 @@ async function buildContestCard(c){
   if(st==='nom'&&!myNom&&currentUser){
     html+=`<button class="btn-primary" style="margin-bottom:8px;width:100%" onclick="openNominateModal('${c.id}')">👤 후보자 추천하기</button>`;
   }else if(st==='nom'&&myNom){
-    html+=`<div class="voted-msg" style="padding:8px 0;text-align:center;font-size:13px;color:var(--text-sub)">✓ ${escHtml(myNom.nominee)}님을 추천하셨습니다</div>`;
+    html+=`<div class="voted-msg" style="padding:8px 0;text-align:center;font-size:13px;color:var(--text-sub)">✓ ${escHtml(userName(myNom.nominee)||myNom.nominee)}님을 추천하셨습니다</div>`;
   }
   if(st==='vote'){
     if(!myVote){
       html+=`<button class="btn-primary" style="margin-bottom:8px;width:100%" onclick="openVotePanel('${c.id}')">🗳️ 투표하기</button>`;
     }else{
-      html+=`<div class="voted-msg" style="padding:8px 0;text-align:center;font-size:13px;color:var(--text-sub)">✓ ${escHtml(myVote)}님께 투표하셨습니다</div>`;
+      html+=`<div class="voted-msg" style="padding:8px 0;text-align:center;font-size:13px;color:var(--text-sub)">✓ ${escHtml(userName(myVote)||myVote)}님께 투표하셨습니다</div>`;
     }
     html+=`<button class="btn-sm" style="width:100%;margin-top:4px" onclick="openVoteMsgModal('${c.id}')">💬 댓글 남기기</button>`;
   }
   if(isAdmin&&(st==='end')&&nominees.length){
-    html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">수상자 선택 (관리자)</div><div class="nominee-options">${[...new Set(nominees.map(n=>n.nominee))].map(name=>`<button class="btn-nominate" onclick="selectWinner('${c.id}','${name}')">${escHtml(name)}</button>`).join('')}</div></div>`;
+    html+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">수상자 선택 (관리자)</div><div class="nominee-options">${[...new Set(nominees.map(n=>n.nominee))].map(uid=>`<button class="btn-nominate" onclick="selectWinner('${c.id}','${uid}')">${escHtml(userName(uid)||uid)}</button>`).join('')}</div></div>`;
   }
   if(isAdmin){
     html+=`<div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><button class="btn-sm danger" onclick="deleteContest('${c.id}')">삭제</button></div>`;
@@ -1452,7 +1450,7 @@ async function buildContestCard(c){
     btn.onclick=()=>{
       const opts=[...new Set(nominees.map(n=>n.nominee))];
       const panel=document.createElement('div');panel.id='vp-'+c.id;panel.style.cssText='margin-bottom:12px';
-      panel.innerHTML=`<div class="nominee-options">${opts.map(n=>`<button class="btn-nominate" onclick="selectVoteNominee(this,'${n}','${c.id}')">${escHtml(n)}</button>`).join('')}</div><button class="btn-primary" id="vote-submit-${c.id}" disabled onclick="castVote('${c.id}')">투표 확인</button>`;
+      panel.innerHTML=`<div class="nominee-options">${opts.map(n=>`<button class="btn-nominate" onclick="selectVoteNominee(this,'${n}','${c.id}')">${escHtml(userName(n)||n)}</button>`).join('')}</div><button class="btn-primary" id="vote-submit-${c.id}" disabled onclick="castVote('${c.id}')">투표 확인</button>`;
       btn.replaceWith(panel);
     };
   });
@@ -1472,9 +1470,10 @@ async function castVote(cid){
     selectedNominee=null;await fetchContests();await renderContests();
   }catch(e){alert('투표 실패');}
 }
-async function selectWinner(cid,name){
+async function selectWinner(cid,uid){
+  const name=userName(uid)||uid;
   if(!confirm(`${name}님을 이달의 서부인으로 선정할까요?`))return;
-  await fetch(`${API}/api/contests/${cid}/winner`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({winner:name})});
+  await fetch(`${API}/api/contests/${cid}/winner`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({winner:uid})});
   await fetchContests();renderContests();
 }
 async function deleteContest(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/contests/${id}`,{method:'DELETE'});contests=contests.filter(c=>c.id!==id);renderContests();}
@@ -1488,7 +1487,7 @@ async function openNominateModal(cid){
   try{
     const users=await fetch(`${API}/api/users`).then(r=>r.json());
     const nominatable=users.filter(u=>u.id!==currentUser&&u.status==='active');
-    $('nomineeOptions').innerHTML=nominatable.map(u=>`<button class="btn-nominate" onclick="selectNomineeBtn(this,'${escHtml(u.id)}')">${escHtml(u.id)}</button>`).join('');
+    $('nomineeOptions').innerHTML=nominatable.map(u=>`<button class="btn-nominate" onclick="selectNomineeBtn(this,'${escHtml(u.id)}')">${escHtml(u.name||u.id)}</button>`).join('');
   }catch(e){$('nomineeOptions').innerHTML='<span style="font-size:13px;color:var(--danger)">사용자 목록 로드 실패</span>';}
 }
 function selectNomineeBtn(btn,name){
@@ -1512,7 +1511,7 @@ function openVoteMsgModal(cid){
   $('vmNominee').innerHTML='<option value="">-- 후보자 선택 --</option>';
   fetch(`${API}/api/contests/${cid}/nominations`).then(r=>r.json()).then(data=>{
     const names=[...new Set((data.nominations||[]).map(n=>n.nominee))];
-    names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;$('vmNominee').appendChild(o);});
+    names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=userName(n)||n;$('vmNominee').appendChild(o);});
   });
   $('vmContent').value='';$('vmAnon').checked=false;$('voteMsgModal').classList.add('open');
 }
@@ -1682,7 +1681,8 @@ async function openAdminModal(){
       const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
       const deptStr=escHtml(u.dept||'');
       if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${dn}${deptStr?` <span style="font-size:11px;color:#1565c0;background:#e8f4ff;padding:1px 6px;border-radius:10px">${deptStr}</span>`:''} <span style="font-size:11px;color:var(--text-hint)">${di}</span> (나)<br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
-      return`<div class="user-role-row"><span class="user-role-name">${dn}${deptStr?` <span style="font-size:11px;color:#1565c0;background:#e8f4ff;padding:1px 6px;border-radius:10px">${deptStr}</span>`:''} <span style="font-size:11px;color:var(--text-hint)">${di}</span><br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button><button class="role-btn" onclick="changeDeptAdmin('${di}','${deptStr}')">소속변경</button><button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button></div></div>`;
+      const uprefs=badgePrefs[u.id]||{};
+      return`<div class="user-role-row"><span class="user-role-name">${dn}${deptStr?` <span style="font-size:11px;color:#1565c0;background:#e8f4ff;padding:1px 6px;border-radius:10px">${deptStr}</span>`:''} <span style="font-size:11px;color:var(--text-hint)">${di}</span><br/><span style="font-size:11px;color:var(--text-hint)">최근: ${lastSeenStr}</span></span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button><button class="role-btn${uprefs.granted_badge_admin?' on':''}" onclick="toggleBadge('${di}','admin',this)">관리자칭호</button><button class="role-btn${uprefs.granted_badge_top?' on':''}" onclick="toggleBadge('${di}','top',this)">소통왕칭호</button><button class="role-btn" onclick="changeDeptAdmin('${di}','${deptStr}')">소속변경</button><button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button></div></div>`;
     }).join('');
   }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
@@ -1817,10 +1817,22 @@ async function saveProfile(){
     if(selectedAvatar!==undefined)body.avatar_url=selectedAvatar;
     await fetch(`${API}/api/profile/${encodeURIComponent(currentUser)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(selectedAvatar!==null&&selectedAvatar!==undefined)profiles[currentUser]=selectedAvatar;
-    badgePrefs[currentUser]={show_badge_admin,show_badge_top};
+    const prev=badgePrefs[currentUser]||{};
+    badgePrefs[currentUser]={...prev,show_badge_admin,show_badge_top};
     $('profileModal').classList.remove('open');
     renderFeed();
   }catch(e){alert('저장 실패');}
+}
+async function toggleBadge(userId,badge,btn){
+  const prefs=badgePrefs[userId]||{};
+  const key=`granted_badge_${badge}`;
+  const newVal=prefs[key]?0:1;
+  try{
+    await fetch(`${API}/api/profile/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:newVal})});
+    if(!badgePrefs[userId])badgePrefs[userId]={};
+    badgePrefs[userId][key]=newVal;
+    btn.classList.toggle('on',newVal===1);
+  }catch(e){alert('오류: '+e.message);}
 }
 
 // ── 유저 프로필 카드 ──

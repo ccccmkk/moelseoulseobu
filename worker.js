@@ -75,6 +75,8 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE posts ADD COLUMN mode TEXT DEFAULT 'normal'"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_admin INTEGER DEFAULT 1"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_top INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_admin INTEGER DEFAULT 0"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0"); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
   try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
@@ -512,8 +514,14 @@ export default {
       if (p.match(/^\/api\/users\/[^/]+$/) && m === 'DELETE') {
         const userId = decodeURIComponent(p.split('/')[3]);
         if (userId === '관리자') return json({ error: '관리자는 삭제할 수 없습니다.' }, 400);
-        await env.DB.prepare('DELETE FROM users WHERE id=?').bind(userId).run();
-        await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
+        await env.DB.batch([
+          env.DB.prepare('DELETE FROM users WHERE id=?').bind(userId),
+          env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId),
+          env.DB.prepare('DELETE FROM user_roles WHERE user_id=?').bind(userId),
+          env.DB.prepare('DELETE FROM user_profiles WHERE user_id=?').bind(userId),
+          env.DB.prepare('DELETE FROM user_mileage WHERE user_id=?').bind(userId),
+          env.DB.prepare('DELETE FROM user_presence WHERE user_id=?').bind(userId),
+        ]);
         return json({ ok: true });
       }
 
@@ -560,7 +568,7 @@ export default {
 
       // ── 마일리지 ──
       if (p === '/api/mileage' && m === 'GET') {
-        const rows = await env.DB.prepare('SELECT * FROM user_mileage ORDER BY points DESC').all();
+        const rows = await env.DB.prepare('SELECT um.* FROM user_mileage um JOIN users u ON um.user_id=u.id ORDER BY um.points DESC').all();
         return json(rows.results);
       }
 
@@ -593,6 +601,8 @@ export default {
           avatar_url: profile?.avatar_url || null,
           show_badge_admin: profile?.show_badge_admin ?? 1,
           show_badge_top: profile?.show_badge_top ?? 1,
+          granted_badge_admin: profile?.granted_badge_admin ?? 0,
+          granted_badge_top: profile?.granted_badge_top ?? 0,
           post_count: postCount?.c || 0,
           comment_count: commentCount?.c || 0,
           mileage: mileage?.points || 0,
@@ -605,8 +615,10 @@ export default {
         const avatar_url = body.avatar_url !== undefined ? body.avatar_url : (existing?.avatar_url ?? null);
         const show_badge_admin = body.show_badge_admin !== undefined ? (body.show_badge_admin ? 1 : 0) : (existing?.show_badge_admin ?? 1);
         const show_badge_top = body.show_badge_top !== undefined ? (body.show_badge_top ? 1 : 0) : (existing?.show_badge_top ?? 1);
-        await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url,show_badge_admin,show_badge_top) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?,show_badge_admin=?,show_badge_top=?')
-          .bind(userId, avatar_url, show_badge_admin, show_badge_top, avatar_url, show_badge_admin, show_badge_top).run();
+        const granted_badge_admin = body.granted_badge_admin !== undefined ? (body.granted_badge_admin ? 1 : 0) : (existing?.granted_badge_admin ?? 0);
+        const granted_badge_top = body.granted_badge_top !== undefined ? (body.granted_badge_top ? 1 : 0) : (existing?.granted_badge_top ?? 0);
+        await env.DB.prepare('INSERT INTO user_profiles(user_id,avatar_url,show_badge_admin,show_badge_top,granted_badge_admin,granted_badge_top) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=?,show_badge_admin=?,show_badge_top=?,granted_badge_admin=?,granted_badge_top=?')
+          .bind(userId, avatar_url, show_badge_admin, show_badge_top, granted_badge_admin, granted_badge_top, avatar_url, show_badge_admin, show_badge_top, granted_badge_admin, granted_badge_top).run();
         return json({ ok: true });
       }
 
@@ -692,22 +704,35 @@ export default {
           if (targetComment) break;
         }
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
-        // 건강 정보 캐시 우선 사용
+        // Claude API로 답변 생성
         let replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
-        try {
-          let ritems = [];
-          const rc = await env.DB.prepare('SELECT data FROM news_cache WHERE category=?').bind('health').first();
-          if (rc) { try { ritems = JSON.parse(rc.data); } catch(e) {} }
-          if (!ritems.length) {
-            const ru = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 OR 보건복지부 건강') + '&hl=ko&gl=KR&ceid=KR:ko';
-            const rr = await fetch(ru, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-            if (rr.ok) ritems = parseRSS(await rr.text());
-          }
-          if (ritems.length) {
-            const item = ritems[Math.floor(Math.random() * Math.min(5, ritems.length))];
-            replyContent = `관련 정보를 공유드립니다 📋\n\n[${item.source || '건강 정보'}] ${item.title}${item.link ? `\n🔗 ${item.link}` : ''}\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부(☎129)로 문의하세요.`;
-          }
-        } catch(e) {}
+        if (env.ANTHROPIC_API_KEY) {
+          try {
+            const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 300,
+                system: '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 필요시 질병관리청(☎1339) 또는 보건복지부(☎129)를 안내하세요. 인사말 없이 바로 내용으로 시작하세요.',
+                messages: [{ role: 'user', content: targetComment.content }],
+              }),
+            });
+            const aiData = await aiResp.json();
+            const aiText = aiData.content?.[0]?.text;
+            if (aiText) replyContent = aiText;
+            // 토큰 사용량 기록
+            if (aiData.usage) {
+              await env.DB.prepare(
+                'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
+              ).bind(aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000), aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000)).run();
+            }
+          } catch(e) { /* fallback to static message */ }
+        }
         const replyId = 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(replyId, targetComment.id, AGENT_ID, replyContent, Math.floor(Date.now() / 1000)).run();
