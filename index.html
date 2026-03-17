@@ -170,6 +170,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .kudos-meta{font-size:11px;color:var(--text-hint);margin-top:8px}
 .kudos-del{background:none;border:none;color:var(--text-hint);cursor:pointer;font-size:13px;margin-left:auto;padding:0}
 .kudos-del:hover{color:var(--danger)}
+.kudos-target{display:inline-block;font-size:13px;font-weight:700;color:var(--primary);margin-bottom:6px}
 /* 이달의 서부인 */
 .contest-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:12px}
 .contest-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
@@ -416,7 +417,7 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
       <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
-      <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역 취업</button>
+      <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역뉴스</button>
     </div>
     <div id="newsContent"></div>
     <div id="infoContent" style="display:none">
@@ -441,21 +442,7 @@ button,a,[role="button"]{touch-action:manipulation}
 
   <!-- 칭찬합니다 탭 (3섹션) -->
   <div id="tabChal" class="tab-page">
-    <!-- 섹션 1: 칭찬합니다 -->
-    <div class="section-hd">
-      <span class="section-title">친절스타</span>
-      <button class="btn-sm primary" id="kudosAddBtn" style="display:none" onclick="openKudosModal()">+ 추가</button>
-    </div>
-    <div id="kudosList"></div>
-
-    <!-- 섹션 2: 경조사 소식 -->
-    <div class="section-hd">
-      <span class="section-title">경조사 소식</span>
-      <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
-    </div>
-    <div id="chalEventsList"></div>
-
-    <!-- 섹션 3: 이달의 서부인 -->
+    <!-- 섹션 1: 이달의 서부인 -->
     <div class="section-hd">
       <span class="section-title">이달의 서부인</span>
       <button class="btn-sm primary" id="contestAddBtn" style="display:none" onclick="openContestModal()">+ 만들기</button>
@@ -464,9 +451,25 @@ button,a,[role="button"]{touch-action:manipulation}
 
     <!-- 수상 기록 -->
     <div id="awardsSection" style="display:none">
-      <div class="section-hd"><span class="section-title">수상 기록</span></div>
+      <div class="section-hd">
+        <span class="section-title">수상 기록</span>
+      </div>
       <div id="awardsList"></div>
     </div>
+
+    <!-- 섹션 2: 친절스타 -->
+    <div class="section-hd">
+      <span class="section-title">친절스타</span>
+      <button class="btn-sm primary" id="kudosAddBtn" style="display:none" onclick="openKudosModal()">+ 추가</button>
+    </div>
+    <div id="kudosList"></div>
+
+    <!-- 섹션 3: 경조사 소식 -->
+    <div class="section-hd">
+      <span class="section-title">경조사 소식</span>
+      <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
+    </div>
+    <div id="chalEventsList"></div>
   </div>
 
   <!-- 더보기 탭 -->
@@ -509,11 +512,11 @@ button,a,[role="button"]{touch-action:manipulation}
     <button class="nav-btn active" id="nav-feed" onclick="switchTab('Feed')">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>피드
     </button>
-    <button class="nav-btn" id="nav-news" onclick="switchTab('News')">
-      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스
-    </button>
     <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
       <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>서부소식
+    </button>
+    <button class="nav-btn" id="nav-news" onclick="switchTab('News')">
+      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a4 4 0 01-4-4V6"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>뉴스
     </button>
     <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
@@ -627,6 +630,12 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div class="modal-body" style="padding:16px">
       <div class="form-row">
+        <label>대상자</label>
+        <select id="kudosUserTarget">
+          <option value="">-- 선택 안 함 --</option>
+        </select>
+      </div>
+      <div class="form-row">
         <label>태그</label>
         <select id="kudosTag" onchange="toggleKudosSource()">
           <option value="홈페이지">🌐 홈페이지</option>
@@ -642,6 +651,30 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="modal-footer">
       <button class="btn-sm" onclick="$('kudosModal').classList.remove('open')">취소</button>
       <button class="btn-sm primary" onclick="submitKudos()">등록</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 수상기록 편집 모달 (관리자) ════ -->
+<div class="modal-overlay center" id="awardEditModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">수상기록 편집</span>
+      <button class="modal-close" onclick="$('awardEditModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <input type="hidden" id="awardEditId"/>
+      <div class="form-row"><label>제목</label><input type="text" id="awardEditTitle"/></div>
+      <div class="form-row">
+        <label>수상자</label>
+        <select id="awardEditWinner">
+          <option value="">-- 없음 --</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="$('awardEditModal').classList.remove('open')">취소</button>
+      <button class="btn-sm primary" onclick="submitAwardEdit()">저장</button>
     </div>
   </div>
 </div>
@@ -1412,7 +1445,7 @@ async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetc
 
 // ── 칭찬합니다 탭 전체 렌더 ──
 async function renderChal(){
-  renderKudos();renderChalEvents();await renderContests();
+  await renderContests();renderKudos();renderChalEvents();
 }
 
 // ── 칭찬합니다 (kudos) ──
@@ -1422,14 +1455,27 @@ function renderKudos(){
     const tagClass=k.tag||'기타';
     const srcLabel=k.tag==='기타'&&k.source?` · ${escHtml(k.source)}`:k.tag==='홈페이지'?' · 홈페이지 접수':k.tag==='친절카드'?' · 친절카드':''  ;
     const canDel=currentUserRole==='admin';
-    return`<div class="kudos-card"><div class="kudos-header"><span class="kudos-tag ${tagClass}">${k.tag==='홈페이지'?'🌐':''}${k.tag==='친절카드'?'🪄':''}${k.tag==='기타'?'📎':''} ${escHtml(k.tag)}</span><span class="kudos-source">${srcLabel}</span>${canDel?`<button class="kudos-del" onclick="deleteKudos('${k.id}')">삭제</button>`:''}</div><div class="kudos-content">${escHtml(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
+    const targetName=k.user_target?escHtml(userName(k.user_target)||k.user_target):'';
+    const targetHtml=targetName?`<span class="kudos-target">🌟 ${targetName}</span>`:'';
+    return`<div class="kudos-card"><div class="kudos-header"><span class="kudos-tag ${tagClass}">${k.tag==='홈페이지'?'🌐':''}${k.tag==='친절카드'?'🪄':''}${k.tag==='기타'?'📎':''} ${escHtml(k.tag)}</span><span class="kudos-source">${srcLabel}</span>${canDel?`<button class="kudos-del" onclick="deleteKudos('${k.id}')">삭제</button>`:''}</div>${targetHtml}<div class="kudos-content">${escHtml(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
   }).join('');
 }
 function toggleKudosSource(){$('kudosSourceRow').style.display=$('kudosTag').value==='기타'?'':'none';}
-function openKudosModal(){$('kudosTag').value='홈페이지';$('kudosSource').value='';$('kudosContent').value='';$('kudosSourceRow').style.display='none';$('kudosModal').classList.add('open');}
+async function openKudosModal(){
+  $('kudosTag').value='홈페이지';$('kudosSource').value='';$('kudosContent').value='';$('kudosSourceRow').style.display='none';
+  const sel=$('kudosUserTarget');sel.innerHTML='<option value="">-- 선택 안 함 --</option>';
+  try{
+    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    users.filter(u=>u.status==='active'&&u.id!=='000000099').forEach(u=>{
+      const opt=document.createElement('option');opt.value=u.id;opt.textContent=u.name||u.id;sel.appendChild(opt);
+    });
+  }catch(e){}
+  $('kudosModal').classList.add('open');
+}
 async function submitKudos(){
   const content=$('kudosContent').value.trim();if(!content){alert('내용을 입력해주세요.');return;}
-  await fetch(`${API}/api/kudos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:$('kudosTag').value,source:$('kudosSource').value.trim(),content,added_by:currentUser})});
+  const user_target=$('kudosUserTarget').value;
+  await fetch(`${API}/api/kudos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:$('kudosTag').value,source:$('kudosSource').value.trim(),content,added_by:currentUser,user_target})});
   $('kudosModal').classList.remove('open');await fetchKudos();renderKudos();
 }
 async function deleteKudos(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/kudos/${id}`,{method:'DELETE'});kudos=kudos.filter(k=>k.id!==id);renderKudos();}
@@ -1441,6 +1487,28 @@ function renderChalEvents(){
 }
 
 // ── 이달의 서부인 ──
+async function openAwardEdit(id,title,winner){
+  $('awardEditId').value=id;$('awardEditTitle').value=title;
+  const sel=$('awardEditWinner');sel.innerHTML='<option value="">-- 없음 --</option>';
+  try{
+    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    users.filter(u=>u.status==='active').forEach(u=>{
+      const opt=document.createElement('option');opt.value=u.id;opt.textContent=u.name||u.id;
+      if(u.id===winner)opt.selected=true;
+      sel.appendChild(opt);
+    });
+  }catch(e){}
+  $('awardEditModal').classList.add('open');
+}
+async function submitAwardEdit(){
+  const id=$('awardEditId').value;
+  const title=$('awardEditTitle').value.trim();
+  const winner=$('awardEditWinner').value;
+  if(!title){alert('제목을 입력해주세요.');return;}
+  await fetch(`${API}/api/contests/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,winner:winner||null})});
+  $('awardEditModal').classList.remove('open');
+  await fetchContests();await renderContests();
+}
 async function renderContests(){
   if(!contests.length){$('contestList').innerHTML='<div class="empty-state" style="padding:1.5rem"><div class="ei">⭐</div>진행 중인 이달의 서부인이 없습니다.</div>';$('awardsSection').style.display='none';return;}
   const active=contests.filter(c=>!c.winner);
@@ -1452,7 +1520,10 @@ async function renderContests(){
   }
   if(past.length){
     $('awardsSection').style.display='';
-    $('awardsList').innerHTML=past.map(c=>`<div class="award-card"><div class="award-medal">${TROPHY_SVG}</div><div class="award-info"><div class="award-name">${escHtml(userName(c.winner)||c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div></div>`).join('');
+    $('awardsList').innerHTML=past.map(c=>{
+      const editBtn=currentUserRole==='admin'?`<button class="btn-sm" style="margin-left:auto;font-size:11px" onclick="openAwardEdit('${escHtml(c.id)}','${escHtml(c.title)}','${escHtml(c.winner||'')}')">편집</button>`:'';
+      return`<div class="award-card" style="display:flex;align-items:center"><div class="award-medal">${TROPHY_SVG}</div><div class="award-info" style="flex:1"><div class="award-name">${escHtml(userName(c.winner)||c.winner)}</div><div class="award-period">${escHtml(c.title)}</div></div>${editBtn}</div>`;
+    }).join('');
   }else{$('awardsSection').style.display='none';}
 }
 async function buildContestCard(c){
@@ -1711,7 +1782,8 @@ async function agentHealthReply(){
     const r=await fetch(`${API}/api/agent/health/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
-    msg.style.color='#2e7d32';msg.textContent='✓ 대댓글 작성 완료';
+    const apiStatus=d.api_used?'(AI답변)':d.api_error?`(폴백: ${d.api_error})`:'(폴백)';
+    msg.style.color=d.api_used?'#2e7d32':'var(--warning)';msg.textContent=`✓ 대댓글 작성 완료 ${apiStatus}`;
   }catch(e){msg.style.color='var(--danger)';msg.textContent='오류: '+e.message;}
   finally{btn.disabled=false;}
 }

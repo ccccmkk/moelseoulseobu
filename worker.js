@@ -77,6 +77,9 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_top INTEGER DEFAULT 1"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_admin INTEGER DEFAULT 0"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE kudos ADD COLUMN user_target TEXT DEFAULT ''"); } catch(e) {}
+  // 건강봇 아바타 시드
+  try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
   try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
@@ -344,8 +347,8 @@ export default {
       if (p === '/api/kudos' && m === 'POST') {
         const b = await request.json();
         const id = 'kudos_' + Date.now();
-        await env.DB.prepare('INSERT INTO kudos(id,tag,source,content,added_by,created_at) VALUES(?,?,?,?,?,?)')
-          .bind(id, b.tag, b.source || '', b.content, b.added_by, Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO kudos(id,tag,source,content,added_by,user_target,created_at) VALUES(?,?,?,?,?,?,?)')
+          .bind(id, b.tag, b.source || '', b.content, b.added_by, b.user_target || '', Math.floor(Date.now() / 1000)).run();
         return json({ id });
       }
       if (p.match(/^\/api\/kudos\/[^/]+$/) && m === 'DELETE') {
@@ -378,6 +381,18 @@ export default {
         const id = p.split('/')[3];
         const { winner } = await request.json();
         await env.DB.prepare('UPDATE monthly_contests SET winner=? WHERE id=?').bind(winner, id).run();
+        return json({ ok: true });
+      }
+      if (p.match(/^\/api\/contests\/[^/]+$/) && m === 'PUT') {
+        const id = p.split('/')[3];
+        const b = await request.json();
+        const fields = [];
+        const vals = [];
+        if (b.title !== undefined) { fields.push('title=?'); vals.push(b.title); }
+        if (b.winner !== undefined) { fields.push('winner=?'); vals.push(b.winner || null); }
+        if (!fields.length) return json({ error: '변경 항목 없음' }, 400);
+        vals.push(id);
+        await env.DB.prepare(`UPDATE monthly_contests SET ${fields.join(',')} WHERE id=?`).bind(...vals).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/contests\/[^/]+\/nominations$/) && m === 'GET') {
@@ -705,8 +720,13 @@ export default {
         }
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
         // Claude API로 답변 생성
-        let replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
-        if (env.ANTHROPIC_API_KEY) {
+        const FOOTER = '\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
+        let replyContent = null;
+        let apiUsed = false;
+        let apiError = null;
+        if (!env.ANTHROPIC_API_KEY) {
+          apiError = 'ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.';
+        } else {
           try {
             const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
@@ -718,25 +738,32 @@ export default {
               body: JSON.stringify({
                 model: 'claude-3-haiku-20240307',
                 max_tokens: 300,
-                system: '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 필요시 질병관리청(☎1339) 또는 보건복지부(☎129)를 안내하세요. 인사말 없이 바로 내용으로 시작하세요.',
+                system: '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.',
                 messages: [{ role: 'user', content: targetComment.content }],
               }),
             });
             const aiData = await aiResp.json();
             const aiText = aiData.content?.[0]?.text;
-            if (aiText) replyContent = aiText;
-            // 토큰 사용량 기록
+            if (aiText) {
+              replyContent = aiText + FOOTER;
+              apiUsed = true;
+            } else {
+              apiError = aiData.error?.message || JSON.stringify(aiData);
+            }
             if (aiData.usage) {
               await env.DB.prepare(
                 'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
               ).bind(aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000), aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000)).run();
             }
-          } catch(e) { /* fallback to static message */ }
+          } catch(e) { apiError = e.message; }
+        }
+        if (!replyContent) {
+          replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
         }
         const replyId = 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(replyId, targetComment.id, AGENT_ID, replyContent, Math.floor(Date.now() / 1000)).run();
-        return json({ ok: true, comment_id: targetComment.id });
+        return json({ ok: true, comment_id: targetComment.id, api_used: apiUsed, api_error: apiError });
       }
 
       // ── 용량 확인 ──
