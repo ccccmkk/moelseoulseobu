@@ -2,7 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="STEP"/>
+<meta name="theme-color" content="#37c272"/>
 <title>STEP</title>
 <style>
 html,body{overscroll-behavior-y:none}
@@ -291,6 +295,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .compose-placeholder{font-size:14px;color:var(--text-hint);flex:1}
 .anon-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sub);cursor:pointer;user-select:none}
 .anon-toggle input{width:16px;height:16px;cursor:pointer;accent-color:var(--green)}
+/* ── iOS / 모바일 호환성 ── */
+*{-webkit-tap-highlight-color:transparent}
+button,a,[role="button"]{touch-action:manipulation}
+.modal-body{-webkit-overflow-scrolling:touch}
+/* 하단 Safe Area (iPhone X 이상 홈 인디케이터) */
+.bottom-nav{height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
+.fab{bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+.tab-page{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+/* iOS 입력 자동 확대 방지 (font-size < 16px → 줌인) */
+@supports (-webkit-touch-callout:none){
+  input,select,textarea{font-size:16px !important}
+}
 </style>
 </head>
 <body>
