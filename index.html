@@ -244,6 +244,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .comment-reply-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-hint);padding:0 3px;transition:color .15s}
 .comment-reply-btn:hover{color:var(--green)}
 .replies-area{margin-left:40px;border-left:2px solid var(--border);padding-left:10px;margin-top:6px}
+.show-more-replies{background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:4px 0;display:block;margin:2px 0}
+.show-more-replies:hover{text-decoration:underline}
 .reply-item{display:flex;gap:8px;margin-bottom:10px}
 .reply-body{flex:1}
 .reply-author{font-size:12px;font-weight:600}
@@ -307,6 +309,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .blog-thumb-wrap img{width:100%;max-height:220px;object-fit:cover;display:block}
 .blog-excerpt{font-size:14px;line-height:1.7;padding:8px 14px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .btn-more{background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;padding:2px 14px 10px;display:block}
+/* ── 칭호 배지 ── */
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px;vertical-align:middle;line-height:1.6}
+.badge-admin{background:#e8f4ff;color:#1565c0}
+.badge-top{background:#fff3e0;color:#e65100}
+/* ── 업로드 진행 오버레이 ── */
+#uploadOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center}
+#uploadOverlay.open{display:flex}
+.upload-box{background:#fff;border-radius:var(--radius);padding:28px 32px;min-width:200px;text-align:center}
+.upload-label{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
+.upload-bar-wrap{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+.upload-bar{height:100%;background:var(--green);border-radius:4px;transition:width .15s}
+.upload-pct{font-size:13px;color:var(--text-sub);margin-top:8px}
+/* ── 간편 모드 사진 그리드 ── */
+.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px}
+.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0}
+.simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
+.simple-photo-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
 /* ── iOS / 모바일 호환성 ── */
 *{-webkit-tap-highlight-color:transparent}
 button,a,[role="button"]{touch-action:manipulation}
@@ -696,6 +715,18 @@ button,a,[role="button"]{touch-action:manipulation}
         <label>이모지 아바타</label>
         <div class="emoji-picker" id="emojiPicker"></div>
       </div>
+      <div class="form-row" style="margin-top:8px">
+        <label>칭호 표시</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:normal;cursor:pointer">
+            <input type="checkbox" id="showBadgeAdmin" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"/> 관리자 칭호 표시 <span class="badge badge-admin">관리자</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:normal;cursor:pointer">
+            <input type="checkbox" id="showBadgeTop" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"/> 소통왕 칭호 표시 <span class="badge badge-top">소통왕</span>
+          </label>
+        </div>
+        <div style="font-size:11px;color:var(--text-hint);margin-top:6px">해당 칭호가 있을 때만 이름 옆에 표시됩니다.</div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm" onclick="$('profileModal').classList.remove('open')">닫기</button>
@@ -816,14 +847,23 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
   </div>
 </div>
+<!-- ════ 업로드 진행 오버레이 ════ -->
+<div id="uploadOverlay">
+  <div class="upload-box">
+    <div class="upload-label" id="uploadLabel">업로드 중...</div>
+    <div class="upload-bar-wrap"><div class="upload-bar" id="uploadBar" style="width:0%"></div></div>
+    <div class="upload-pct" id="uploadPct">0%</div>
+  </div>
+</div>
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
 const EVT_ICONS={결혼:'💍',출산:'👶',생일:'🎂',상:'🕯️',승진:'🎉',기타:'📌'};
 
 let posts=[],events=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
+let badgePrefs={},mileageTopUser='';
 let currentUser='',currentUserName='',currentUserRole='user',sessionToken=null;
-let editingKey=null,editorBlocks=[];
+let editingKey=null,editorBlocks=[],commentRepliesCache={};
 let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
@@ -895,8 +935,17 @@ async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${
 async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events=await r.json();}catch(e){events=[];}}
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
-async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;});}catch(e){}}
+async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1};});}catch(e){}}
 async function fetchUserNames(){try{const r=await fetch(`${API}/api/users`);const a=await r.json();userNames={};a.forEach(u=>{if(u.name)userNames[u.id]=u.name;});}catch(e){}}
+async function fetchMileage(){try{const r=await fetch(`${API}/api/mileage`);const a=await r.json();if(a.length)mileageTopUser=a[0].user_id;}catch(e){}}
+function badgeHtml(userId){
+  const prefs=badgePrefs[userId]||{};
+  const role=userRoles[userId]||'user';
+  let b='';
+  if(role==='admin'&&(prefs.show_badge_admin??1))b+='<span class="badge badge-admin">관리자</span>';
+  if(mileageTopUser&&userId===mileageTopUser&&(prefs.show_badge_top??1))b+='<span class="badge badge-top">소통왕</span>';
+  return b;
+}
 async function fetchRoles(){
   try{
     const r=await fetch(`${API}/api/roles`);const a=await r.json();userRoles={};
@@ -906,7 +955,7 @@ async function fetchRoles(){
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
-async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
+async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames(),fetchMileage()]);renderFeed();}
 
 // ── 뉴스 ──
 let newsCat='labor';
@@ -972,7 +1021,7 @@ function renderFeed(){
     const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
     const isBlog=p.mode==='blog';
     return`<div class="post-card"${isBlog?` style="cursor:pointer" onclick="openFullPost('${key}')"`:''}>
-      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="event.stopPropagation();openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="event.stopPropagation();openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
       ${renderBlocksInCard(p,isBlog)}
       ${isBlog?`<button class="btn-more" onclick="event.stopPropagation();openFullPost('${key}')">더보기 →</button>`:''}
       ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
@@ -1010,23 +1059,84 @@ async function loadComments(postId){
   try{const r=await fetch(`${API}/api/posts/${postId}/comments?user_id=${encodeURIComponent(currentUser)}`);const c=await r.json();renderComments(c);}
   catch(e){$('commentsList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
+// ── 대댓글 렌더 (유튜브 스타일) ──
+const REPLY_FOLD=3;
+function buildRepliesHtml(cid,reps,expanded){
+  const hasMore=reps.length>REPLY_FOLD;
+  const visible=expanded||!hasMore?reps:reps.slice(0,REPLY_FOLD);
+  let html=visible.map(r=>{
+    const canDel=r.author===currentUser||currentUserRole==='admin';
+    return`<div class="reply-item" id="rep-${r.id}">
+      ${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}
+      <div class="reply-body">
+        <div class="reply-author">${escHtml(userName(r.author))}${badgeHtml(r.author)}</div>
+        <div class="reply-text">${escHtml(r.content)}</div>
+        <div class="reply-meta">${relDate(r.created_at)}${canDel?`<button class="comment-del" onclick="deleteReply('${r.id}','${cid}')">삭제</button>`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  if(!expanded&&hasMore)html+=`<button class="show-more-replies" onclick="expandReplies('${cid}')">▼ 답글 ${reps.length-REPLY_FOLD}개 더 보기</button>`;
+  else if(expanded&&hasMore)html+=`<button class="show-more-replies" onclick="collapseReplies('${cid}')">▲ 접기</button>`;
+  return html;
+}
+function expandReplies(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;ra.dataset.expanded='1';
+  const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid]||[],true);
+  if(inputRow)ra.appendChild(inputRow);
+}
+function collapseReplies(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;ra.dataset.expanded='0';
+  const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid]||[],false);
+  if(inputRow)ra.appendChild(inputRow);
+}
+function showReplyInput(cid){
+  const ra=$(`ra-${cid}`);if(!ra)return;
+  let inputRow=ra.querySelector('.reply-input-row');
+  if(!inputRow){
+    inputRow=document.createElement('div');inputRow.className='reply-input-row';
+    inputRow.innerHTML=`<input type="text" id="ri-${cid}" placeholder="답글 달기..."/><button onclick="submitReply('${cid}')">게시</button>`;
+    ra.appendChild(inputRow);
+  }
+  inputRow.style.display='';
+  setTimeout(()=>inputRow.querySelector('input')?.focus(),40);
+}
+function updateReplyBtn(cid){
+  const cnt=(commentRepliesCache[cid]||[]).length;
+  // 답글 버튼 카운트 갱신
+  const ci=$(`ci-${cid}`);if(!ci)return;
+  const btn=ci.querySelector('.comment-reply-btn');if(!btn)return;
+  btn.innerHTML='답글'+(cnt?` <span style="font-size:11px;color:var(--text-hint)">(${cnt})</span>`:'');
+}
+function updatePostCommentCount(postId,delta){
+  const p=posts.find(x=>x.id===postId);if(!p)return;
+  p.comment_count=Math.max(0,(p.comment_count||0)+delta);
+  document.querySelectorAll(`[onclick="openComments('${postId}')"]`).forEach(btn=>{
+    const sp=btn.querySelector('span');if(sp)sp.textContent=p.comment_count||'';
+  });
+}
 function renderComments(cmts){
+  commentRepliesCache={};
   if(!cmts.length){$('commentsList').innerHTML='<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">첫 댓글을 남겨보세요!</div>';return;}
   $('commentsList').innerHTML=cmts.map(c=>{
     const canDel=c.author===currentUser||currentUserRole==='admin';
     const liked=c.user_liked;
+    const replies=c.replies||[];
+    commentRepliesCache[c.id]=replies;
+    const cnt=replies.length;
     return`<div class="comment-item" id="ci-${c.id}">
       ${avatarEl(c.author)}
       <div class="comment-body">
-        <div class="comment-author">${escHtml(userName(c.author))}</div>
+        <div class="comment-author">${escHtml(userName(c.author))}${badgeHtml(c.author)}</div>
         <div class="comment-text">${escHtml(c.content)}</div>
         <div class="comment-meta">
           <span>${relDate(c.created_at)}</span>
           <button class="comment-like-btn${liked?' liked':''}" onclick="toggleCommentLike('${c.id}','${escHtml(c.author)}',this)">♥ <span>${c.like_count||0}</span></button>
-          <button class="comment-reply-btn" onclick="toggleReplyArea('${c.id}')">답글</button>
+          <button class="comment-reply-btn" onclick="showReplyInput('${c.id}')">답글${cnt?` <span style="font-size:11px;color:var(--text-hint)">(${cnt})</span>`:''}</button>
           ${canDel?`<button class="comment-del" onclick="deleteComment('${c.id}')">삭제</button>`:''}
         </div>
-        <div class="replies-area" id="ra-${c.id}" style="display:none"></div>
+        <div class="replies-area" id="ra-${c.id}">${buildRepliesHtml(c.id,replies,false)}</div>
       </div>
     </div>`;
   }).join('');
@@ -1035,51 +1145,72 @@ $('commentInput').oninput=function(){$('submitComment').disabled=!this.value.tri
 $('submitComment').onclick=async function(){
   const txt=$('commentInput').value.trim();if(!txt||!commentingPostId)return;
   $('submitComment').disabled=true;
-  try{await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});$('commentInput').value='';await loadComments(commentingPostId);}
+  try{await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});$('commentInput').value='';await loadComments(commentingPostId);updatePostCommentCount(commentingPostId,1);}
   catch(e){alert('댓글 등록 실패');}
 };
 $('commentInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('submitComment').disabled)$('submitComment').click();}};
-async function deleteComment(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});await loadComments(commentingPostId);}
+async function deleteComment(id){
+  if(!confirm('삭제할까요?'))return;
+  const replies=commentRepliesCache[id]||[];
+  await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});
+  updatePostCommentCount(commentingPostId,-(1+replies.length));
+  await loadComments(commentingPostId);
+}
 async function toggleCommentLike(cmtId,cmtAuthor,btn){
   const wasLiked=btn.classList.contains('liked');
   btn.classList.toggle('liked',!wasLiked);
   const cnt=btn.querySelector('span');cnt.textContent=Math.max(0,parseInt(cnt.textContent)+(wasLiked?-1:1));
   try{await fetch(`${API}/api/comments/${cmtId}/like`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:currentUser,comment_author:cmtAuthor})});}catch(e){}
 }
-async function toggleReplyArea(cmtId){
-  const ra=$(`ra-${cmtId}`);
-  if(ra.style.display==='none'){
-    ra.style.display='';
-    if(!ra.dataset.loaded){
-      ra.innerHTML='<div style="font-size:12px;color:var(--text-hint);padding:4px 0">불러오는 중...</div>';
-      try{
-        const r=await fetch(`${API}/api/comments/${cmtId}/replies`);
-        const replies=await r.json();
-        ra.innerHTML=renderReplies(replies)+`<div class="reply-input-row"><input type="text" id="ri-${cmtId}" placeholder="답글 달기..."/><button onclick="submitReply('${cmtId}')">게시</button></div>`;
-      }catch(e){ra.innerHTML='<div style="font-size:12px;color:var(--danger)">오류</div>';}
-      ra.dataset.loaded='1';
-    }
-  }else{ra.style.display='none';}
-}
-function renderReplies(replies){
-  if(!replies||!replies.length)return'';
-  return replies.map(r=>`<div class="reply-item">${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}<div class="reply-body"><div class="reply-author">${escHtml(userName(r.author))}</div><div class="reply-text">${escHtml(r.content)}</div><div class="reply-meta">${relDate(r.created_at)}</div></div></div>`).join('');
-}
-async function submitReply(cmtId){
-  const input=$(`ri-${cmtId}`);const txt=input?.value.trim();if(!txt)return;
+async function submitReply(cid){
+  const input=$(`ri-${cid}`);const txt=input?.value.trim();if(!txt)return;
   try{
-    await fetch(`${API}/api/comments/${cmtId}/replies`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
-    const ra=$(`ra-${cmtId}`);const inputRow=ra.querySelector('.reply-input-row');
-    const r=await fetch(`${API}/api/comments/${cmtId}/replies`);const replies=await r.json();
-    ra.innerHTML=renderReplies(replies);ra.appendChild(inputRow);input.value='';
+    const r=await fetch(`${API}/api/comments/${cid}/replies`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
+    const newReply=await r.json();if(newReply.error){alert(newReply.error);return;}
+    input.value='';
+    commentRepliesCache[cid]=[...(commentRepliesCache[cid]||[]),newReply];
+    const ra=$(`ra-${cid}`);const inputRow=ra.querySelector('.reply-input-row');
+    ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid],true);
+    ra.dataset.expanded='1';
+    if(inputRow)ra.appendChild(inputRow);
+    updateReplyBtn(cid);
+    updatePostCommentCount(commentingPostId,1);
   }catch(e){alert('답글 등록 실패');}
+}
+async function deleteReply(replyId,cid){
+  if(!confirm('삭제할까요?'))return;
+  await fetch(`${API}/api/replies/${replyId}`,{method:'DELETE'});
+  commentRepliesCache[cid]=(commentRepliesCache[cid]||[]).filter(r=>r.id!==replyId);
+  const ra=$(`ra-${cid}`);const inputRow=ra.querySelector('.reply-input-row');
+  ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid],ra.dataset.expanded==='1');
+  if(inputRow)ra.appendChild(inputRow);
+  updateReplyBtn(cid);
+  updatePostCommentCount(commentingPostId,-1);
 }
 function openLightbox(url){$('lightboxImg').src=url;$('lightbox').classList.add('open');document.body.style.overflow='hidden';}
 function closeLightbox(){$('lightbox').classList.remove('open');document.body.style.overflow='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();});
 
+// ── 업로드 XHR (진행률) ──
+function uploadFileXHR(file,onProgress){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    const fd=new FormData();fd.append('file',file);
+    xhr.upload.onprogress=e=>{if(e.lengthComputable&&onProgress)onProgress(Math.round(e.loaded/e.total*100));};
+    xhr.onload=()=>{
+      if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('응답 파싱 실패'));}}
+      else{try{reject(new Error(JSON.parse(xhr.responseText).error||'업로드 실패'));}catch{reject(new Error('업로드 실패'));}}
+    };
+    xhr.onerror=()=>reject(new Error('네트워크 오류'));
+    xhr.open('POST',`${API}/api/upload`);xhr.send(fd);
+  });
+}
+function showUploadProgress(label){$('uploadLabel').textContent=label||'업로드 중...';$('uploadBar').style.width='0%';$('uploadPct').textContent='0%';$('uploadOverlay').classList.add('open');}
+function updateUploadProgress(pct){$('uploadBar').style.width=pct+'%';$('uploadPct').textContent=pct+'%';}
+function hideUploadProgress(){$('uploadOverlay').classList.remove('open');}
+
 // ── 글쓰기 ──
-function renderEditor(){
+function renderBlogEditor(){
   const editor=$('blockEditor');editor.innerHTML='';
   editorBlocks.forEach((b,i)=>{
     const div=document.createElement('div');div.className='editor-block '+(b.type==='text'?'text-block':'img-block');
@@ -1091,18 +1222,42 @@ function renderEditor(){
     }else{
       div.innerHTML=`<img src="${b.url}" loading="lazy"/><div class="caption-wrap"><input class="caption-input" type="text" placeholder="사진 설명 (선택)" value="${b.caption||''}"/><button class="block-del">×</button></div>`;
       div.querySelector('.caption-input').oninput=e=>{editorBlocks[i].caption=e.target.value;};
-      div.querySelector('.block-del').onclick=()=>{editorBlocks.splice(i,1);renderEditor();};
+      div.querySelector('.block-del').onclick=()=>{editorBlocks.splice(i,1);renderBlogEditor();};
     }
     editor.appendChild(div);
   });
 }
-function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
+function renderSimpleEditor(){
+  const editor=$('blockEditor');editor.innerHTML='';
+  const textBlock=editorBlocks.find(b=>b.type==='text')||{type:'text',content:''};
+  if(!editorBlocks.includes(textBlock))editorBlocks.unshift(textBlock);
+  const textDiv=document.createElement('div');textDiv.className='editor-block text-block';
+  textDiv.innerHTML=`<textarea placeholder="지금 무슨 생각을 하고 있나요?" rows="3">${textBlock.content}</textarea>`;
+  const ta=textDiv.querySelector('textarea');
+  ta.oninput=()=>{textBlock.content=ta.value;ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';};
+  ta.style.height='auto';ta.style.height=(ta.scrollHeight||80)+'px';
+  editor.appendChild(textDiv);
+  const imgBlocks=editorBlocks.filter(b=>b.type==='image');
+  if(imgBlocks.length){
+    const grid=document.createElement('div');grid.className='simple-photos';
+    imgBlocks.forEach(b=>{
+      const w=document.createElement('div');w.className='simple-photo-item';
+      w.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><button class="simple-photo-del" title="삭제">×</button>`;
+      w.querySelector('.simple-photo-del').onclick=()=>{const idx=editorBlocks.indexOf(b);if(idx>=0)editorBlocks.splice(idx,1);renderSimpleEditor();};
+      grid.appendChild(w);
+    });
+    editor.appendChild(grid);
+  }
+}
+function renderEditor(){$('blogModeToggle').checked?renderBlogEditor():renderSimpleEditor();}
+function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderSimpleEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
 function editPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
   editingKey=key;editorBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
   $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
   $('postKeyword').value=p.keyword||'';$('blogModeToggle').checked=p.mode==='blog';renderEditor();$('writeModal').classList.add('open');
 }
+$('blogModeToggle').onchange=function(){renderEditor();};
 async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);renderFeed();}
 $('modalClose').onclick=()=>$('writeModal').classList.remove('open');
 $('modalCancel').onclick=()=>$('writeModal').classList.remove('open');
@@ -1110,13 +1265,23 @@ $('writeModal').onclick=e=>{if(e.target===$('writeModal'))$('writeModal').classL
 $('addImgBtn').onclick=()=>$('imgFileInput').click();
 $('imgFileInput').onchange=async function(e){
   const files=Array.from(e.target.files);this.value='';
-  $('addImgBtn').disabled=true;$('addImgBtn').textContent='업로드 중...';
-  for(const file of files){
-    const fd=new FormData();fd.append('file',file);
-    try{const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd});const d=await r.json();if(d.error)throw new Error(d.error);editorBlocks.push({type:'image',url:API+d.url,caption:''});editorBlocks.push({type:'text',content:''});renderEditor();}
-    catch(err){alert('업로드 실패: '+err.message);}
+  if(!files.length)return;
+  const isBlog=$('blogModeToggle').checked;
+  showUploadProgress(`사진 업로드 중... (0/${files.length})`);
+  for(let i=0;i<files.length;i++){
+    const file=files[i];
+    try{
+      const d=await uploadFileXHR(file,pct=>{
+        const overall=Math.round((i*100+pct)/files.length);
+        updateUploadProgress(overall);
+        $('uploadLabel').textContent=`사진 업로드 중... (${i+1}/${files.length})`;
+      });
+      if(d.error)throw new Error(d.error);
+      editorBlocks.push({type:'image',url:API+d.url,caption:''});
+      if(isBlog)editorBlocks.push({type:'text',content:''});
+    }catch(err){hideUploadProgress();alert('업로드 실패: '+err.message);renderEditor();return;}
   }
-  $('addImgBtn').disabled=false;$('addImgBtn').innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> 사진 추가';
+  hideUploadProgress();renderEditor();
 };
 $('submitPost').onclick=async function(){
   const hasContent=editorBlocks.some(b=>b.type==='image'||(b.type==='text'&&b.content.trim()));
@@ -1602,7 +1767,7 @@ async function openMileageModal(){
     $('mileageList').innerHTML=a.map((u,i)=>{
       const rankClass=i===0?'top1':i===1?'top2':i===2?'top3':'';
       const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
-      return`<div class="mile-item"><div class="mile-rank ${rankClass}">${medal}</div>${avatarEl(u.user_id,'width:32px;height:32px;font-size:14px;')}<div class="mile-name" style="cursor:pointer" onclick="openUserProfile('${escHtml(u.user_id)}')">${escHtml(u.user_id)}</div><div class="mile-pts">${Math.floor(u.points||0)}점</div></div>`;
+      return`<div class="mile-item"><div class="mile-rank ${rankClass}">${medal}</div>${avatarEl(u.user_id,'width:32px;height:32px;font-size:14px;')}<div class="mile-name" style="cursor:pointer" onclick="openUserProfile('${escHtml(u.user_id)}')">${escHtml(userName(u.user_id))}${badgeHtml(u.user_id)}</div><div class="mile-pts">${Math.floor(u.points||0)}점</div></div>`;
     }).join('');
   }catch(e){$('mileageList').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
@@ -1620,6 +1785,9 @@ async function openProfileModal(){
   selectedAvatar=profiles[currentUser]||null;
   updateProfilePreview(selectedAvatar);
   $('emojiPicker').innerHTML=AVATARS.map(e=>`<button class="emoji-opt${selectedAvatar===e?' selected':''}" onclick="selectAvatar(this,'${e}')">${e}</button>`).join('');
+  const prefs=badgePrefs[currentUser]||{};
+  $('showBadgeAdmin').checked=(prefs.show_badge_admin??1)?true:false;
+  $('showBadgeTop').checked=(prefs.show_badge_top??1)?true:false;
   $('profileModal').classList.add('open');
 }
 function selectAvatar(btn,emoji){
@@ -1642,10 +1810,14 @@ $('profileImgInput').onchange=async function(e){
   btn.disabled=false;btn.textContent='📷 사진 업로드';
 };
 async function saveProfile(){
-  if(!selectedAvatar){$('profileModal').classList.remove('open');return;}
+  const show_badge_admin=$('showBadgeAdmin').checked?1:0;
+  const show_badge_top=$('showBadgeTop').checked?1:0;
   try{
-    await fetch(`${API}/api/profile/${encodeURIComponent(currentUser)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({avatar_url:selectedAvatar})});
-    profiles[currentUser]=selectedAvatar;
+    const body={show_badge_admin,show_badge_top};
+    if(selectedAvatar!==undefined)body.avatar_url=selectedAvatar;
+    await fetch(`${API}/api/profile/${encodeURIComponent(currentUser)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(selectedAvatar!==null&&selectedAvatar!==undefined)profiles[currentUser]=selectedAvatar;
+    badgePrefs[currentUser]={show_badge_admin,show_badge_top};
     $('profileModal').classList.remove('open');
     renderFeed();
   }catch(e){alert('저장 실패');}
@@ -1656,18 +1828,40 @@ async function openUserProfile(userId){
   $('userProfileBody').innerHTML='<div style="padding:20px;text-align:center;color:#aaa">불러오는 중...</div>';
   $('userProfileModal').classList.add('open');
   try{
-    const d=await fetch(`${API}/api/profile/${encodeURIComponent(userId)}`).then(r=>r.json());
+    const [d,act]=await Promise.all([
+      fetch(`${API}/api/profile/${encodeURIComponent(userId)}`).then(r=>r.json()),
+      fetch(`${API}/api/profile/${encodeURIComponent(userId)}/activity`).then(r=>r.json()).catch(()=>({posts:[],comments:[]})),
+    ]);
     const av=profiles[userId];
     const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
     const avHtml=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`:escHtml(av||initials(userId));
+    const uname=escHtml(userName(userId));
+    let actHtml='';
+    const recentPosts=act.posts||[];
+    const recentCmts=act.comments||[];
+    if(recentPosts.length){
+      actHtml+=`<div style="font-size:12px;font-weight:600;color:var(--text-hint);text-transform:uppercase;letter-spacing:.4px;padding:14px 0 6px">최근 게시글</div>`;
+      actHtml+=recentPosts.map(p=>{
+        const txt=(p.blocks||[]).filter(b=>b.type==='text').map(b=>b.content).join(' ');
+        const preview=txt.length>60?txt.slice(0,60)+'...':txt||'(사진 게시물)';
+        return`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;color:var(--text)">${escHtml(preview)}</div><div style="font-size:11px;color:var(--text-hint);margin-top:2px">${relDate(p.created_at)} · ♥${p.like_count||0}</div></div>`;
+      }).join('');
+    }
+    if(recentCmts.length){
+      actHtml+=`<div style="font-size:12px;font-weight:600;color:var(--text-hint);text-transform:uppercase;letter-spacing:.4px;padding:14px 0 6px">최근 댓글</div>`;
+      actHtml+=recentCmts.map(c=>
+        `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;color:var(--text)">${escHtml((c.content||'').slice(0,60)+(c.content&&c.content.length>60?'...':''))}</div><div style="font-size:11px;color:var(--text-hint);margin-top:2px">${relDate(c.created_at)}</div></div>`
+      ).join('');
+    }
     $('userProfileBody').innerHTML=`
       <div class="userprofile-avatar" ${isImg?'style="overflow:hidden;padding:0"':''}>${avHtml}</div>
-      <div class="userprofile-name">${escHtml(userId)}</div>
+      <div class="userprofile-name">${uname}${badgeHtml(userId)}</div>
       <div class="userprofile-stats">
         <div class="stat-item"><div class="stat-num">${d.post_count||0}</div><div class="stat-label">게시글</div></div>
         <div class="stat-item"><div class="stat-num">${d.comment_count||0}</div><div class="stat-label">댓글</div></div>
         <div class="stat-item"><div class="stat-num">${Math.floor(d.mileage||0)}</div><div class="stat-label">마일리지</div></div>
-      </div>`;
+      </div>
+      ${actHtml}`;
   }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
 
