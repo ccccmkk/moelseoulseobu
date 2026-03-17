@@ -886,103 +886,97 @@ button,a,[role="button"]{touch-action:manipulation}
       <span class="modal-title">관리자 패널</span>
       <button class="modal-close" onclick="$('adminModal').classList.remove('open')">×</button>
     </div>
-    <div class="modal-body">
-      <div class="admin-section" id="pendingSection" style="display:none">
-        <div class="admin-section-title">승인 대기 중</div>
-        <div id="pendingList"></div>
+    <!-- 관리자 탭 -->
+    <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
+      <button class="adm-tab active" id="admTab-users" onclick="switchAdmTab('users')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사용자</button>
+      <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
+      <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+
+      <!-- ── 사용자 탭 ── -->
+      <div id="admPane-users" class="adm-pane">
+        <div id="pendingSection" style="display:none;padding:12px 16px;background:#fff8e1;border-bottom:1px solid #ffe082">
+          <div style="font-size:12px;font-weight:700;color:#f57f17;margin-bottom:8px">승인 대기</div>
+          <div id="pendingList"></div>
+        </div>
+        <!-- 계정 추가 -->
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">계정 추가</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+            <input type="text" id="newUserId" placeholder="사번 (9자리)" maxlength="9" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
+            <input type="text" id="newUserName" placeholder="이름" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
+          </div>
+          <div style="display:flex;gap:6px">
+            <select id="newUserDept" style="flex:1;padding:9px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit;background:#fff">
+              <option value="">소속 선택</option>
+              <option>서울서부고용센터</option><option>지역협력과</option><option>고용관리과</option>
+              <option>노동기준조사1과</option><option>노동기준조사2과</option><option>노동기준조사3과</option>
+              <option>노동기준감독과</option><option>산재예방감독과</option>
+            </select>
+            <button class="btn-sm primary" onclick="createUserAdmin()" style="white-space:nowrap;padding:0 16px">추가</button>
+          </div>
+          <div id="newUserMsg" style="font-size:12px;margin-top:4px;min-height:14px;color:var(--green-dark)"></div>
+        </div>
+        <!-- CSV 일괄 등록 -->
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-sub)">일괄 등록 (CSV)</div>
+            <div style="display:flex;gap:6px">
+              <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none" onchange="loadCsvFile(this)"/>
+              <button class="btn-sm" onclick="$('csvFileInput').click()" style="font-size:11px">파일</button>
+              <button class="btn-sm primary" onclick="bulkCreateUsers()" style="font-size:11px">등록</button>
+            </div>
+          </div>
+          <textarea id="csvInput" placeholder="123456789,홍길동,1234&#10;987654321,김철수" style="width:100%;min-height:60px;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none;line-height:1.5;box-sizing:border-box"></textarea>
+          <div id="csvMsg" style="font-size:12px;margin-top:4px;min-height:14px;color:var(--green-dark)"></div>
+        </div>
+        <!-- 사용자 목록 -->
+        <div style="padding:12px 16px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">사용자 목록</div>
+          <div id="userRoleList"></div>
+        </div>
       </div>
-      <div class="admin-section">
-        <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
-          <span style="font-size:12px;color:var(--text-hint)">대댓글 모드:</span>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="botMode" value="manual" id="botModeManual" onchange="setBotMode('manual')" checked/> 수동
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="radio" name="botMode" value="auto" id="botModeAuto" onchange="setBotMode('auto')"/> 자동
-          </label>
-          <select id="botInterval" style="font-size:12px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;display:none" onchange="setBotMode('auto')">
-            <option value="1">1분마다</option>
-            <option value="3" selected>3분마다</option>
-            <option value="5">5분마다</option>
-            <option value="10">10분마다</option>
-          </select>
+
+      <!-- ── 에이전트 탭 ── -->
+      <div id="admPane-agent" class="adm-pane" style="display:none;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">건강봇 에이전트</div>
+        <!-- 글 만들기 -->
+        <div style="background:var(--green-light);border-radius:10px;padding:12px;margin-bottom:10px">
+          <div style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:8px">건강 정보 글</div>
+          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn" style="width:100%;justify-content:center">건강 정보 글 만들기</button>
         </div>
-        <div id="botManualRow">
-          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
+        <!-- 대댓글 -->
+        <div style="background:#f5f5f5;border-radius:10px;padding:12px;margin-bottom:10px">
+          <div style="font-size:12px;color:var(--text-sub);font-weight:600;margin-bottom:8px">댓글 자동 답변</div>
+          <div style="font-size:12px;color:#2e7d32;margin-bottom:8px">서버에서 10분마다 자동 실행 중</div>
+          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn" style="width:100%;justify-content:center">지금 즉시 실행</button>
         </div>
-        <div id="botAutoRow" style="display:none">
-          <span id="botAutoStatus" style="font-size:12px;color:#2e7d32">⏱ 서버 자동 실행 중 (10분마다)</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-          <span style="font-size:12px;color:var(--text-sub)">Claude 폴백</span>
-          <label style="position:relative;display:inline-block;width:38px;height:22px;cursor:pointer">
+        <!-- Claude 토글 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#fff;border:1px solid var(--border);border-radius:10px">
+          <div>
+            <div style="font-size:13px;font-weight:600">Claude 폴백</div>
+            <div style="font-size:11px;color:var(--text-hint);margin-top:2px" id="claudeToggleLabel">불러오는 중...</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:44px;height:26px;cursor:pointer;flex-shrink:0">
             <input type="checkbox" id="claudeToggle" onchange="toggleClaude(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
-            <span id="claudeToggleTrack" style="position:absolute;inset:0;background:#ccc;border-radius:22px;transition:.2s"></span>
-            <span id="claudeToggleThumb" style="position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+            <span id="claudeToggleTrack" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.2s"></span>
+            <span id="claudeToggleThumb" style="position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
           </label>
-          <span id="claudeToggleLabel" style="font-size:11px;color:var(--text-hint)">불러오는 중...</span>
         </div>
-        <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+        <div id="agentMsg" style="font-size:12px;margin-top:10px;min-height:16px;color:var(--green-dark)"></div>
       </div>
-      <div class="admin-section">
-        <div class="admin-section-title">저장 공간</div>
-        <div id="storageStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-      </div>
-      <div class="admin-section">
-        <div class="admin-section-title">Gemini API 사용량 (무료)</div>
-        <div id="geminiStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-      </div>
-      <div class="admin-section">
-        <div class="admin-section-title">Claude API 사용량 (폴백)</div>
+
+      <!-- ── 통계 탭 ── -->
+      <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
+        <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">무료</span></div>
+        <div id="geminiStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백</span></div>
         <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
-      <div class="admin-section">
-        <div class="admin-section-title">계정 만들기 (개별)</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:110px">
-            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">온나라 사번 (9자리)</div>
-            <input type="text" id="newUserId" placeholder="123456789" maxlength="9" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
-          </div>
-          <div style="flex:1;min-width:80px">
-            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">이름</div>
-            <input type="text" id="newUserName" placeholder="홍길동" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
-          </div>
-          <div style="flex:1;min-width:80px">
-            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">소속 (선택)</div>
-            <select id="newUserDept" style="width:100%;height:36px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;background:#fff">
-              <option value="">선택 없음</option>
-              <option>서울서부고용센터</option>
-              <option>지역협력과</option>
-              <option>고용관리과</option>
-              <option>노동기준조사1과</option>
-              <option>노동기준조사2과</option>
-              <option>노동기준조사3과</option>
-              <option>노동기준감독과</option>
-              <option>산재예방감독과</option>
-            </select>
-          </div>
-          <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
-        </div>
-        <div style="font-size:11px;color:var(--text-hint);margin-top:4px">초기 비밀번호: 1234 (로그인 후 자동 변경 안내)</div>
-        <div id="newUserMsg" style="font-size:12px;margin-top:4px;min-height:16px"></div>
-      </div>
-      <div class="admin-section">
-        <div class="admin-section-title">계정 일괄 등록 (CSV)</div>
-        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택) · 4열: 소속(선택)</div>
-        <textarea id="csvInput" placeholder="123456789,홍길동,1234&#10;987654321,김철수" style="width:100%;min-height:80px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none;line-height:1.6"></textarea>
-        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
-          <button class="btn-sm primary" onclick="bulkCreateUsers()">일괄 등록</button>
-          <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none" onchange="loadCsvFile(this)"/>
-          <button class="btn-sm" onclick="$('csvFileInput').click()">📂 CSV 파일</button>
-        </div>
-        <div id="csvMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
-      </div>
-      <div class="admin-section">
-        <div class="admin-section-title">사용자 권한 관리</div>
-        <div id="userRoleList"></div>
-      </div>
+
     </div>
   </div>
 </div>
@@ -1455,6 +1449,21 @@ async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetc
 $('modalClose').onclick=()=>$('writeModal').classList.remove('open');
 $('modalCancel').onclick=()=>$('writeModal').classList.remove('open');
 $('writeModal').onclick=e=>{if(e.target===$('writeModal'))$('writeModal').classList.remove('open');};
+async function compressImage(file,maxPx=1600,quality=0.82){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w<=maxPx&&h<=maxPx){resolve(file);return;}
+      const ratio=Math.min(maxPx/w,maxPx/h);
+      w=Math.round(w*ratio);h=Math.round(h*ratio);
+      const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>resolve(new File([blob],file.name,{type:'image/jpeg',lastModified:Date.now()})),'image/jpeg',quality);
+    };
+    img.src=URL.createObjectURL(file);
+  });
+}
 $('addImgBtn').onclick=()=>$('imgFileInput').click();
 $('imgFileInput').onchange=async function(e){
   const files=Array.from(e.target.files);this.value='';
@@ -1462,7 +1471,7 @@ $('imgFileInput').onchange=async function(e){
   const isBlog=$('blogModeToggle').checked;
   showUploadProgress(`사진 업로드 중... (0/${files.length})`);
   for(let i=0;i<files.length;i++){
-    const file=files[i];
+    const file=await compressImage(files[i]);
     try{
       const d=await uploadFileXHR(file,pct=>{
         const overall=Math.round((i*100+pct)/files.length);
@@ -2021,8 +2030,21 @@ async function toggleClaude(on){
   await fetch(`${API}/api/settings/claude_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
 }
 
+// ── 관리자 탭 전환 ──
+function switchAdmTab(tab){
+  ['users','agent','stats'].forEach(t=>{
+    const btn=$('admTab-'+t),pane=$('admPane-'+t);
+    if(!btn||!pane)return;
+    const isActive=t===tab;
+    btn.style.borderBottomColor=isActive?'var(--green)':'transparent';
+    btn.style.color=isActive?'var(--green)':'var(--text-sub)';
+    pane.style.display=isActive?'':'none';
+  });
+}
+
 // ── 관리자 ──
 async function openAdminModal(){
+  switchAdmTab('users');
   $('adminModal').classList.add('open');
   initBotMode();
   loadClaudeSetting();
@@ -2192,9 +2214,10 @@ function selectAvatar(btn,emoji){
   updateProfilePreview(emoji);
 }
 $('profileImgInput').onchange=async function(e){
-  const file=e.target.files[0];this.value='';if(!file)return;
+  let file=e.target.files[0];this.value='';if(!file)return;
   const btn=this.previousElementSibling;btn.disabled=true;btn.textContent='업로드 중...';
   try{
+    file=await compressImage(file,400,0.85);
     const fd=new FormData();fd.append('file',file);
     const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd});const d=await r.json();
     if(d.error)throw new Error(d.error);
@@ -2280,7 +2303,7 @@ function onLoginSuccess(d){
   localStorage.setItem('session_token',d.token);
   // 이전 방식 삭제
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();setTimeout(checkNotiBadge,2000);
+  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,120000);
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
     $('cpOld').value='1234';$('cpNew').value='';$('cpNew2').value='';$('cpErr').textContent='';
