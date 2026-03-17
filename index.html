@@ -1144,10 +1144,10 @@ function renderFeed(){
     const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
     const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
     const isBlog=p.mode==='blog';
-    return`<div class="post-card"${isBlog?` style="cursor:pointer" onclick="openFullPost('${key}')"`:''}>
-      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="event.stopPropagation();openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
-      ${renderBlocksInCard(p,isBlog)}
-      ${isBlog?`<button class="btn-more" onclick="event.stopPropagation();openFullPost('${key}')">더보기 →</button>`:''}
+    return`<div class="post-card">
+      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+      ${isBlog?`<div style="cursor:pointer" onclick="openFullPost('${key}')">${renderBlocksInCard(p,true)}</div>`:renderBlocksInCard(p,false)}
+      ${isBlog?`<button class="btn-more" onclick="openFullPost('${key}')">더보기 →</button>`:''}
       ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
       <div class="post-actions">
         <button class="act-btn${liked?' liked':''}" onclick="toggleLike('${key}')"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="lc-${key}">${p.like_count||0}</span></button>
