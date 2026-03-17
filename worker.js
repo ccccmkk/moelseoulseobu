@@ -828,5 +828,17 @@ export default {
     } catch (e) {
       return json({ error: e.message }, 500);
     }
-  }
+  },
+
+  // Cloudflare Cron 트리거 (대시보드에서 "* * * * *" 등 설정 시 자동 실행)
+  async scheduled(event, env, ctx) {
+    await initDB(env);
+    ctx.waitUntil(
+      fetch('https://moelseoulseobu.workers.dev/api/agent/health/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).catch(() => {})
+    );
+  },
 };
