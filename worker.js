@@ -70,24 +70,28 @@ async function initDB(env) {
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('관리자','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('관리자','관리자','9999','active',0),
+    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000001','admin','admin'),
+    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000001','관리자','9999','active',0),
   ]);
-  // 마이그레이션: 기존 users 테이블에 name 컬럼 추가
+  // 마이그레이션
   try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
+  // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
+  try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
+  try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
+  try { await env.DB.exec("DELETE FROM users WHERE id='관리자'"); } catch(e) {}
   _dbReady = true;
 }
 
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
-    await initDB(env);
 
     const url = new URL(request.url);
     const p = url.pathname;
     const m = request.method;
 
     try {
+      await initDB(env);
       // ── 이미지 서빙 ──
       if (p.startsWith('/img/') && m === 'GET') {
         const obj = await env.R2.get(p.slice(1));
