@@ -1805,7 +1805,7 @@ async function openAdminModal(){
   // Claude API 사용량
   fetch(`${API}/api/claude-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
-    const costUSD=((tin/1000000)*0.25+(tout/1000000)*1.25).toFixed(4);
+    const costUSD=((tin/1000000)*0.80+(tout/1000000)*4).toFixed(4);
     $('claudeStats').innerHTML=`
       <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
