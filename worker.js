@@ -521,6 +521,20 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 알림 ──
+      if (p === '/api/notifications' && m === 'GET') {
+        const userId = url.searchParams.get('user_id');
+        if (!userId) return json([]);
+        const comments = await env.DB.prepare(
+          'SELECT "comment" as type, c.author, substr(c.content,1,60) as excerpt, c.post_id as ref_id, c.created_at FROM comments c JOIN posts p ON c.post_id=p.id WHERE p.author=? AND c.author!=? ORDER BY c.created_at DESC LIMIT 10'
+        ).bind(userId, userId).all();
+        const replies = await env.DB.prepare(
+          'SELECT "reply" as type, r.author, substr(r.content,1,60) as excerpt, r.comment_id as ref_id, r.created_at FROM comment_replies r JOIN comments c ON r.comment_id=c.id WHERE c.author=? AND r.author!=? ORDER BY r.created_at DESC LIMIT 10'
+        ).bind(userId, userId).all();
+        const items = [...comments.results, ...replies.results].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).slice(0,20);
+        return json(items);
+      }
+
       // ── 마일리지 ──
       if (p === '/api/mileage' && m === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM user_mileage ORDER BY points DESC').all();
