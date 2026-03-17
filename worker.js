@@ -743,8 +743,7 @@ export default {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                  contents: [{ role: 'user', parts: [{ text: targetComment.content }] }],
+                  contents: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n직원 질문: ' + targetComment.content }] }],
                   generationConfig: { maxOutputTokens: 300 },
                 }),
               }
