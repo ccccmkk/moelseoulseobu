@@ -744,7 +744,7 @@ export default {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n직원 질문: ' + targetComment.content }] }],
-                  generationConfig: { maxOutputTokens: 300 },
+                  generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
                 }),
               }
             );
