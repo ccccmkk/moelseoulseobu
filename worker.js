@@ -71,6 +71,8 @@ async function initDB(env) {
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
   try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE posts ADD COLUMN mode TEXT DEFAULT 'normal'"); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
   try { await env.DB.exec("DELETE FROM sessions WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
@@ -160,8 +162,8 @@ export default {
         const b = await request.json();
         const id = 'post_' + Date.now();
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
-          .bind(id, b.author, JSON.stringify(b.blocks), now).run();
+        await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at,mode) VALUES(?,?,?,?,?)')
+          .bind(id, b.author, JSON.stringify(b.blocks), now, b.mode||'normal').run();
         if (b.keyword) {
           await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
             .bind(id, b.keyword, b.keyword).run();
@@ -174,7 +176,7 @@ export default {
       if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'PUT') {
         const id = p.split('/')[3];
         const b = await request.json();
-        await env.DB.prepare('UPDATE posts SET blocks=? WHERE id=?').bind(JSON.stringify(b.blocks), id).run();
+        await env.DB.prepare('UPDATE posts SET blocks=?,mode=? WHERE id=?').bind(JSON.stringify(b.blocks), b.mode||'normal', id).run();
         if (b.keyword !== undefined) {
           if (b.keyword) {
             await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
@@ -430,13 +432,13 @@ export default {
         return json(rows.results);
       }
       if (p === '/api/users' && m === 'POST') {
-        const { id, name, password } = await request.json();
+        const { id, name, password, dept } = await request.json();
         if (!id || !/^\d{9}$/.test(id)) return json({ error: '온나라 사번은 9자리 숫자입니다.' }, 400);
         if (!name || !name.trim()) return json({ error: '이름을 입력해주세요.' }, 400);
         const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
         if (exists) return json({ error: '이미 등록된 사번입니다.' }, 409);
-        await env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?)')
-          .bind(id, name.trim(), password || '1234', 'active', Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?)')
+          .bind(id, name.trim(), (dept||'').trim(), password || '1234', 'active', Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(id, 'user').run();
         return json({ ok: true });
       }
@@ -445,12 +447,12 @@ export default {
         if (!Array.isArray(list)) return json({ error: 'invalid' }, 400);
         let created = 0, skipped = 0;
         for (const u of list) {
-          const uid = (u.id || '').trim(), uname = (u.name || '').trim(), upw = (u.password || '1234').trim();
+          const uid = (u.id || '').trim(), uname = (u.name || '').trim(), upw = (u.password || '1234').trim(), udept = (u.dept || '').trim();
           if (!uid || !/^\d{9}$/.test(uid) || !uname) { skipped++; continue; }
           const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(uid).first();
           if (exists) { skipped++; continue; }
-          await env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?)')
-            .bind(uid, uname, upw, 'active', Math.floor(Date.now() / 1000)).run();
+          await env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?)')
+            .bind(uid, uname, udept, upw, 'active', Math.floor(Date.now() / 1000)).run();
           await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(uid, 'user').run();
           created++;
         }
@@ -476,6 +478,12 @@ export default {
         if (!new_password || new_password.length < 4) return json({ error: '새 비밀번호는 4자 이상이어야 합니다.' }, 400);
         if (new_password === '1234') return json({ error: '초기 비밀번호는 사용할 수 없습니다.' }, 400);
         await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(new_password, userId).run();
+        return json({ ok: true });
+      }
+      if (p.match(/^\/api\/users\/[^/]+\/dept$/) && m === 'PUT') {
+        const userId = decodeURIComponent(p.split('/')[3]);
+        const { dept } = await request.json();
+        await env.DB.prepare('UPDATE users SET dept=? WHERE id=?').bind((dept||'').trim(), userId).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/users\/[^/]+$/) && m === 'DELETE') {

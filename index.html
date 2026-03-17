@@ -295,6 +295,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .compose-placeholder{font-size:14px;color:var(--text-hint);flex:1}
 .anon-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sub);cursor:pointer;user-select:none}
 .anon-toggle input{width:16px;height:16px;cursor:pointer;accent-color:var(--green)}
+/* ── 이미지 캐러셀 ── */
+.img-carousel{position:relative;overflow:hidden;width:100%;background:#000}
+.img-carousel-track{display:flex;transition:transform .3s ease;will-change:transform}
+.img-carousel-track img{width:100%;flex-shrink:0;max-height:440px;object-fit:cover;display:block}
+.img-carousel-dots{display:flex;justify-content:center;gap:5px;padding:6px 0;background:#000}
+.img-carousel-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);border:none;padding:0;cursor:pointer;transition:background .15s}
+.img-carousel-dot.active{background:#fff}
+/* ── 블로그 모드 ── */
+.blog-thumb-wrap{position:relative;overflow:hidden}
+.blog-thumb-wrap img{width:100%;max-height:220px;object-fit:cover;display:block}
+.blog-excerpt{font-size:14px;line-height:1.7;padding:8px 14px;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.btn-more{background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;padding:2px 14px 10px;display:block}
 /* ── iOS / 모바일 호환성 ── */
 *{-webkit-tap-highlight-color:transparent}
 button,a,[role="button"]{touch-action:manipulation}
@@ -471,6 +483,10 @@ button,a,[role="button"]{touch-action:manipulation}
           <option value="재테크">💰 재테크</option>
           <option value="기타">📌 기타</option>
         </select>
+      </div>
+      <div style="padding:4px 16px 10px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="blogModeToggle" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"/>
+        <label for="blogModeToggle" style="font-size:13px;color:var(--text-sub);cursor:pointer">블로그 모드 (피드에 요약만 표시)</label>
       </div>
     </div>
     <div class="modal-footer">
@@ -720,6 +736,14 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="pendingList"></div>
       </div>
       <div class="admin-section">
+        <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
+          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
+        </div>
+        <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+      </div>
+      <div class="admin-section">
         <div class="admin-section-title">저장 공간</div>
         <div id="storageStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
@@ -738,6 +762,10 @@ button,a,[role="button"]{touch-action:manipulation}
             <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">이름</div>
             <input type="text" id="newUserName" placeholder="홍길동" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
           </div>
+          <div style="flex:1;min-width:80px">
+            <div style="font-size:11px;color:var(--text-hint);margin-bottom:4px">소속 (선택)</div>
+            <input type="text" id="newUserDept" placeholder="서울서부지청" style="width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit"/>
+          </div>
           <button class="btn-sm primary" onclick="createUserAdmin()" style="height:36px;white-space:nowrap">만들기</button>
         </div>
         <div style="font-size:11px;color:var(--text-hint);margin-top:4px">초기 비밀번호: 1234 (로그인 후 자동 변경 안내)</div>
@@ -745,7 +773,7 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div class="admin-section">
         <div class="admin-section-title">계정 일괄 등록 (CSV)</div>
-        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택, 기본 1234)</div>
+        <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">1열: 온나라사번(9자리) · 2열: 이름 · 3열: 비밀번호(선택) · 4열: 소속(선택)</div>
         <textarea id="csvInput" placeholder="123456789,홍길동,1234&#10;987654321,김철수" style="width:100%;min-height:80px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-family:monospace;resize:vertical;outline:none;line-height:1.6"></textarea>
         <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
           <button class="btn-sm primary" onclick="bulkCreateUsers()">일괄 등록</button>
@@ -753,14 +781,6 @@ button,a,[role="button"]{touch-action:manipulation}
           <button class="btn-sm" onclick="$('csvFileInput').click()">📂 CSV 파일</button>
         </div>
         <div id="csvMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
-      </div>
-      <div class="admin-section">
-        <div class="admin-section-title">🤖 건강봇 에이전트 (디버그)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-sm primary" onclick="agentHealthPost()" id="agentPostBtn">📝 글 만들기</button>
-          <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn">💬 대댓글 달기</button>
-        </div>
-        <div id="agentMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
       </div>
       <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
