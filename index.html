@@ -28,6 +28,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .lf-err{font-size:12px;color:var(--danger);min-height:16px;margin-bottom:10px}
 .btn-green{width:100%;height:42px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s}
 .btn-green:hover{opacity:.88}
+.btn-green:disabled{opacity:.5;cursor:not-allowed}
+.lf-switch{text-align:center;margin-top:14px;font-size:13px;color:var(--text-sub)}
+.lf-switch a{color:var(--green);cursor:pointer;font-weight:600;text-decoration:none}
+.lf-success{font-size:12px;color:#2e7d32;min-height:16px;margin-bottom:10px}
 /* 앱 레이아웃 */
 #appPage.active{display:flex;flex-direction:column}
 .appbar{background:var(--green);padding:0 1.25rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;flex-shrink:0}
@@ -244,14 +248,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <div class="logo-dot"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2L10.8 6.5H15.5L11.6 9.3L13.1 14L9 11.2L4.9 14L6.4 9.3L2.5 6.5H7.2L9 2Z" fill="white"/></svg></div>
       <span class="logo-text">서부고용센터</span>
     </div>
+    <!-- 로그인 폼 -->
     <form class="lf" id="loginForm" onsubmit="return false">
       <label>아이디</label>
       <input type="text" id="uid" placeholder="아이디" autocomplete="username"/>
       <label>비밀번호</label>
-      <input type="text" id="upw" placeholder="비밀번호" autocomplete="off"/>
+      <input type="password" id="upw" placeholder="비밀번호" autocomplete="off"/>
       <div class="lf-err" id="lerr"></div>
       <button type="submit" class="btn-green" id="loginBtn">로그인</button>
     </form>
+    <div class="lf-switch">계정이 없으신가요? <a onclick="toggleRegister(true)">회원가입</a></div>
+    <!-- 회원가입 폼 -->
+    <form class="lf" id="registerForm" onsubmit="return false" style="display:none">
+      <label>아이디 (2자 이상)</label>
+      <input type="text" id="reg_id" placeholder="사용할 아이디"/>
+      <label>비밀번호</label>
+      <input type="password" id="reg_pw" placeholder="비밀번호"/>
+      <div class="lf-err" id="reg_err"></div>
+      <div class="lf-success" id="reg_ok"></div>
+      <button type="submit" class="btn-green" id="registerBtn">회원가입 신청</button>
+    </form>
+    <div class="lf-switch" id="regSwitch" style="display:none">이미 계정이 있으신가요? <a onclick="toggleRegister(false)">로그인</a></div>
   </div>
 </div>
 
@@ -295,6 +312,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
     <div id="eventsList"></div>
   </div>
 
+  <!-- 검색 탭 -->
+  <div id="tabSearch" class="tab-page">
+    <div class="search-input-row">
+      <span class="search-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg></span>
+      <input type="text" id="searchInput" placeholder="글 내용, 작성자 검색..."/>
+    </div>
+    <div id="searchResults"><div class="empty-state"><div class="ei">🔍</div>검색어를 입력하세요</div></div>
+  </div>
+
   <!-- 칭찬합니다 탭 (3섹션) -->
   <div id="tabChal" class="tab-page">
     <!-- 섹션 1: 칭찬합니다 -->
@@ -334,6 +360,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
     </button>
     <button class="nav-btn" id="nav-seobusosik" onclick="switchTab('Seobusosik')">
       <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>서부소식
+    </button>
+    <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
     </button>
     <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
       <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>칭찬합니다
@@ -522,6 +551,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
       <button class="modal-close" onclick="$('adminModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body">
+      <div class="admin-section" id="pendingSection" style="display:none">
+        <div class="admin-section-title">승인 대기 중</div>
+        <div id="pendingList"></div>
+      </div>
       <div class="admin-section">
         <div class="admin-section-title">사용자 권한 관리</div>
         <div id="userRoleList"></div>
@@ -531,7 +564,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 </div>
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
-const USERS=[{id:'관리자',pw:'9999'},{id:'김창민',pw:'1234'},{id:'안혜지',pw:'1234'}];
 const EVT_ICONS={결혼:'💍',출산:'👶',생일:'🎂',상:'🕯️',승진:'🎉',기타:'📌'};
 
 let posts=[],events=[],kudos=[],contests=[];
@@ -578,6 +610,7 @@ function switchTab(tab){
   $('fab').className='fab'+(tab==='Feed'?' show':'');
   if(tab==='News')loadNews();
   if(tab==='Seobusosik'){fetchEvents().then(renderEvents);}
+  if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
   if(tab==='Chal'){fetchAll().then(renderChal);}
 }
 function switchSubTab(sub){
@@ -764,6 +797,27 @@ $('submitPost').onclick=async function(){
   }catch(e){alert('저장 실패: '+e.message);}finally{$('submitPost').disabled=false;}
 };
 
+// ── 검색 ──
+function renderSearch(q){
+  const container=$('searchResults');
+  if(!q){container.innerHTML='<div class="empty-state"><div class="ei">🔍</div>검색어를 입력하세요</div>';return;}
+  const lq=q.toLowerCase();
+  const results=posts.filter(p=>{
+    if((p.author||'').toLowerCase().includes(lq))return true;
+    if(p.blocks)return p.blocks.some(b=>b.type==='text'&&(b.content||'').toLowerCase().includes(lq));
+    return false;
+  });
+  if(!results.length){container.innerHTML='<div class="empty-state"><div class="ei">😅</div>"'+escHtml(q)+'" 검색 결과가 없습니다</div>';return;}
+  container.innerHTML=results.map(p=>{
+    const txt=p.blocks?p.blocks.filter(b=>b.type==='text').map(b=>b.content).join(' '):'';
+    const preview=txt.length>80?txt.slice(0,80)+'...':txt;
+    return`<div class="post-card" style="cursor:pointer" onclick="switchTab('Feed')">
+      <div class="post-header"><div class="avatar">${initials(p.author)}</div><div class="post-header-info"><div class="post-author">${escHtml(p.author||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div></div>
+      ${preview?`<div class="block-text">${escHtml(preview)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
 // ── 서부소식 ──
 function renderEvents(){
   const c=$('eventsList');
@@ -920,12 +974,16 @@ async function selectWinner(cid,name){
 async function deleteContest(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/contests/${id}`,{method:'DELETE'});contests=contests.filter(c=>c.id!==id);renderContests();}
 
 // 추천 모달
-function openNominateModal(cid){
+async function openNominateModal(cid){
   nominatingContestId=cid;selectedNominee=null;
-  const nominatable=USERS.filter(u=>u.id!==currentUser);
-  $('nomineeOptions').innerHTML=nominatable.map(u=>`<button class="btn-nominate" onclick="selectNomineeBtn(this,'${u.id}')">${escHtml(u.id)}</button>`).join('');
   $('nomMessage').value='';$('nomAnon').checked=false;$('submitNominate').disabled=true;
+  $('nomineeOptions').innerHTML='<span style="font-size:13px;color:var(--text-hint)">불러오는 중...</span>';
   $('nominateModal').classList.add('open');
+  try{
+    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const nominatable=users.filter(u=>u.id!==currentUser&&u.status==='active');
+    $('nomineeOptions').innerHTML=nominatable.map(u=>`<button class="btn-nominate" onclick="selectNomineeBtn(this,'${escHtml(u.id)}')">${escHtml(u.id)}</button>`).join('');
+  }catch(e){$('nomineeOptions').innerHTML='<span style="font-size:13px;color:var(--danger)">사용자 목록 로드 실패</span>';}
 }
 function selectNomineeBtn(btn,name){
   selectedNominee=name;
@@ -971,13 +1029,38 @@ async function submitContest(){
 }
 
 // ── 관리자 ──
-function openAdminModal(){
-  $('userRoleList').innerHTML=USERS.map(u=>{
-    const role=userRoles[u.id]||'user';const isAdmin=role==='admin';
-    if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)} (나)</span><span style="font-size:12px;color:var(--text-hint)">관리자</span></div>`;
-    return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)}</span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${u.id}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${u.id}','admin',this)">관리자</button></div></div>`;
-  }).join('');
+async function openAdminModal(){
   $('adminModal').classList.add('open');
+  $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  try{
+    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const pending=users.filter(u=>u.status==='pending');
+    const active=users.filter(u=>u.status==='active');
+    if(pending.length){
+      $('pendingSection').style.display='';
+      $('pendingList').innerHTML=pending.map(u=>`<div class="user-role-row">
+        <span class="user-role-name">${escHtml(u.id)} <span style="font-size:11px;color:#e65100;background:#fff3e0;padding:1px 6px;border-radius:10px">대기중</span></span>
+        <div class="role-btns">
+          <button class="role-btn on" onclick="approveUser('${escHtml(u.id)}')">승인</button>
+          <button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${escHtml(u.id)}')">거절</button>
+        </div>
+      </div>`).join('');
+    }else{$('pendingSection').style.display='none';}
+    $('userRoleList').innerHTML=active.map(u=>{
+      const role=userRoles[u.id]||'user';const isAdmin=role==='admin';
+      if(u.id===currentUser)return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)} (나)</span><span style="font-size:12px;color:var(--text-hint)">${isAdmin?'관리자':'일반'}</span></div>`;
+      return`<div class="user-role-row"><span class="user-role-name">${escHtml(u.id)}</span><div class="role-btns"><button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${escHtml(u.id)}','user',this)">일반</button><button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${escHtml(u.id)}','admin',this)">관리자</button><button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${escHtml(u.id)}')">삭제</button></div></div>`;
+    }).join('');
+  }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
+}
+async function approveUser(userId){
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/approve`,{method:'PUT'});
+  openAdminModal();
+}
+async function deleteUserAdmin(userId){
+  if(!confirm(userId+'을(를) 삭제할까요?'))return;
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}`,{method:'DELETE'});
+  openAdminModal();
 }
 async function setUserRole(userId,role,btn){
   await fetch(`${API}/api/roles/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
@@ -985,26 +1068,68 @@ async function setUserRole(userId,role,btn){
   btn.closest('.role-btns').querySelectorAll('.role-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
 }
 
-// ── 로그인 ──
-function doLogin(e){
+// ── 로그인 / 회원가입 ──
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
+function toggleRegister(show){
+  $('loginForm').style.display=show?'none':'';
+  document.querySelectorAll('.lf-switch').forEach(el=>el.style.display='');
+  $('registerForm').style.display=show?'':'none';
+  $('regSwitch').style.display=show?'':'none';
+  if(!show)document.querySelector('.lf-switch:not(#regSwitch)').style.display='';
+  else document.querySelector('.lf-switch:not(#regSwitch)').style.display='none';
+  $('lerr').textContent='';$('reg_err').textContent='';$('reg_ok').textContent='';
+}
+async function doLogin(e){
   if(e)e.preventDefault();
   const id=$('uid').value.trim(),pw=$('upw').value.trim();
   if(!id||!pw){$('lerr').textContent='아이디와 비밀번호를 입력해주세요.';return;}
-  if(USERS.some(u=>u.id===id&&u.pw===pw)){
-    currentUser=id;localStorage.setItem('saved_id',id);localStorage.setItem('saved_pw',pw);
+  $('loginBtn').disabled=true;$('lerr').textContent='';
+  try{
+    const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
+    const d=await r.json();
+    if(d.error){$('lerr').textContent=d.error;return;}
+    currentUser=id;
+    localStorage.setItem('saved_id',id);localStorage.setItem('saved_pw',pw);
     showPage('appPage');$('fab').className='fab show';renderFeed();initApp();
-  }else{$('lerr').textContent='아이디 또는 비밀번호가 올바르지 않습니다.';}
+  }catch(e){$('lerr').textContent='서버 오류가 발생했습니다.';}
+  finally{$('loginBtn').disabled=false;}
 }
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
+async function doRegister(e){
+  if(e)e.preventDefault();
+  const id=$('reg_id').value.trim(),pw=$('reg_pw').value.trim();
+  if(!id||id.length<2){$('reg_err').textContent='아이디는 2자 이상이어야 합니다.';return;}
+  if(!pw){$('reg_err').textContent='비밀번호를 입력해주세요.';return;}
+  $('registerBtn').disabled=true;$('reg_err').textContent='';$('reg_ok').textContent='';
+  try{
+    const r=await fetch(`${API}/api/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
+    const d=await r.json();
+    if(d.error){$('reg_err').textContent=d.error;return;}
+    $('reg_ok').textContent='✓ 신청 완료! 관리자 승인 후 로그인 가능합니다.';
+    $('reg_id').value='';$('reg_pw').value='';
+  }catch(e){$('reg_err').textContent='서버 오류가 발생했습니다.';}
+  finally{$('registerBtn').disabled=false;}
+}
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
-const savedId=localStorage.getItem('saved_id'),savedPw=localStorage.getItem('saved_pw');
-if(savedId&&savedPw&&USERS.some(u=>u.id===savedId&&u.pw===savedPw)){
-  currentUser=savedId;showPage('appPage');$('fab').className='fab show';renderFeed();initApp();
-}else if(savedId){$('uid').value=savedId;}
+$('registerForm').onsubmit=doRegister;$('registerBtn').onclick=doRegister;
+(async()=>{
+  const savedId=localStorage.getItem('saved_id'),savedPw=localStorage.getItem('saved_pw');
+  if(savedId&&savedPw){
+    try{
+      const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,password:savedPw})});
+      const d=await r.json();
+      if(!d.error){
+        currentUser=savedId;showPage('appPage');$('fab').className='fab show';renderFeed();initApp();return;
+      }
+    }catch(e){}
+    localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
+  }
+  if(savedId)$('uid').value=savedId;
+})();
+$('searchInput').oninput=function(){renderSearch(this.value.trim());};
 $('logoutBtn').onclick=function(){
   currentUser='';posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};currentUserRole='user';
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  $('uid').value='';$('upw').value='';$('lerr').textContent='';
+  $('uid').value='';$('upw').value='';$('lerr').textContent='';toggleRegister(false);
   $('adminBtn').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };
