@@ -280,7 +280,8 @@ export default {
         // XML 오류/무결과 판별
         const isXmlError = (s) => /일치하는.*없습니다|법령명을 확인|Error code|SSL handshake|cloudflare/i.test(s.slice(0, 3000));
         // 태그 내용 추출 + 태그 제거 유틸
-        const strip = (s) => s.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim();
+        const stripCdata = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+        const strip = (s) => stripCdata(s).replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim();
         const xtag = (xml, t) => { const m = xml.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`, 'i')); return m ? m[1] : ''; };
         // XML → HTML 변환
         const xmlToHtml = (xml) => {
@@ -297,13 +298,13 @@ export default {
             return h;
           }
           // 법령 - 조문단위 (아코디언: 제목만 표시, 탭하면 내용 펼침)
-          const units = [...xml.matchAll(/<조문단위>([\s\S]*?)<\/조문단위>/gi)];
+          const units = [...xml.matchAll(/<조문단위[^>]*>([\s\S]*?)<\/조문단위>/gi)];
           if (units.length) {
             return units.map((u, i) => {
               const num   = strip(xtag(u[1], '조문번호'));
               const title = strip(xtag(u[1], '조문제목'));
               const body  = strip(xtag(u[1], '조문내용'));
-              const paras = [...u[1].matchAll(/<항>([\s\S]*?)<\/항>/gi)].map(a => {
+              const paras = [...u[1].matchAll(/<항[^>]*>([\s\S]*?)<\/항>/gi)].map(a => {
                 const pn = strip(xtag(a[1], '항번호'));
                 const pc = strip(xtag(a[1], '항내용'));
                 return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7;color:#333">${pn} ${pc}</div>` : '';
@@ -313,6 +314,37 @@ export default {
               return `<div class="la-item" onclick="toggleLawArticle(this)" style="padding:11px 14px;border-left:3px solid var(--green,#4caf50);margin:6px 0;background:#f9fafb;border-radius:0 6px 6px 0;cursor:${hasBody?'pointer':'default'}">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                   <strong style="font-size:14px;color:#111">제${num}조${title?` <span style="font-weight:400;color:#555">(${title})</span>`:''}</strong>
+                  ${hasBody?`<span class="la-arr" style="font-size:11px;color:#aaa;transition:transform .2s">▼</span>`:''}
+                </div>${bodyHtml}
+              </div>`;
+            }).join('');
+          }
+          // fallback: <조문> 직접 구조 (조문단위 없이 조문번호/내용이 바로 있는 경우)
+          const joNums = [...xml.matchAll(/<조문번호[^>]*>([\s\S]*?)<\/조문번호>/gi)];
+          if (joNums.length) {
+            // 조문단위가 없으면 전체 XML에서 조문번호/제목/내용 시퀀스로 파싱
+            const numRe = /<조문번호[^>]*>([\s\S]*?)<\/조문번호>/gi;
+            const blocks = [];
+            let m2;
+            const xmlNorm = xml;
+            // 조문번호 위치를 기준으로 분할
+            const positions = [];
+            let mm;
+            const re2 = /<조문번호[^>]*>/gi;
+            while ((mm = re2.exec(xmlNorm)) !== null) positions.push(mm.index);
+            positions.forEach((pos, idx) => {
+              const chunk = xmlNorm.slice(pos, positions[idx+1] || pos + 3000);
+              const num   = strip(xtag(chunk, '조문번호'));
+              const title = strip(xtag(chunk, '조문제목'));
+              const body  = strip(xtag(chunk, '조문내용'));
+              if (num) blocks.push({ num, title, body, paras: '' });
+            });
+            if (blocks.length) return blocks.map(b => {
+              const hasBody = b.body;
+              const bodyHtml = hasBody ? `<div class="la-body" style="display:none;padding:10px 0 4px;border-top:1px solid #e8e8e8;margin-top:8px"><div style="line-height:1.8;font-size:14px;color:#222">${b.body}</div></div>` : '';
+              return `<div class="la-item" onclick="toggleLawArticle(this)" style="padding:11px 14px;border-left:3px solid var(--green,#4caf50);margin:6px 0;background:#f9fafb;border-radius:0 6px 6px 0;cursor:${hasBody?'pointer':'default'}">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <strong style="font-size:14px;color:#111">제${b.num}조${b.title?` <span style="font-weight:400;color:#555">(${b.title})</span>`:''}</strong>
                   ${hasBody?`<span class="la-arr" style="font-size:11px;color:#aaa;transition:transform .2s">▼</span>`:''}
                 </div>${bodyHtml}
               </div>`;
