@@ -262,12 +262,12 @@ export default {
         if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 86400) {
           try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50 && !r.error) return json(r); } catch (e) {}
         }
+        // Accept-Encoding 미설정: Cloudflare Worker가 자동 압축해제하도록 (직접 설정 시 binary 그대로 반환됨)
         const headers = {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Referer': 'https://www.law.go.kr/',
-          'Accept-Language': 'ko-KR,ko;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br'
+          'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         // Cloudflare/SSL 오류 페이지 판별
         const isCfError = (raw) => /Error code [0-9]+|SSL handshake failed|cloudflare/i.test(raw.slice(0, 2000));
@@ -311,9 +311,14 @@ export default {
         for (const { url: apiUrl, fmt } of attempts) {
           try {
             const res = await fetch(apiUrl, { headers });
-            const raw = await res.text();
+            const buf = await res.arrayBuffer();
+            // Content-Type에서 charset 확인, EUC-KR 이면 해당 디코더 사용
+            const ct = res.headers.get('content-type') || '';
+            const charset = (ct.match(/charset=([\w-]+)/i)?.[1] || 'utf-8').toLowerCase();
+            const decoder = new TextDecoder(charset === 'euc-kr' || charset === 'ks_c_5601-1987' ? 'euc-kr' : 'utf-8', { fatal: false });
+            const raw = decoder.decode(buf);
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
-            debug.push(`${tgt}:${res.status}:${raw.length}chars:${fmt}`);
+            debug.push(`${tgt}:${res.status}:${raw.length}chars:${fmt}:${charset}`);
             if (raw.length < 200 || isCfError(raw)) continue;
             if (fmt === 'xml') {
               const converted = xmlToHtml(raw);
