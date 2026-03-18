@@ -285,7 +285,8 @@ export default {
             const res = await fetch(apiUrl, { headers });
             const raw = await res.text();
             debug.push(`${apiUrl.match(/target=(\w+)/)?.[1]}:${res.status}:${raw.length}chars`);
-            if (res.ok && raw.length > 200) { html = raw; break; }
+            // 상태코드와 무관하게 충분한 내용이 있으면 사용 (law.go.kr은 5xx에도 본문 반환)
+            if (raw.length > 500) { html = raw; break; }
           } catch(e) { debug.push(`fetch_fail:${e.message}`); }
         }
         if (!html) return json({ error: `조문을 가져오지 못했습니다`, debug });
