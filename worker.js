@@ -163,49 +163,112 @@ export default {
         return json(items);
       }
 
-      // ── 법령 정보 ──
-      if (p === '/api/law-info' && m === 'GET') {
+      // ── 법령 검색 ──
+      if (p === '/api/law-search' && m === 'GET') {
         const OC = 'STEP-OPENAPI';
-        const cached = await env.DB.prepare("SELECT data, cached_at FROM news_cache WHERE category='law_api'").first();
-        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 3600) {
+        const q = url.searchParams.get('q') || '근로';
+        const target = url.searchParams.get('target') || 'all';
+        const cacheKey = `law_s_${target}_${q.slice(0,30)}`;
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
+        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
           try { return json(JSON.parse(cached.data)); } catch (e) {}
         }
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
-        const [lawRes, precRes] = await Promise.allSettled([
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=%EA%B7%BC%EB%A1%9C&display=15&sort=efYd`),
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=%EA%B7%BC%EB%A1%9C&display=15&sort=date`)
+        const enc = encodeURIComponent(q);
+        const tasks = [];
+        if (target === 'all' || target === 'law')  tasks.push(['law',  fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=10&sort=efYd`)]);
+        if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
+        if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
+        const settled = await Promise.allSettled(tasks.map(([, f]) => f));
+        let laws = [], precs = [], expcs = [];
+        for (let i = 0; i < tasks.length; i++) {
+          const [type] = tasks[i]; const res = settled[i];
+          if (res.status !== 'fulfilled' || !res.value.ok) continue;
+          try {
+            const d = await res.value.json();
+            if (type === 'law') {
+              const arr = d?.LawSearch?.law || [];
+              laws = (Array.isArray(arr) ? arr : [arr]).map(l => ({
+                name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
+                date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
+              })).filter(l => l.name);
+            } else if (type === 'prec') {
+              const arr = d?.PrecSearch?.prec || [];
+              precs = (Array.isArray(arr) ? arr : [arr]).map(p => ({
+                name: p['사건명'] || '', num: p['사건번호'] || '',
+                court: p['법원명'] || '', date: fmtDate(p['선고일자'] || ''), id: p['판례일련번호'] || ''
+              })).filter(p => p.name);
+            } else if (type === 'expc') {
+              const arr = d?.ExpCSearch?.expc || d?.ExpcSearch?.expc || [];
+              expcs = (Array.isArray(arr) ? arr : [arr]).map(e => ({
+                name: e['해석례명'] || e['제목'] || '', dept: e['소관부처명'] || e['소관부처'] || '',
+                date: fmtDate(e['회신일자'] || e['시행일자'] || ''), id: e['해석례일련번호'] || e['일련번호'] || ''
+              })).filter(e => e.name);
+            }
+          } catch (e) {}
+        }
+        const result = { laws, precs, expcs, query: q };
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+          .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
+        return json(result);
+      }
+
+      // ── 법률 AI 질문 ──
+      if (p === '/api/law-ask' && m === 'POST') {
+        if (!env.GEMINI_API_KEY) return json({ error: 'AI 서비스를 사용할 수 없습니다.' }, 503);
+        const b = await request.json();
+        const question = (b.question || '').trim().slice(0, 500);
+        if (!question) return json({ error: '질문을 입력해주세요.' }, 400);
+        const OC = 'STEP-OPENAPI';
+        const enc = encodeURIComponent(question.slice(0, 50));
+        const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const [lawRes, precRes, expcRes] = await Promise.allSettled([
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=5&sort=efYd`),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`)
         ]);
-        let laws = [], precs = [];
+        let sources = [], context = '';
         if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
           try {
             const d = await lawRes.value.json();
-            const arr = d?.LawSearch?.law || [];
-            laws = (Array.isArray(arr) ? arr : [arr]).map(l => ({
-              name: l['법령명한글'] || l['법령명'] || '',
-              dept: l['소관부처명'] || '',
-              date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
-              id: l['법령일련번호'] || ''
-            })).filter(l => l.name);
+            const arr = (Array.isArray(d?.LawSearch?.law) ? d.LawSearch.law : d?.LawSearch?.law ? [d.LawSearch.law] : []).filter(l => l['법령명한글'] || l['법령명']);
+            if (arr.length) {
+              context += '【관련 법령】\n' + arr.map(l => `- ${l['법령명한글']||l['법령명']} (시행: ${fmtDate(l['시행일자']||'')})`).join('\n') + '\n\n';
+              arr.forEach(l => sources.push({ type: 'law', name: l['법령명한글']||l['법령명'], id: l['법령일련번호'] }));
+            }
           } catch (e) {}
         }
         if (precRes.status === 'fulfilled' && precRes.value.ok) {
           try {
             const d = await precRes.value.json();
-            const arr = d?.PrecSearch?.prec || [];
-            precs = (Array.isArray(arr) ? arr : [arr]).map(p => ({
-              name: p['사건명'] || '',
-              num: p['사건번호'] || '',
-              court: p['법원명'] || '',
-              date: fmtDate(p['선고일자'] || ''),
-              id: p['판례일련번호'] || ''
-            })).filter(p => p.name);
+            const arr = (Array.isArray(d?.PrecSearch?.prec) ? d.PrecSearch.prec : d?.PrecSearch?.prec ? [d.PrecSearch.prec] : []).filter(p => p['사건명']);
+            if (arr.length) {
+              context += '【관련 판례】\n' + arr.map(p => `- ${p['사건명']} (${p['법원명']||''} ${fmtDate(p['선고일자']||'')})`).join('\n') + '\n\n';
+              arr.forEach(p => sources.push({ type: 'prec', name: p['사건명'], num: p['사건번호'], court: p['법원명'], date: fmtDate(p['선고일자']||'') }));
+            }
           } catch (e) {}
         }
-        const result = { laws, precs };
-        const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare("INSERT INTO news_cache(category,data,cached_at) VALUES('law_api',?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?")
-          .bind(JSON.stringify(result), now, JSON.stringify(result), now).run();
-        return json(result);
+        if (expcRes.status === 'fulfilled' && expcRes.value.ok) {
+          try {
+            const d = await expcRes.value.json();
+            const arr = (Array.isArray(d?.ExpCSearch?.expc) ? d.ExpCSearch.expc : d?.ExpCSearch?.expc ? [d.ExpCSearch.expc] : []).filter(e => e['해석례명']||e['제목']);
+            if (arr.length) {
+              context += '【관련 해석례】\n' + arr.map(e => `- ${e['해석례명']||e['제목']||''}`).join('\n') + '\n\n';
+              arr.forEach(e => sources.push({ type: 'expc', name: e['해석례명']||e['제목']||'' }));
+            }
+          } catch (e) {}
+        }
+        const prompt = `당신은 대한민국 노동법 전문가입니다. 아래 검색된 법령·판례·해석례를 참고하여 질문에 답변하세요.\n\n${context || '(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n'}질문: ${question}\n\n답변 시 유의사항:\n- 관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조)\n- 일반인이 이해하기 쉽게 설명하세요\n- 마크다운 없이 일반 텍스트로 작성하세요\n- 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요`;
+        const gResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } } }) }
+        );
+        const gData = await gResp.json();
+        const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!answer) return json({ error: 'AI 응답 생성 실패' }, 500);
+        return json({ answer, sources });
       }
 
       // ── 글 목록 ──

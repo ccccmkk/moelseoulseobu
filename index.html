@@ -435,7 +435,29 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <!-- 법률 -->
     <div id="lawMainPane" style="display:none">
-      <div id="lawContent"></div>
+      <!-- 검색 -->
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input id="lawSearchInput" type="text" value="근로" placeholder="법령·판례 검색..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawSearch()">
+          <button onclick="lawSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button id="lt-all"  class="sub-tab active" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('all')">전체</button>
+          <button id="lt-law"  class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('law')">법령</button>
+          <button id="lt-prec" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('prec')">판례</button>
+          <button id="lt-expc" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('expc')">해석례</button>
+        </div>
+      </div>
+      <div id="lawSearchResult"></div>
+      <!-- AI 질문 -->
+      <div style="border-top:4px solid var(--border);padding:14px 16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">⚖️ 법률 AI 질문</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="lawAskInput" type="text" placeholder="예) 연차 미사용 수당 언제 받나요?" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawAsk()">
+          <button onclick="lawAsk()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">질문</button>
+        </div>
+        <div id="lawAskResult"></div>
+      </div>
     </div>
     <!-- 점심 -->
     <div id="lunchMainPane" style="display:none">
@@ -1186,35 +1208,71 @@ function switchNewsCat(cat){
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
   newsCache=null;loadNews();
 }
-async function loadLaw(){
-  const box=$('lawContent');
-  box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
+let lawTarget='all';
+function switchLawTarget(t){
+  lawTarget=t;
+  ['all','law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
+  lawSearch();
+}
+async function loadLaw(){ lawSearch(); }
+async function lawSearch(){
+  const q=($('lawSearchInput').value||'근로').trim();
+  const box=$('lawSearchResult');
+  box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
   try{
-    const data=await fetch(`${API}/api/law-info`).then(r=>r.json());
+    const data=await fetch(`${API}/api/law-search?q=${encodeURIComponent(q)}&target=${lawTarget}`).then(r=>r.json());
     let html='';
     if(data.laws&&data.laws.length){
-      html+=`<div style="padding:12px 16px 6px;font-size:13px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 최근 시행 노동법령</div>`;
-      html+=data.laws.map(l=>{
-        const href=`https://www.law.go.kr/법령/${encodeURIComponent(l.name)}`;
-        return `<a class="news-card" href="${escHtml(href)}" target="_blank" rel="noopener">
-          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:4px;color:var(--text)">${escHtml(l.name)}</div>
-          <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
-        </a>`;
-      }).join('');
+      html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 법령</div>`;
+      html+=data.laws.map(l=>`<a class="news-card" href="https://www.law.go.kr/법령/${encodeURIComponent(l.name)}" target="_blank" rel="noopener">
+        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(l.name)}</div>
+        <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
+      </a>`).join('');
     }
     if(data.precs&&data.precs.length){
-      html+=`<div style="padding:16px 16px 6px;font-size:13px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">⚖️ 최근 판례</div>`;
-      html+=data.precs.map(p=>{
-        const href=`https://www.law.go.kr/판례/${encodeURIComponent(p.num||p.name)}`;
-        return `<a class="news-card" href="${escHtml(href)}" target="_blank" rel="noopener">
-          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:4px;color:var(--text)">${escHtml(p.name)}</div>
-          <div style="font-size:12px;color:var(--text-hint)">${escHtml(p.court)}${p.date?' · '+escHtml(p.date):''}${p.num?' · '+escHtml(p.num):''}</div>
-        </a>`;
-      }).join('');
+      html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">⚖️ 판례</div>`;
+      html+=data.precs.map(p=>`<a class="news-card" href="https://www.law.go.kr/판례/${encodeURIComponent(p.num||p.name)}" target="_blank" rel="noopener">
+        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(p.name)}</div>
+        <div style="font-size:12px;color:var(--text-hint)">${escHtml(p.court)}${p.date?' · '+escHtml(p.date):''}${p.num?' · '+escHtml(p.num):''}</div>
+      </a>`).join('');
     }
-    if(!html){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">법령 정보 없음</div>';return;}
-    box.innerHTML=html;
-  }catch(e){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
+    if(data.expcs&&data.expcs.length){
+      html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📋 해석례</div>`;
+      html+=data.expcs.map(e=>`<a class="news-card" href="https://www.law.go.kr/해석례/${encodeURIComponent(e.name)}" target="_blank" rel="noopener">
+        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(e.name)}</div>
+        <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
+      </a>`).join('');
+    }
+    box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
+  }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
+}
+async function lawAsk(){
+  const q=($('lawAskInput').value||'').trim();
+  if(!q)return;
+  const box=$('lawAskResult');
+  box.innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">AI가 관련 법령을 검색하고 답변을 생성 중입니다...</div>';
+  try{
+    const data=await fetch(`${API}/api/law-ask`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})}).then(r=>r.json());
+    if(data.error){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>`;return;}
+    let srcHtml='';
+    if(data.sources&&data.sources.length){
+      const icons={law:'📜',prec:'⚖️',expc:'📋'};
+      srcHtml=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;color:var(--text-hint);margin-bottom:6px">참고 자료</div>
+        ${data.sources.map(s=>{
+          const icon=icons[s.type]||'📄';
+          const href=s.type==='law'?`https://www.law.go.kr/법령/${encodeURIComponent(s.name)}`:
+                     s.type==='prec'?`https://www.law.go.kr/판례/${encodeURIComponent(s.num||s.name)}`:
+                     `https://www.law.go.kr`;
+          return `<a href="${escHtml(href)}" target="_blank" rel="noopener" style="display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;background:var(--bg3);border-radius:6px;font-size:11px;color:var(--text);text-decoration:none">${icon} ${escHtml(s.name)}</a>`;
+        }).join('')}
+      </div>`;
+    }
+    box.innerHTML=`<div style="background:var(--bg2);border-radius:10px;padding:14px 16px;margin-top:8px">
+      <div style="font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap">${escHtml(data.answer)}</div>
+      ${srcHtml}
+    </div>`;
+  }catch(e){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">오류가 발생했습니다.</div>`;}
 }
 async function loadNews(){
   const now=Date.now();
