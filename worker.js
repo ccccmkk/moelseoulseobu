@@ -63,6 +63,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS chat_messages (id TEXT PRIMARY KEY, author TEXT, content TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS claude_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS gemini_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))`,
     `CREATE TABLE IF NOT EXISTS kudos (id TEXT PRIMARY KEY, tag TEXT, source TEXT, content TEXT, added_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS monthly_contests (id TEXT PRIMARY KEY, title TEXT, description TEXT, nominate_start INTEGER, nominate_end INTEGER, vote_start INTEGER, vote_end INTEGER, created_by TEXT, winner TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS nominations (id TEXT PRIMARY KEY, contest_id TEXT, nominee TEXT, nominated_by TEXT, message TEXT, is_anonymous INTEGER DEFAULT 0, created_at INTEGER, UNIQUE(contest_id, nominated_by))`,
@@ -85,6 +86,7 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE kudos ADD COLUMN user_target TEXT DEFAULT ''"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE events ADD COLUMN tagged_user TEXT DEFAULT ''"); } catch(e) {}
+  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))"); } catch(e) {}
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
@@ -459,7 +461,7 @@ export default {
         const gResp = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 2048 } }) }
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 8192 } }) }
         );
         const gData = await gResp.json();
         const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -471,8 +473,12 @@ export default {
         const tokIn = gData?.usageMetadata?.promptTokenCount || 0;
         const tokOut = gData?.usageMetadata?.candidatesTokenCount || 0;
         if (tokIn || tokOut) {
+          const _now = Math.floor(Date.now()/1000);
+          const _date = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
           env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-            .bind(tokIn, tokOut, Math.floor(Date.now()/1000), tokIn, tokOut, Math.floor(Date.now()/1000)).run();
+            .bind(tokIn, tokOut, _now, tokIn, tokOut, _now).run();
+          env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+            .bind(_date, 'qa', tokIn, tokOut).run();
         }
         return json({ answer, sources, model: 'Gemini 2.5 Flash' });
       }
@@ -984,8 +990,14 @@ export default {
 
       // ── Gemini API 사용량 ──
       if (p === '/api/gemini-usage' && m === 'GET') {
-        const row = await env.DB.prepare('SELECT * FROM gemini_usage WHERE id=1').first();
-        return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+        const total = await env.DB.prepare('SELECT * FROM gemini_usage WHERE id=1').first();
+        const daily = await env.DB.prepare('SELECT date, type, tokens_in, tokens_out, calls FROM gemini_usage_daily ORDER BY date DESC, type ASC LIMIT 90').all();
+        const byType = await env.DB.prepare('SELECT type, SUM(tokens_in) as tokens_in, SUM(tokens_out) as tokens_out, SUM(calls) as calls FROM gemini_usage_daily GROUP BY type ORDER BY type ASC').all();
+        return json({
+          total: total || { tokens_in: 0, tokens_out: 0, calls: 0 },
+          daily: daily.results || [],
+          by_type: byType.results || [],
+        });
       }
 
       // ── Claude API 사용량 ──
@@ -1130,11 +1142,21 @@ export default {
             const gResp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
               { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } } }) }
+                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
             );
             const gData = await gResp.json();
             const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!gText) return json({ error: `KDCA 실패(${kdcaErrorMsg}), Gemini 폴백 응답 없음` }, 502);
+            const _fbNow = Math.floor(Date.now()/1000);
+            const _fbDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
+            const _fbIn = gData.usageMetadata?.promptTokenCount || 0;
+            const _fbOut = gData.usageMetadata?.candidatesTokenCount || 0;
+            if (_fbIn || _fbOut) {
+              env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+                .bind(_fbIn, _fbOut, _fbNow, _fbIn, _fbOut, _fbNow).run();
+              env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+                .bind(_fbDate, 'health_fallback', _fbIn, _fbOut).run();
+            }
             const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${gText}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
             const blocks = [{ type: 'text', content }];
             const postId = 'post_' + Date.now();
@@ -1175,7 +1197,7 @@ export default {
             const gResp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
               { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 0 } } }) }
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
             );
             const gData = await gResp.json();
             const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1183,8 +1205,12 @@ export default {
               postBody = gText.trim();
               const gIn = gData.usageMetadata?.promptTokenCount || 0;
               const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
+              const _hNow = Math.floor(Date.now()/1000);
+              const _hDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
               await env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-                .bind(gIn, gOut, Math.floor(Date.now()/1000), gIn, gOut, Math.floor(Date.now()/1000)).run();
+                .bind(gIn, gOut, _hNow, gIn, gOut, _hNow).run();
+              env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+                .bind(_hDate, 'health', gIn, gOut).run();
             }
           } catch(e) {}
         }
@@ -1235,7 +1261,7 @@ export default {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n직원 질문: ' + targetComment.content }] }],
-                  generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
+                  generationConfig: { maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
                 }),
               }
             );
@@ -1251,9 +1277,13 @@ export default {
                 usedModel = 'gemini';
                 const gIn = gData.usageMetadata?.promptTokenCount || 0;
                 const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
+                const _rNow = Math.floor(Date.now()/1000);
+                const _rDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
                 await env.DB.prepare(
                   'INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
-                ).bind(gIn, gOut, Math.floor(Date.now()/1000), gIn, gOut, Math.floor(Date.now()/1000)).run();
+                ).bind(gIn, gOut, _rNow, gIn, gOut, _rNow).run();
+                env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+                  .bind(_rDate, 'reply', gIn, gOut).run();
               } else {
                 apiError = 'Gemini 응답 없음: ' + JSON.stringify(gData).slice(0, 100);
               }
