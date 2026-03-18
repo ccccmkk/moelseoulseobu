@@ -1270,7 +1270,7 @@ async function lawSearch(){
     let html='';
     if(data.laws&&data.laws.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 법령</div>`;
-      html+=data.laws.map(l=>`<div class="law-result-card" onclick="openLawContent(${JSON.stringify(l.id)},${JSON.stringify(l.name)},'law')">
+      html+=data.laws.map(l=>`<div class="law-result-card" onclick="openLawContent(${JSON.stringify(l.id)},${JSON.stringify(l.name)},'law',${JSON.stringify(l.mst||'')})">
         <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(l.name)}</div>
         <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
         <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
@@ -1294,16 +1294,22 @@ async function lawSearch(){
     box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
-async function openLawContent(id,lawName,lawtype){
-  if(!id)return;
+async function openLawContent(id,lawName,lawtype,mst){
   lawtype=lawtype||'law';
   $('lawContentTitle').textContent=lawName||'본문';
   $('lawContentBody').innerHTML=lawSkeleton();
   $('lawContentModal').classList.add('open');
   try{
-    const data=await fetch(`${API}/api/law-content?id=${encodeURIComponent(id)}&lawtype=${lawtype}`).then(r=>r.json());
-    if(data.error){$('lawContentBody').innerHTML=`<div style="padding:20px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>`;return;}
-    if(!data.html||data.html.trim().length<50){
+    const qs=new URLSearchParams({lawtype});
+    if(id)qs.set('id',id);
+    if(mst)qs.set('mst',mst);
+    const data=await fetch(`${API}/api/law-content?${qs}`).then(r=>r.json());
+    if(data.error){
+      const dbg=data.debug?`<div style="padding:4px 20px;font-size:11px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
+      $('lawContentBody').innerHTML=`<div style="padding:20px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>${dbg}`;
+      return;
+    }
+    if(!data.html||!data.html.trim()){
       $('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">내용을 불러오지 못했습니다</div>';
       return;
     }
