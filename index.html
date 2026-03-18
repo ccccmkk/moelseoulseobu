@@ -87,7 +87,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .post-img-grid.three .img-main{grid-column:1/-1}
 .post-img-grid.three .img-main img{height:260px}
 .block-caption{font-size:12px;color:var(--text-sub);padding:6px 14px;background:#fafafa;border-top:1px solid var(--border)}
-.block-text{font-size:14px;line-height:1.75;padding:8px 14px;white-space:pre-wrap;color:var(--text)}
+.block-text{font-size:14px;line-height:1.75;padding:8px 14px;color:var(--text)}
 .post-actions{padding:6px 10px 8px;display:flex;align-items:center;gap:12px}
 .act-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:5px;color:var(--text-sub);padding:5px 4px;font-size:14px;font-family:inherit}
 .act-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;transition:.2s}
@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .kudos-tag.친절카드{background:#fff3e0;color:#e65100}
 .kudos-tag.기타{background:#f3e5f5;color:#6a1b9a}
 .kudos-source{font-size:12px;color:var(--text-hint)}
-.kudos-content{font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap}
+.kudos-content{font-size:14px;line-height:1.7;color:var(--text)}
 .kudos-meta{font-size:11px;color:var(--text-hint);margin-top:8px}
 .kudos-del{background:none;border:none;color:var(--text-hint);cursor:pointer;font-size:13px;margin-left:auto;padding:0}
 .kudos-del:hover{color:var(--danger)}
@@ -1160,6 +1160,31 @@ function updateAvatarEl(el,u){
   else{el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av||initials(u);}
 }
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function renderMd(s){
+  if(!s)return'';
+  // 1. HTML 이스케이프 (XSS 방지)
+  let t=escHtml(s);
+  // 2. 헤더: ### ## # (줄 시작)
+  t=t.replace(/^### (.+)$/gm,'<strong style="font-size:13px;display:block;margin:8px 0 2px;color:var(--text)">$1</strong>');
+  t=t.replace(/^## (.+)$/gm,'<strong style="font-size:14px;display:block;margin:10px 0 3px;color:var(--text)">$1</strong>');
+  t=t.replace(/^# (.+)$/gm,'<strong style="font-size:15px;display:block;margin:12px 0 4px;color:var(--text)">$1</strong>');
+  // 3. 굵게 / 기울임
+  t=t.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  t=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  t=t.replace(/__(.+?)__/g,'<strong>$1</strong>');
+  t=t.replace(/\*([^*\n]+?)\*/g,'<em>$1</em>');
+  t=t.replace(/_([^_\n]+?)_/g,'<em>$1</em>');
+  // 4. 인라인 코드
+  t=t.replace(/`([^`]+)`/g,'<code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-size:12px;font-family:monospace">$1</code>');
+  // 5. 구분선
+  t=t.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">');
+  // 6. 리스트 (- 또는 * 또는 숫자.)
+  t=t.replace(/^(\d+)\. (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="min-width:18px;color:var(--text-hint)">$1.</span><span>$2</span></div>');
+  t=t.replace(/^[-*] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--green)">•</span><span>$1</span></div>');
+  // 7. 줄바꿈
+  t=t.replace(/\n/g,'<br>');
+  return t;
+}
 function relDate(ts){
   if(!ts)return'';
   const d=Math.floor(Date.now()/1000)-(typeof ts==='number'?ts:Math.floor(new Date(ts)/1000));
@@ -1419,7 +1444,7 @@ async function lawAsk(){
     }
     const modelBadge=data.model?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-hint)">AI: ${escHtml(data.model)}</div>`:'';
     box.innerHTML=`<div style="background:var(--bg2);border-radius:10px;padding:14px 16px;margin-top:8px">
-      <div style="font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap">${escHtml(data.answer)}</div>
+      <div style="font-size:13px;line-height:1.8;color:var(--text)">${renderMd(data.answer)}</div>
       ${srcHtml}${modelBadge}
     </div>`;
   }catch(e){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">오류가 발생했습니다.</div>`;}
@@ -1468,7 +1493,7 @@ function renderBlocksInCard(p,blogMode){
     const cid='car-'+p.id;
     html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${i.url}" loading="lazy" onclick="openLightbox('${i.url}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
   }
-  texts.forEach(b=>{html+=`<div class="block-text">${escHtml(b.content)}</div>`;});
+  texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   return html;
 }
 function renderFeed(){
@@ -1529,7 +1554,7 @@ function buildRepliesHtml(cid,reps,expanded){
       ${avatarEl(r.author,'width:24px;height:24px;font-size:11px;flex-shrink:0;')}
       <div class="reply-body">
         <div class="reply-author">${escHtml(userName(r.author))}${badgeHtml(r.author)}</div>
-        <div class="reply-text">${escHtml(r.content)}</div>
+        <div class="reply-text">${renderMd(r.content)}</div>
         <div class="reply-meta">${relDate(r.created_at)}${canDel?`<button class="comment-del" onclick="deleteReply('${r.id}','${cid}')">삭제</button>`:''}</div>
       </div>
     </div>`;
@@ -1588,7 +1613,7 @@ function renderComments(cmts){
       ${avatarEl(c.author)}
       <div class="comment-body">
         <div class="comment-author">${escHtml(userName(c.author))}${badgeHtml(c.author)}</div>
-        <div class="comment-text">${escHtml(c.content)}</div>
+        <div class="comment-text">${renderMd(c.content)}</div>
         <div class="comment-meta">
           <span>${relDate(c.created_at)}</span>
           <button class="comment-like-btn${liked?' liked':''}" onclick="toggleCommentLike('${c.id}','${escHtml(c.author)}',this)">♥ <span>${c.like_count||0}</span></button>
@@ -1805,7 +1830,7 @@ function renderEvents(){
   c.innerHTML=events.map(e=>{
     const isMine=e.author===currentUser||currentUserRole==='admin';
     const taggedHtml=e.tagged_user?(()=>{const n=escHtml(userName(e.tagged_user)||e.tagged_user);return`<div style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:4px">대상: ${n}</div>`;})():'';
-    return`<div class="event-card"><div style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[e.type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></div><div class="event-info"><span class="event-type-badge">${e.type}</span>${taggedHtml}<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${escHtml(e.content)}</div>`:''}<div class="event-meta">${escHtml(e.author)} · ${relDate(e.created_at)}</div></div>${isMine?`<button class="event-del" onclick="deleteEvent('${e.id}')">×</button>`:''}</div>`;
+    return`<div class="event-card"><div style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[e.type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></div><div class="event-info"><span class="event-type-badge">${e.type}</span>${taggedHtml}<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}<div class="event-meta">${escHtml(e.author)} · ${relDate(e.created_at)}</div></div>${isMine?`<button class="event-del" onclick="deleteEvent('${e.id}')">×</button>`:''}</div>`;
   }).join('');
 }
 async function openEventModal(){
@@ -1842,7 +1867,7 @@ function renderKudos(){
     const canDel=currentUserRole==='admin';
     const targetName=k.user_target?escHtml(userName(k.user_target)||k.user_target):'';
     const targetHtml=targetName?`<div style="font-size:13px;font-weight:700;color:var(--green-dark);margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--border)">${targetName}</div>`:'';
-    return`<div class="kudos-card"><div class="kudos-header"><span class="kudos-tag ${tagClass}">${escHtml(k.tag)}</span><span class="kudos-source">${srcLabel}</span>${canDel?`<button class="kudos-del" onclick="deleteKudos('${k.id}')">삭제</button>`:''}</div>${targetHtml}<div class="kudos-content">${escHtml(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
+    return`<div class="kudos-card"><div class="kudos-header"><span class="kudos-tag ${tagClass}">${escHtml(k.tag)}</span><span class="kudos-source">${srcLabel}</span>${canDel?`<button class="kudos-del" onclick="deleteKudos('${k.id}')">삭제</button>`:''}</div>${targetHtml}<div class="kudos-content">${renderMd(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
   }).join('');
 }
 function selectKudosDept(btn,dept){
@@ -1935,7 +1960,7 @@ async function renderContests(){
       $('awardsKudosList').innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--text-sub);margin-bottom:10px;padding-top:4px;border-top:1px solid var(--border)">칭찬 기록</div>`+winnerKudos.map(k=>{
         const tn=escHtml(userName(k.user_target)||k.user_target);
         const srcLabel=k.source?` · ${escHtml(k.source)}`:'';
-        return`<div class="kudos-card" style="margin-bottom:8px"><div class="kudos-header"><span class="kudos-tag">${escHtml(k.tag)}</span><span style="font-size:12px;font-weight:700;color:var(--green-dark)">${tn}</span><span class="kudos-source">${srcLabel}</span></div><div class="kudos-content">${escHtml(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
+        return`<div class="kudos-card" style="margin-bottom:8px"><div class="kudos-header"><span class="kudos-tag">${escHtml(k.tag)}</span><span style="font-size:12px;font-weight:700;color:var(--green-dark)">${tn}</span><span class="kudos-source">${srcLabel}</span></div><div class="kudos-content">${renderMd(k.content)}</div><div class="kudos-meta">${relDate(k.created_at)}</div></div>`;
       }).join('');
     }else{$('awardsKudosList').innerHTML='';}
   }
@@ -2153,7 +2178,7 @@ function openFullPost(key){
   let html='';
   (p.blocks||[]).forEach(b=>{
     if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${b.url}')"><img src="${b.url}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
-    else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${escHtml(b.content)}</div>`;}
+    else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${renderMd(b.content)}</div>`;}
   });
   if(p.keyword)html+=`<div class="post-tag" style="margin:4px 14px 8px">#${escHtml(p.keyword)}</div>`;
   $('fullPostBody').innerHTML=html;
