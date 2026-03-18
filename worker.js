@@ -249,6 +249,50 @@ export default {
         return json(result);
       }
 
+      // ── 법령 본문 조회 ──
+      if (p === '/api/law-content' && m === 'GET') {
+        const OC = env.LAW_OC || 'STEP-OPENAPI';
+        const id = url.searchParams.get('id') || '';
+        if (!id) return json({ error: 'id 필요' }, 400);
+        const cacheKey = `lawcontent_${id}`;
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
+        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 86400) {
+          try { return json(JSON.parse(cached.data)); } catch (e) {}
+        }
+        const headers = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': 'https://www.law.go.kr/',
+          'Accept-Language': 'ko-KR,ko;q=0.9'
+        };
+        const res = await fetch(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${encodeURIComponent(id)}&type=JSON`, { headers });
+        if (!res.ok) return json({ error: `API 오류 ${res.status}` }, 502);
+        let d;
+        try { d = await res.json(); } catch (e) { return json({ error: '응답 파싱 실패' }, 502); }
+        const root = d?.법령 || {};
+        const lawName = root['기본정보']?.['법령명_한글'] || '';
+        const rawJos = root['조문']?.['조문단위'] || [];
+        const jos = (Array.isArray(rawJos) ? rawJos : rawJos ? [rawJos] : []).map(jo => {
+          const num = jo['조문번호'] || '';
+          const sub = jo['조문가지번호'];
+          const title = jo['조문제목'] || '';
+          const content = jo['조문내용'] || '';
+          const rawItems = jo['항'] || [];
+          const items = (Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : []).map(h => ({
+            num: h['항번호'] || '',
+            content: h['항내용'] || ''
+          }));
+          return { num, sub: sub || 0, title, content, items };
+        });
+        const result = { lawName, jos };
+        const now = Math.floor(Date.now() / 1000);
+        if (jos.length) {
+          await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
+        }
+        return json(result);
+      }
+
       // ── 법률 AI 질문 ──
       if (p === '/api/law-ask' && m === 'POST') {
         if (!env.GEMINI_API_KEY) return json({ error: 'AI 서비스를 사용할 수 없습니다.' }, 503);
