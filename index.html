@@ -1254,9 +1254,10 @@ async function lawAsk(){
         }).join('')}
       </div>`;
     }
+    const modelBadge=data.model?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-hint)">AI: ${escHtml(data.model)}</div>`:'';
     box.innerHTML=`<div style="background:var(--bg2);border-radius:10px;padding:14px 16px;margin-top:8px">
       <div style="font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap">${escHtml(data.answer)}</div>
-      ${srcHtml}
+      ${srcHtml}${modelBadge}
     </div>`;
   }catch(e){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">오류가 발생했습니다.</div>`;}
 }
@@ -2064,7 +2065,7 @@ async function agentHealthReply(){
   const btn=$('agentReplyBtn');const msg=$('agentMsg');
   btn.disabled=true;msg.style.color='var(--text-hint)';msg.textContent='대댓글 생성 중...';
   try{
-    const r=await fetch(`${API}/api/agent/health/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const r=await fetch(`${API}/api/agent/health/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({debug:true})});
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
     const modelLabel=d.used_model==='gemini'?'Gemini':d.used_model==='claude'?'Claude':'';

@@ -165,7 +165,7 @@ export default {
 
       // ── 법령 검색 ──
       if (p === '/api/law-search' && m === 'GET') {
-        const OC = env.LAW_OC || 'STEP-OPENAPI';
+        const OC = env.LAW_OC || 'cm99i';
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
         const cacheKey = `law_s_${target}_${q.slice(0,30)}`;
@@ -220,7 +220,7 @@ export default {
         const b = await request.json();
         const question = (b.question || '').trim().slice(0, 500);
         if (!question) return json({ error: '질문을 입력해주세요.' }, 400);
-        const OC = env.LAW_OC || 'STEP-OPENAPI';
+        const OC = env.LAW_OC || 'cm99i';
         const enc = encodeURIComponent(question.slice(0, 50));
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
@@ -268,7 +268,7 @@ export default {
         const gData = await gResp.json();
         const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (!answer) return json({ error: 'AI 응답 생성 실패' }, 500);
-        return json({ answer, sources });
+        return json({ answer, sources, model: 'Gemini 2.5 Flash' });
       }
 
       // ── 글 목록 ──
@@ -887,14 +887,38 @@ export default {
         const candidates = available.length ? available : KDCA_CONTENTS;
         const chosen = candidates[Math.floor(Math.random() * candidates.length)];
 
-        // KDCA API 호출 (XML)
+        // KDCA API 호출 (XML) — 실패 시 Gemini 직접 생성으로 폴백
         let xmlText = '';
+        let kdcaFailed = false;
+        let kdcaErrorMsg = '';
         try {
-          const kdcaResp = await fetch(`http://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`);
-          if (!kdcaResp.ok) throw new Error(`HTTP ${kdcaResp.status}`);
-          xmlText = await kdcaResp.text();
-        } catch(e) {
-          return json({ error: 'KDCA API 호출 실패: ' + e.message }, 502);
+          const kdcaResp = await fetch(`https://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`);
+          if (!kdcaResp.ok) { kdcaFailed = true; kdcaErrorMsg = `HTTP ${kdcaResp.status}`; }
+          else { xmlText = await kdcaResp.text(); }
+        } catch(e) { kdcaFailed = true; kdcaErrorMsg = e.message; }
+
+        // KDCA 실패 시 Gemini로 직접 건강 정보 글 생성
+        if (kdcaFailed || !xmlText) {
+          if (!env.GEMINI_API_KEY) return json({ error: `KDCA API 호출 실패(${kdcaErrorMsg}), Gemini API키 미설정` }, 502);
+          try {
+            const fallbackPrompt = `서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글을 작성하세요.\n주제: "${chosen.name}"\n\n요구사항:\n- 직장인에게 실용적인 건강 팁 위주\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤\n- 마크다운 없이 일반 텍스트로`;
+            const gResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } } }) }
+            );
+            const gData = await gResp.json();
+            const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!gText) return json({ error: `KDCA 실패(${kdcaErrorMsg}), Gemini 폴백 응답 없음` }, 502);
+            const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${gText}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
+            const blocks = [{ type: 'text', content }];
+            const postId = 'post_' + Date.now();
+            await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
+              .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
+            await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
+              .bind(postId, '건강', '건강').run();
+            return json({ ok: true, id: postId, title: chosen.name, via: 'gemini_fallback' });
+          } catch(e) { return json({ error: `KDCA 실패(${kdcaErrorMsg}), Gemini 폴백 오류: ${e.message}` }, 502); }
         }
 
         // XML에서 CDATA 추출 헬퍼
@@ -953,6 +977,8 @@ export default {
         return json({ ok: true, id: postId, title: topic });
       }
       if (p === '/api/agent/health/reply' && m === 'POST') {
+        const replyBody = await request.json().catch(() => ({}));
+        const isDebugMode = replyBody.debug === true; // 관리자 수동 실행 시 Claude 사용 금지
         // 에이전트 게시글에 달린 미답변 댓글 찾기
         const agentPosts = await env.DB.prepare('SELECT id FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 20').bind(AGENT_ID).all();
         if (!agentPosts.results.length) return json({ error: '에이전트 게시글 없음' }, 404);
@@ -1010,10 +1036,10 @@ export default {
           } catch(e) { apiError = 'Gemini 오류: ' + e.message; }
         }
 
-        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백 (관리자가 켠 경우에만)
+        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백 (관리자가 켠 경우에만, 디버그 모드에서는 비활성화)
         const claudeSetting = await env.DB.prepare("SELECT value FROM settings WHERE key='claude_enabled'").first();
         const claudeEnabled = !claudeSetting || claudeSetting.value !== 'false';
-        if (!replyContent && claudeEnabled) {
+        if (!replyContent && claudeEnabled && !isDebugMode) {
           if (!env.ANTHROPIC_API_KEY) {
             apiError = (apiError ? apiError + ' | ' : '') + 'ANTHROPIC_API_KEY 미설정';
           } else {
