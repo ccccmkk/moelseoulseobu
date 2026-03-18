@@ -257,10 +257,10 @@ export default {
         const mst = url.searchParams.get('mst') || '';
         const lawtype = url.searchParams.get('lawtype') || 'law'; // law | prec
         if (!id && !mst) return json({ error: 'id 필요' }, 400);
-        const cacheKey = `lawhtml2_${lawtype}_${id||mst}`;
+        const cacheKey = `lawhtml3_${lawtype}_${id||mst}`;
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
         if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 86400) {
-          try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50) return json(r); } catch (e) {}
+          try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50 && !r.error) return json(r); } catch (e) {}
         }
         const headers = {
           'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
@@ -269,35 +269,71 @@ export default {
           'Accept-Language': 'ko-KR,ko;q=0.9',
           'Accept-Encoding': 'gzip, deflate, br'
         };
-        // 시도할 URL 목록 (법령: law→eflaw, 판례: prec, mst 우선)
+        // Cloudflare/SSL 오류 페이지 판별
+        const isCfError = (raw) => /Error code [0-9]+|SSL handshake failed|cloudflare/i.test(raw.slice(0, 2000));
+        // XML → HTML 변환 (판례/법령 공통)
+        const xmlToHtml = (xml) => {
+          const tag = (t) => { const m = xml.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`, 'i')); return m ? m[1].trim() : ''; };
+          // 판례
+          if (/<PrecService/i.test(xml) || /<prec>/i.test(xml)) {
+            const fields = [
+              ['사건명','사건명'],['사건번호','사건번호'],['선고일자','선고'],['법원명','법원'],
+              ['판시사항','판시사항'],['판결요지','판결요지'],['참조조문','참조 조문'],
+              ['참조판례','참조 판례'],['판결이유','판결 이유'],['주문','주문']
+            ];
+            let h = '';
+            for (const [tagName, label] of fields) {
+              const v = tag(tagName);
+              if (v) h += `<div style="margin:12px 0"><strong style="color:#1a1a1a">${label}</strong><div style="margin-top:6px;line-height:1.7;white-space:pre-wrap">${v.replace(/<[^>]+>/g,'')}</div></div><hr style="border:none;border-top:1px solid #eee">`;
+            }
+            return h;
+          }
+          // 법령 XML
+          const articles = [...xml.matchAll(/<조문[^>]*>([\s\S]*?)<\/조문>/gi)];
+          if (articles.length) {
+            return articles.map(m => `<div style="margin:10px 0;padding:10px;border-left:3px solid #4caf50">${m[1].replace(/<[^>]+>/g,'').trim()}</div>`).join('');
+          }
+          return '';
+        };
+        // 시도할 URL 목록
         const attempts = [];
         if (lawtype === 'prec') {
-          if (id) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=HTML&mobileYn=Y`);
+          if (id) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=HTML&mobileYn=Y`, fmt: 'html' });
+          if (id) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=XML`, fmt: 'xml' });
         } else {
-          if (mst) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=HTML&mobileYn=Y`);
-          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=HTML&mobileYn=Y`);
-          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=HTML&mobileYn=Y`);
+          if (mst) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=HTML&mobileYn=Y`, fmt: 'html' });
+          if (id)  attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=HTML&mobileYn=Y`, fmt: 'html' });
+          if (mst) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=XML`, fmt: 'xml' });
+          if (id)  attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=XML`, fmt: 'xml' });
         }
         let html = '';
         const debug = [];
-        for (const apiUrl of attempts) {
+        for (const { url: apiUrl, fmt } of attempts) {
           try {
             const res = await fetch(apiUrl, { headers });
             const raw = await res.text();
-            debug.push(`${apiUrl.match(/target=(\w+)/)?.[1]}:${res.status}:${raw.length}chars`);
-            // 상태코드와 무관하게 충분한 내용이 있으면 사용 (law.go.kr은 5xx에도 본문 반환)
-            if (raw.length > 500) { html = raw; break; }
+            const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
+            debug.push(`${tgt}:${res.status}:${raw.length}chars:${fmt}`);
+            if (raw.length < 200 || isCfError(raw)) continue;
+            if (fmt === 'xml') {
+              const converted = xmlToHtml(raw);
+              if (converted.length > 50) { html = converted; break; }
+            } else {
+              html = raw; break;
+            }
           } catch(e) { debug.push(`fetch_fail:${e.message}`); }
         }
         if (!html) return json({ error: `조문을 가져오지 못했습니다`, debug });
-        // head/script/style 제거, body 내부만 추출
-        html = html.replace(/<head\b[\s\S]*?<\/head>/gi, '');
-        html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-        html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-        html = html.replace(/<!--[\s\S]*?-->/g, '');
-        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        if (bodyMatch) html = bodyMatch[1];
-        html = html.replace(/<html[^>]*>|<\/html>/gi, '').trim();
+        // HTML 방식: head/script/style 제거, body 내부만 추출
+        if (!html.startsWith('<div')) {
+          html = html.replace(/<head\b[\s\S]*?<\/head>/gi, '');
+          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+          html = html.replace(/<!--[\s\S]*?-->/g, '');
+          const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          if (bodyMatch) html = bodyMatch[1];
+          html = html.replace(/<html[^>]*>|<\/html>/gi, '').trim();
+        }
         const result = { html, id, lawtype, debug };
         const now = Math.floor(Date.now() / 1000);
         if (html.length > 200) {
