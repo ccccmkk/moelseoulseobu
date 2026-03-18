@@ -1355,7 +1355,8 @@ async function openLawContent(id,lawName,lawtype,mst){
       return;
     }
     if(!data.html||!data.html.trim()){
-      $('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">내용을 불러오지 못했습니다</div>';
+      const dbg=data.debug?`<div style="padding:4px 20px 12px;font-size:11px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
+      $('lawContentBody').innerHTML=`<div style="padding:20px;text-align:center;color:var(--text-hint)">내용을 불러오지 못했습니다</div>${dbg}`;
       return;
     }
     const hint=document.createElement('div');
