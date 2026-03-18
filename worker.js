@@ -296,30 +296,27 @@ export default {
             }
             return h;
           }
-          // 법령 - 조문단위 (최대 50개, 대형 법령 타임아웃 방지)
+          // 법령 - 조문단위 (아코디언: 제목만 표시, 탭하면 내용 펼침)
           const units = [...xml.matchAll(/<조문단위>([\s\S]*?)<\/조문단위>/gi)];
           if (units.length) {
-            const MAX = 50;
-            const sliced = units.slice(0, MAX);
-            const more = units.length > MAX ? units.length - MAX : 0;
-            const mstVal = (xml.match(/MST[="](\d+)/) || [])[1] || '';
-            const moreLink = mstVal ? `https://www.law.go.kr/법령/${encodeURIComponent('')}` : 'https://www.law.go.kr';
-            const moreHtml = more > 0 ? `<div style="padding:14px;text-align:center;background:#f0faf0;border-radius:8px;margin:10px 0;font-size:13px">나머지 <strong>${more}개 조항</strong>은 <a href="${moreLink}" target="_blank" style="color:var(--green-dark)">법제처 국가법령정보센터</a>에서 확인하세요</div>` : '';
-            return sliced.map(u => {
+            return units.map((u, i) => {
               const num   = strip(xtag(u[1], '조문번호'));
               const title = strip(xtag(u[1], '조문제목'));
               const body  = strip(xtag(u[1], '조문내용'));
               const paras = [...u[1].matchAll(/<항>([\s\S]*?)<\/항>/gi)].map(a => {
                 const pn = strip(xtag(a[1], '항번호'));
                 const pc = strip(xtag(a[1], '항내용'));
-                return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7">${pn} ${pc}</div>` : '';
+                return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7;color:#333">${pn} ${pc}</div>` : '';
               }).join('');
-              return `<div style="padding:12px 14px;border-left:3px solid var(--green,#4caf50);margin:10px 0;background:#f9fafb;border-radius:0 6px 6px 0">
-                <strong style="font-size:14px">제${num}조${title?' ('+title+')':''}</strong>
-                ${body?`<div style="margin-top:6px;line-height:1.8;font-size:14px">${body}</div>`:''}
-                ${paras}
+              const hasBody = body || paras;
+              const bodyHtml = hasBody ? `<div class="la-body" style="display:none;padding:10px 0 4px;border-top:1px solid #e8e8e8;margin-top:8px">${body?`<div style="line-height:1.8;font-size:14px;color:#222">${body}</div>`:''}${paras}</div>` : '';
+              return `<div class="la-item" onclick="toggleLawArticle(this)" style="padding:11px 14px;border-left:3px solid var(--green,#4caf50);margin:6px 0;background:#f9fafb;border-radius:0 6px 6px 0;cursor:${hasBody?'pointer':'default'}">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <strong style="font-size:14px;color:#111">제${num}조${title?` <span style="font-weight:400;color:#555">(${title})</span>`:''}</strong>
+                  ${hasBody?`<span class="la-arr" style="font-size:11px;color:#aaa;transition:transform .2s">▼</span>`:''}
+                </div>${bodyHtml}
               </div>`;
-            }).join('') + moreHtml;
+            }).join('');
           }
           return '';
         };
@@ -338,7 +335,7 @@ export default {
           try {
             const res = await fetch(apiUrl, { headers: xhdr });
             // 대형 법령 XML 타임아웃 방지: 500KB 이상이면 앞부분만 사용
-            const MAX_XML = 500 * 1024;
+            const MAX_XML = 1500 * 1024;
             let raw;
             const ct = res.headers.get('content-length');
             if (ct && parseInt(ct) > MAX_XML) {
