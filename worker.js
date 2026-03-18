@@ -182,7 +182,7 @@ export default {
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
         const nocache = url.searchParams.get('nocache') === '1';
-        const cacheKey = `law_${OC}_${target}_${q.slice(0,30)}`;
+        const cacheKey = `law2_${OC}_${target}_${q.slice(0,30)}`;
         if (!nocache) {
           const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
           if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
@@ -204,28 +204,30 @@ export default {
         const lawFetch = (target, params) =>
           fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${target}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS });
         const tasks = [];
-        if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('eflaw', 'nw=3&display=10&sort=efYd')]);
-        if (target === 'all' || target === 'prec')  tasks.push(['prec', lawFetch('prec',  'display=10&sort=date')]);
-        if (target === 'all' || target === 'expc')  tasks.push(['expc', lawFetch('expc',  'display=10')]);
+        // law 타겟 사용 (eflaw보다 안정적, 동시 요청 시 실패율 낮음)
+        if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('law',  'display=10&sort=efYd')]);
+        if (target === 'all' || target === 'prec')  tasks.push(['prec', lawFetch('prec', 'display=10&sort=date')]);
+        if (target === 'all' || target === 'expc')  tasks.push(['expc', lawFetch('expc', 'display=10')]);
         const settled = await Promise.allSettled(tasks.map(([, f]) => f));
         let laws = [], precs = [], expcs = [], apiDebug = [];
         for (let i = 0; i < tasks.length; i++) {
           const [type] = tasks[i]; const res = settled[i];
-          if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail:${res.reason}`); continue; }
+          if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail`); continue; }
           const rawText = await res.value.text().catch(() => '');
-          if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}:${rawText.slice(0,60)}`); continue; }
+          if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}`); continue; }
           let d;
-          try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,80)}`); continue; }
+          try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,50)}`); continue; }
           if (type === 'law') {
-            // eflaw 응답: LawSearch.law 또는 EflawSearch.law
-            const root = d?.LawSearch || d?.EflawSearch || {};
-            if (root.err || d?.error) { apiDebug.push(`law:api_err:${JSON.stringify(root).slice(0,80)}`); }
+            // LawSearch.law 구조
+            const root = d?.LawSearch || {};
             const arr = root.law || [];
             laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
               name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
-              date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || '',
-              mst: l['법령MST번호'] || ''
+              date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
+              id: l['법령ID'] || l['법령일련번호'] || '',
+              mst: l['MST'] || l['법령MST번호'] || ''
             })).filter(l => l.name);
+            if (!laws.length) apiDebug.push(`law:empty:${JSON.stringify(root).slice(0,80)}`);
           } else if (type === 'prec') {
             const arr = d?.PrecSearch?.prec || [];
             precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
@@ -325,10 +327,10 @@ export default {
             const raw = await res.text(); // text()로 자동 디코딩/압축해제
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
             debug.push(`${tgt}:${res.status}:${raw.length}chars`);
-            if (raw.length < 100 || isXmlError(raw)) continue;
+            if (raw.length < 100 || isXmlError(raw)) { debug.push(`filtered:${raw.slice(0,60)}`); continue; }
             const converted = xmlToHtml(raw);
             if (converted.length > 50) { html = converted; break; }
-            debug.push('xml_parse_fail');
+            debug.push(`parse_fail:${raw.slice(0,120)}`);
           } catch(e) { debug.push(`fail:${e.message}`); }
         }
         const result = { html, id, lawtype, debug };
