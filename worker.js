@@ -459,7 +459,7 @@ export default {
         const gResp = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 2048 } }) }
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 8192 } }) }
         );
         const gData = await gResp.json();
         const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -1130,7 +1130,7 @@ export default {
             const gResp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
               { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 600, thinkingConfig: { thinkingBudget: 0 } } }) }
+                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
             );
             const gData = await gResp.json();
             const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1175,7 +1175,7 @@ export default {
             const gResp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
               { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 0 } } }) }
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
             );
             const gData = await gResp.json();
             const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1235,7 +1235,7 @@ export default {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n직원 질문: ' + targetComment.content }] }],
-                  generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } },
+                  generationConfig: { maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
                 }),
               }
             );
