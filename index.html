@@ -479,7 +479,7 @@ button,a,[role="button"]{touch-action:manipulation}
           <button id="lt-expc" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('expc')">해석례</button>
         </div>
       </div>
-      <div id="lawSearchResult"></div>
+      <div id="lawSearchResult" style="max-height:40vh;overflow-y:auto"></div>
       <!-- AI 질문 -->
       <div style="border-top:4px solid var(--border);padding:14px 16px">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">⚖️ 법률 AI 질문</div>
@@ -1261,35 +1261,54 @@ function lawSkeleton(){
   const item='<div class="law-skel-item"><div class="skel-line w80"></div><div class="skel-line w50"></div></div>';
   return`<div class="law-skeleton">${item}${item}${item}</div>`;
 }
+let _lawCache=[];
+function _lawIdx(item){const i=_lawCache.length;_lawCache.push(item);return i;}
+function openLawCached(i){const it=_lawCache[i];if(it)openLawContent(it.id,it.name,it.lawtype,it.mst||'');}
+function expandLawSection(btn,cls){
+  document.querySelectorAll('.'+cls).forEach(el=>el.style.display='');
+  btn.style.display='none';
+}
 async function lawSearch(){
   const q=($('lawSearchInput').value||'근로').trim();
   const box=$('lawSearchResult');
   box.innerHTML=lawSkeleton();
+  _lawCache=[];
   try{
     const data=await fetch(`${API}/api/law-search?q=${encodeURIComponent(q)}&target=${lawTarget}`).then(r=>r.json());
     let html='';
     if(data.laws&&data.laws.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 법령</div>`;
-      html+=data.laws.map(l=>`<div class="law-result-card" onclick="openLawContent(${JSON.stringify(l.id)},${JSON.stringify(l.name)},'law',${JSON.stringify(l.mst||'')})">
-        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(l.name)}</div>
-        <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
-        <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
-      </div>`).join('');
+      html+=data.laws.map((l,idx)=>{
+        const ci=_lawIdx({id:l.id,name:l.name,lawtype:'law',mst:l.mst||''});
+        const hidden=idx>=3?'law-extra-item':'';
+        return`<div class="law-result-card ${hidden}" ${idx>=3?'style="display:none"':''} onclick="openLawCached(${ci})">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(l.name)}</div>
+          <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
+          <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
+        </div>`;
+      }).join('');
+      if(data.laws.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'law-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">법령 ${data.laws.length-3}개 더 보기 ▾</button>`;
     }
     if(data.precs&&data.precs.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">⚖️ 판례</div>`;
-      html+=data.precs.map(p=>`<div class="law-result-card" onclick="openLawContent(${JSON.stringify(p.id)},${JSON.stringify(p.name)},'prec')">
-        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(p.name)}</div>
-        <div style="font-size:12px;color:var(--text-hint)">${escHtml(p.court)}${p.date?' · '+escHtml(p.date):''}${p.num?' · '+escHtml(p.num):''}</div>
-        <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
-      </div>`).join('');
+      html+=data.precs.map((p,idx)=>{
+        const ci=_lawIdx({id:p.id,name:p.name,lawtype:'prec',mst:''});
+        const hidden=idx>=3?'prec-extra-item':'';
+        return`<div class="law-result-card ${hidden}" ${idx>=3?'style="display:none"':''} onclick="openLawCached(${ci})">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(p.name)}</div>
+          <div style="font-size:12px;color:var(--text-hint)">${escHtml(p.court)}${p.date?' · '+escHtml(p.date):''}${p.num?' · '+escHtml(p.num):''}</div>
+          <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
+        </div>`;
+      }).join('');
+      if(data.precs.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'prec-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">판례 ${data.precs.length-3}개 더 보기 ▾</button>`;
     }
     if(data.expcs&&data.expcs.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📋 해석례</div>`;
-      html+=data.expcs.map(e=>`<a class="news-card" href="https://www.law.go.kr/해석례/${encodeURIComponent(e.name)}" target="_blank" rel="noopener">
+      html+=data.expcs.map((e,idx)=>`<a class="news-card ${idx>=3?'expc-extra-item':''}" ${idx>=3?'style="display:none"':''}  href="https://www.law.go.kr/해석례/${encodeURIComponent(e.name)}" target="_blank" rel="noopener">
         <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(e.name)}</div>
         <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
       </a>`).join('');
+      if(data.expcs.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'expc-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">해석례 ${data.expcs.length-3}개 더 보기 ▾</button>`;
     }
     box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
