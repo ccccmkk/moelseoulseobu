@@ -11,6 +11,10 @@ database_id = "35d0a1ba-1023-4b63-a491-570d7463576f"
 binding = "R2"
 bucket_name = "band-archive"
 
+[vars]
+# law.go.kr OPEN API OC 코드 (등록 이메일 아이디 @ 앞부분)
+LAW_OC = "이메일ID입력"
+
 [triggers]
 # "*/10 * * * *" → 10분마다 댓글 자동 답변
 # "0 1 * * *"    → 매일 10:00 KST 건강 정보 글 게시
