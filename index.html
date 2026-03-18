@@ -2372,15 +2372,20 @@ async function loadLoginLogs(){
     box.innerHTML=logs.map(l=>{
       const ok=l.result==='ok';
       const fail=l.result==='fail';
+      const sess=l.result==='session';
+      const dot=ok?'var(--green)':fail?'var(--danger)':sess?'#2196f3':'#ff9800';
+      const badgeBg=ok?'var(--green-light)':fail?'#ffeaea':sess?'#e3f2fd':'#fff3e0';
+      const badgeColor=ok?'var(--green-dark)':fail?'var(--danger)':sess?'#1565c0':'#e65100';
+      const badgeText=ok?'로그인':fail?'실패':sess?'접속':'대기';
       const ts=new Date(l.created_at*1000);
       const dateStr=`${ts.getFullYear()}.${String(ts.getMonth()+1).padStart(2,'0')}.${String(ts.getDate()).padStart(2,'0')} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`;
       return`<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
-        <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${ok?'var(--green)':fail?'var(--danger)':'#ff9800'}"></div>
+        <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${dot}"></div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span>${escHtml(l.name||l.user_id||'?')}</span>
             <span style="font-size:11px;color:var(--text-hint)">${escHtml(l.user_id||'')}</span>
-            <span style="font-size:11px;padding:1px 6px;border-radius:4px;font-weight:700;background:${ok?'var(--green-light)':fail?'#ffeaea':'#fff3e0'};color:${ok?'var(--green-dark)':fail?'var(--danger)':'#e65100'}">${ok?'성공':fail?'실패':'대기'}</span>
+            <span style="font-size:11px;padding:1px 6px;border-radius:4px;font-weight:700;background:${badgeBg};color:${badgeColor}">${badgeText}</span>
           </div>
           <div style="font-size:11px;color:var(--text-sub);margin-top:2px">
             <span style="font-family:monospace">${escHtml(l.ip||'?')}</span>
@@ -2412,6 +2417,7 @@ async function openAdminModal(){
   fetch(`${API}/api/gemini-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
     $('geminiStats').innerHTML=`
+      <div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">댓글자동답변 + 법률AI 질문 포함</div>
       <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>

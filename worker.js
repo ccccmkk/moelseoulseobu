@@ -368,6 +368,13 @@ export default {
         const gData = await gResp.json();
         const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (!answer) return json({ error: 'AI 응답 생성 실패' }, 500);
+        // 토큰 사용량 기록
+        const tokIn = gData?.usageMetadata?.promptTokenCount || 0;
+        const tokOut = gData?.usageMetadata?.candidatesTokenCount || 0;
+        if (tokIn || tokOut) {
+          env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+            .bind(tokIn, tokOut, Math.floor(Date.now()/1000), tokIn, tokOut, Math.floor(Date.now()/1000)).run();
+        }
         return json({ answer, sources, model: 'Gemini 2.5 Flash' });
       }
 
@@ -789,6 +796,15 @@ export default {
         }
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(sess.user_id).first();
         if (!user || user.status !== 'active') return json({ error: 'user not found' }, 401);
+        // 접속이력 기록 (하루 1회 throttle)
+        const now = Math.floor(Date.now() / 1000);
+        const todayStart = now - (now % 86400);
+        const recentLog = await env.DB.prepare('SELECT id FROM login_logs WHERE user_id=? AND result=? AND created_at>=?').bind(user.id, 'session', todayStart).first();
+        if (!recentLog) {
+          const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+          const ua = request.headers.get('User-Agent') || '';
+          env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(user.id, ip, ua, 'session', now).run();
+        }
         return json({ ok: true, id: user.id, name: user.name || user.id, must_change_password: user.password === '1234' });
       }
       if (p === '/api/sessions' && m === 'DELETE') {
