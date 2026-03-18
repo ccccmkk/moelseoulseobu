@@ -405,6 +405,7 @@ export default {
         if (!env.GEMINI_API_KEY) return json({ error: 'AI 서비스를 사용할 수 없습니다.' }, 503);
         const b = await request.json();
         const question = (b.question || '').trim().slice(0, 500);
+        const precContext = (b.precContext || '').trim().slice(0, 4000);
         if (!question) return json({ error: '질문을 입력해주세요.' }, 400);
         const OC = env.LAW_OC || 'STEP-OPENAPI';
         const enc = encodeURIComponent(question.slice(0, 50));
@@ -453,7 +454,8 @@ export default {
             }
           } catch (e) {}
         }
-        const prompt = `당신은 대한민국 노동법 전문가입니다. 아래 검색된 법령·판례·해석례를 참고하여 질문에 답변하세요.\n\n${context || '(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n'}질문: ${question}\n\n답변 시 유의사항:\n- 관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조)\n- 일반인이 이해하기 쉽게 설명하세요\n- 마크다운 없이 일반 텍스트로 작성하세요\n- 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요`;
+        const precSection = precContext ? `【판례·해석례 본문 (직접 제공)】\n${precContext}\n\n` : '';
+        const prompt = `당신은 대한민국 노동법 전문가입니다. 아래 자료를 참고하여 질문에 답변하세요.\n\n${precSection}${context || ''}${!precSection&&!context?'(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n':''}질문: ${question}\n\n답변 시 유의사항:\n- ${precContext?'제공된 판례·해석례 내용을 중심으로 쉽게 풀어서 설명하세요':'관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조)'}\n- 법률 용어는 일반인이 이해하기 쉽게 풀어 설명하세요\n- 마크다운 없이 일반 텍스트로 작성하세요\n- 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요`;
         const gResp = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' },
