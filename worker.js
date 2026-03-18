@@ -695,28 +695,99 @@ export default {
       // ── 건강봇 에이전트 ──
       const AGENT_ID = '000000099';
       if (p === '/api/agent/health/post' && m === 'POST') {
-        // 기존 health 뉴스 캐시 우선 사용, 없으면 직접 fetch
-        let items = [];
-        const cached = await env.DB.prepare('SELECT data FROM news_cache WHERE category=?').bind('health').first();
-        if (cached) { try { items = JSON.parse(cached.data); } catch(e) {} }
-        if (!items.length) {
-          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 OR 보건복지부 건강') + '&hl=ko&gl=KR&ceid=KR:ko';
-          const resp = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
-          if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다. 건강 탭에서 먼저 뉴스를 로드해주세요.' }, 502);
-          items = parseRSS(await resp.text());
+        // 국가건강정보포털 공공 API (질병관리청 KDCA)
+        const KDCA_TOKEN = '19cf9b774122';
+        const KDCA_CONTENTS = [
+          { sn: 5423, name: '감기' }, { sn: 6543, name: '객혈' }, { sn: 1344, name: '건선' },
+          { sn: 6561, name: '결핵' }, { sn: 5463, name: '골절' }, { sn: 5841, name: '구취' },
+          { sn: 5493, name: '기흉' }, { sn: 1743, name: '낙상' }, { sn: 5684, name: '직장탈출증' },
+          { sn: 5425, name: '독감' }, { sn: 5426, name: '폐렴' }, { sn: 5427, name: '천식' },
+          { sn: 5428, name: '당뇨병' }, { sn: 5429, name: '고혈압' }, { sn: 5430, name: '심근경색' },
+          { sn: 5431, name: '뇌졸중' }, { sn: 5432, name: '위염' }, { sn: 5433, name: '대장암' },
+          { sn: 5434, name: '폐암' }, { sn: 5435, name: '간염' }, { sn: 5436, name: '요통' },
+          { sn: 5437, name: '관절염' }, { sn: 5438, name: '두통' }, { sn: 5439, name: '불면증' },
+          { sn: 5440, name: '우울증' }, { sn: 5441, name: '비만' }, { sn: 5442, name: '빈혈' },
+          { sn: 5443, name: '알레르기' }, { sn: 5444, name: '치질' }, { sn: 5445, name: '담석증' },
+        ];
+        // 최근 봇 게시물에서 사용한 주제 추출 → 중복 방지
+        const recentBot = await env.DB.prepare('SELECT blocks FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 15').bind(AGENT_ID).all();
+        const usedTopics = new Set();
+        for (const rp of (recentBot.results || [])) {
+          try {
+            const bl = JSON.parse(rp.blocks);
+            const txt = bl[0]?.content || '';
+            const tm = txt.match(/오늘의 건강 정보[:\s]+([^\n]+)/);
+            if (tm) usedTopics.add(tm[1].trim());
+          } catch(e) {}
         }
-        if (!items.length) return json({ error: '기사를 찾지 못했습니다' }, 404);
-        // 최근 5개 중 랜덤 선택
-        const item = items[Math.floor(Math.random() * Math.min(5, items.length))];
-        const srcLabel = item.source || '건강 정보';
-        const content = `📋 [${srcLabel}]\n\n${item.title}${item.link ? `\n\n🔗 원문: ${item.link}` : ''}\n\n─\n출처: 공신력 있는 건강 정보를 제공합니다.\n더 궁금한 점은 질병관리청 1339 또는 보건복지부 129로 문의하세요.`;
+        const available = KDCA_CONTENTS.filter(c => !usedTopics.has(c.name));
+        const candidates = available.length ? available : KDCA_CONTENTS;
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+
+        // KDCA API 호출 (XML)
+        let xmlText = '';
+        try {
+          const kdcaResp = await fetch(`http://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`);
+          if (!kdcaResp.ok) throw new Error(`HTTP ${kdcaResp.status}`);
+          xmlText = await kdcaResp.text();
+        } catch(e) {
+          return json({ error: 'KDCA API 호출 실패: ' + e.message }, 502);
+        }
+
+        // XML에서 CDATA 추출 헬퍼
+        const extractCD = (xml, tag) => {
+          const re = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i');
+          const mt = re.exec(xml); return mt ? mt[1].trim() : '';
+        };
+        // 에러 코드 확인
+        const code = extractCD(xmlText, 'CODE');
+        if (code && code !== 'S001') return json({ error: `KDCA API 오류 코드: ${code}` }, 502);
+
+        const topic = extractCD(xmlText, 'CNTNTSSN') || chosen.name;
+        // 섹션 파싱 (최대 4개)
+        const sections = [];
+        const ciBlocks = xmlText.match(/<cntntsCI>([\s\S]*?)<\/cntntsCI>/g) || [];
+        for (const ci of ciBlocks.slice(0, 4)) {
+          const nm = extractCD(ci, 'CNTNTS_CL_NM');
+          const cn = extractCD(ci, 'CNTNTSCL_CN');
+          if (nm && cn && cn.length > 10) sections.push({ title: nm, content: cn });
+        }
+        if (!sections.length) return json({ error: `"${topic}" 건강 정보 내용이 없습니다 (cntntsSn=${chosen.sn})` }, 404);
+
+        // Gemini로 친근한 게시글 요약 생성
+        let postBody = '';
+        const rawText = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n').slice(0, 3000);
+        if (env.GEMINI_API_KEY) {
+          try {
+            const prompt = `다음은 국가건강정보포털의 "${topic}" 건강 정보입니다.\n직장인 동료들에게 알려주는 짧은 건강 팁 형식으로, 핵심 내용을 4~6문장으로 정리해주세요.\n- 친근하고 실용적인 톤으로 작성\n- 마크다운 없이 일반 텍스트로\n- 예방법이나 주의사항 위주로\n\n원문:\n${rawText}`;
+            const gResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 0 } } }) }
+            );
+            const gData = await gResp.json();
+            const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (gText) {
+              postBody = gText.trim();
+              const gIn = gData.usageMetadata?.promptTokenCount || 0;
+              const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
+              await env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+                .bind(gIn, gOut, Math.floor(Date.now()/1000), gIn, gOut, Math.floor(Date.now()/1000)).run();
+            }
+          } catch(e) {}
+        }
+        // AI 요약 실패 시 원문 첫 2섹션으로 대체
+        if (!postBody) {
+          postBody = sections.slice(0, 2).map(s => `▪ ${s.title}\n${s.content.slice(0, 300)}`).join('\n\n');
+        }
+        const content = `🏥 오늘의 건강 정보: ${topic}\n\n${postBody}\n\n─\n📋 출처: 국가건강정보포털 (질병관리청)\n더 궁금한 점은 ☎1339로 문의하세요.`;
         const blocks = [{ type: 'text', content }];
         const postId = 'post_' + Date.now();
         await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
           .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
           .bind(postId, '건강', '건강').run();
-        return json({ ok: true, id: postId, title: item.title });
+        return json({ ok: true, id: postId, title: topic });
       }
       if (p === '/api/agent/health/reply' && m === 'POST') {
         // 에이전트 게시글에 달린 미답변 댓글 찾기
