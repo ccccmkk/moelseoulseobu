@@ -1359,16 +1359,24 @@ async function openLawContent(id,lawName,lawtype,mst){
       $('lawContentBody').innerHTML=`<div style="padding:20px;text-align:center;color:var(--text-hint)">내용을 불러오지 못했습니다</div>${dbg}`;
       return;
     }
+    const isPrecLike = (lawtype==='prec'||lawtype==='expc');
     const hint=document.createElement('div');
-    hint.style.cssText='padding:10px 14px;background:var(--green-light);font-size:12px;color:var(--green-dark);position:sticky;top:0;z-index:10';
-    hint.textContent='조항을 탭하면 AI 질문으로 가져올 수 있습니다 ✨';
+    if(isPrecLike){
+      hint.style.cssText='padding:10px 14px 12px;background:var(--green-light)';
+      hint.innerHTML=`<div style="font-size:12px;color:var(--green-dark);margin-bottom:8px">이 내용을 바탕으로 AI에게 질문할 수 있습니다 ✨</div>
+        <button onclick="openPrecAsk('${escHtml(lawName||'')}',this)" style="display:block;width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">이 ${lawtype==='expc'?'해석례':'판례'}로 AI에 질문하기</button>`;
+    } else {
+      hint.style.cssText='padding:10px 14px;background:var(--green-light);font-size:12px;color:var(--green-dark);position:sticky;top:0;z-index:10';
+      hint.textContent='조항을 탭하면 AI 질문으로 가져올 수 있습니다 ✨';
+    }
     const wrap=document.createElement('div');
     wrap.className='law-html-wrap';
     wrap.innerHTML=data.html;
     $('lawContentBody').innerHTML='';
     $('lawContentBody').appendChild(hint);
     $('lawContentBody').appendChild(wrap);
-    processLawArticles(wrap,lawName||'');
+    $('lawContentBody')._lawtype=lawtype;
+    if(!isPrecLike) processLawArticles(wrap,lawName||'');
   }catch(e){$('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
 function toggleLawArticle(el){
@@ -1380,12 +1388,31 @@ function toggleLawArticle(el){
   if(arr)arr.style.transform=open?'':'rotate(180deg)';
 }
 function processLawArticles(container,lawName){
+  // 전략0: 워커가 만든 아코디언 .la-item → 클릭 시 AI 질문으로 연결
+  const laItems=container.querySelectorAll('.la-item');
+  if(laItems.length>0){
+    laItems.forEach(el=>{
+      const strong=el.querySelector('strong');
+      if(!strong)return;
+      const titleText=strong.textContent.trim();
+      const m=titleText.match(/^제(\d+조(?:의\d+)?)/);
+      if(!m)return;
+      // 기존 onclick(아코디언 토글)은 유지하고, 별도 "→ AI 질문" 링크 추가
+      const askBtn=document.createElement('span');
+      askBtn.textContent='→ AI 질문';
+      askBtn.style.cssText='font-size:11px;color:var(--green-dark);margin-left:10px;cursor:pointer;white-space:nowrap';
+      askBtn.onclick=(e)=>{e.stopPropagation();lawArticleClick(lawName+' 제'+m[1],titleText.slice(0,60));};
+      strong.appendChild(askBtn);
+    });
+    return;
+  }
   // 전략1: law.go.kr 모바일 HTML 클래스명 기반
   const joEls=container.querySelectorAll('.law_jo,.joWrap,[class*="jo_no"],[class*="joNo"]');
   if(joEls.length>0){joEls.forEach(el=>tryMakeClickable(el,lawName));return;}
   // 전략2: 제N조 패턴 텍스트를 가진 요소 탐색
   let found=0;
   container.querySelectorAll('p,div,dt,li,td').forEach(el=>{
+    if(el.closest('.la-item'))return; // 아코디언 내부는 건너뜀
     if(el.children.length>5)return;
     const t=el.textContent.trim();
     if(/^제\d+조/.test(t)&&t.length<500){tryMakeClickable(el,lawName);found++;}
@@ -1410,6 +1437,23 @@ function tryMakeClickable(el,lawName){
   el.appendChild(hint);
   el.addEventListener('click',e=>{e.stopPropagation();lawArticleClick(lawName+' '+m[1],txt.slice(0,60));});
 }
+let _lawPrecContent=''; // 판례/해석례 본문 내용 (AI 컨텍스트용)
+function openPrecAsk(lawName,btn){
+  // 버튼 비활성화 (중복 클릭 방지)
+  btn.disabled=true; btn.textContent='불러오는 중...';
+  // wrap div에서 텍스트 추출
+  const body=$('lawContentBody');
+  const wrap=body.querySelector('.law-html-wrap');
+  const rawText=wrap?wrap.innerText.replace(/\s+/g,' ').trim():'';
+  _lawPrecContent=rawText.slice(0,4000);
+  // 태그 추가
+  _lawAskTags=_lawAskTags.filter(t=>t.type!=='prec');
+  _lawAskTags.unshift({label:lawName,preview:'',type:'prec'});
+  renderLawAskTags();
+  $('lawContentModal').classList.remove('open');
+  $('lawAskInput').focus();
+  $('lawMainPane').scrollIntoView({behavior:'smooth',block:'end'});
+}
 let _lawAskTags=[];
 function lawArticleClick(label,preview){
   $('lawContentModal').classList.remove('open');
@@ -1430,13 +1474,17 @@ function removeLawAskTag(i){
 }
 async function lawAsk(){
   const userQ=($('lawAskInput').value||'').trim();
+  const precTag=_lawAskTags.find(t=>t.type==='prec');
   const tagContext=_lawAskTags.map(t=>t.label).join(', ');
   const q=tagContext?(tagContext+(userQ?' '+userQ:'')):userQ;
   if(!q)return;
   const box=$('lawAskResult');
-  box.innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">AI가 관련 법령을 검색하고 답변을 생성 중입니다...</div>';
+  const hasPrecCtx=!!(precTag&&_lawPrecContent);
+  box.innerHTML=`<div style="padding:16px;color:var(--text-hint);font-size:13px">AI가 ${hasPrecCtx?'판례 내용을 분석하여':'관련 법령을 검색하고'} 답변을 생성 중입니다...</div>`;
+  const payload={question:q};
+  if(hasPrecCtx) payload.precContext=_lawPrecContent;
   try{
-    const data=await fetch(`${API}/api/law-ask`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})}).then(r=>r.json());
+    const data=await fetch(`${API}/api/law-ask`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
     if(data.error){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>`;return;}
     let srcHtml='';
     if(data.sources&&data.sources.length){
