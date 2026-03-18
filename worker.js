@@ -193,43 +193,51 @@ export default {
             } catch (e) {}
           }
         }
-        const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const fmtDate = d => d && String(d).length === 8 ? `${String(d).slice(0,4)}.${String(d).slice(4,6)}.${String(d).slice(6,8)}` : (d || '');
         const enc = encodeURIComponent(q);
+        const LAW_HEADERS = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': 'https://www.law.go.kr/',
+          'Accept-Language': 'ko-KR,ko;q=0.9'
+        };
+        const lawFetch = (target, params) =>
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${target}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS });
         const tasks = [];
-        if (target === 'all' || target === 'law')  tasks.push(['law',  fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=10&sort=efYd`)]);
-        if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
-        if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
+        if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('eflaw', 'nw=3&display=10&sort=efYd')]);
+        if (target === 'all' || target === 'prec')  tasks.push(['prec', lawFetch('prec',  'display=10&sort=date')]);
+        if (target === 'all' || target === 'expc')  tasks.push(['expc', lawFetch('expc',  'display=10')]);
         const settled = await Promise.allSettled(tasks.map(([, f]) => f));
         let laws = [], precs = [], expcs = [], apiDebug = [];
         for (let i = 0; i < tasks.length; i++) {
           const [type] = tasks[i]; const res = settled[i];
-          if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail`); continue; }
-          if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}`); continue; }
-          try {
-            const rawText = await res.value.text();
-            let d;
-            try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_parse_fail:${rawText.slice(0,80)}`); continue; }
-            if (type === 'law') {
-              if (d?.LawSearch?.err || d?.error) { apiDebug.push(`${type}:api_err:${JSON.stringify(d).slice(0,80)}`); }
-              const arr = d?.LawSearch?.law || [];
-              laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
-                name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
-                date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
-              })).filter(l => l.name);
-            } else if (type === 'prec') {
-              const arr = d?.PrecSearch?.prec || [];
-              precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
-                name: p['사건명'] || '', num: p['사건번호'] || '',
-                court: p['법원명'] || '', date: fmtDate(p['선고일자'] || ''), id: p['판례일련번호'] || ''
-              })).filter(p => p.name);
-            } else if (type === 'expc') {
-              const arr = d?.ExpCSearch?.expc || d?.ExpcSearch?.expc || [];
-              expcs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(e => ({
-                name: e['해석례명'] || e['제목'] || '', dept: e['소관부처명'] || e['소관부처'] || '',
-                date: fmtDate(e['회신일자'] || e['시행일자'] || ''), id: e['해석례일련번호'] || e['일련번호'] || ''
-              })).filter(e => e.name);
-            }
-          } catch (e) { apiDebug.push(`${type}:err:${e.message}`); }
+          if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail:${res.reason}`); continue; }
+          const rawText = await res.value.text().catch(() => '');
+          if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}:${rawText.slice(0,60)}`); continue; }
+          let d;
+          try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,80)}`); continue; }
+          if (type === 'law') {
+            // eflaw 응답: LawSearch.law 또는 EflawSearch.law
+            const root = d?.LawSearch || d?.EflawSearch || {};
+            if (root.err || d?.error) { apiDebug.push(`law:api_err:${JSON.stringify(root).slice(0,80)}`); }
+            const arr = root.law || [];
+            laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
+              name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
+              date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
+            })).filter(l => l.name);
+          } else if (type === 'prec') {
+            const arr = d?.PrecSearch?.prec || [];
+            precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
+              name: p['사건명'] || '', num: p['사건번호'] || '',
+              court: p['법원명'] || '', date: fmtDate(p['선고일자'] || ''), id: p['판례일련번호'] || ''
+            })).filter(p => p.name);
+          } else if (type === 'expc') {
+            const arr = d?.ExpCSearch?.expc || d?.ExpcSearch?.expc || [];
+            expcs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(e => ({
+              name: e['해석례명'] || e['제목'] || '', dept: e['소관부처명'] || e['소관부처'] || '',
+              date: fmtDate(e['회신일자'] || e['시행일자'] || ''), id: e['해석례일련번호'] || e['일련번호'] || ''
+            })).filter(e => e.name);
+          }
         }
         const result = { laws, precs, expcs, query: q, oc: OC, debug: apiDebug };
         const now = Math.floor(Date.now() / 1000);
@@ -250,16 +258,24 @@ export default {
         const OC = env.LAW_OC || 'cm99i';
         const enc = encodeURIComponent(question.slice(0, 50));
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const ASK_HEADERS = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': 'https://www.law.go.kr/',
+          'Accept-Language': 'ko-KR,ko;q=0.9'
+        };
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
-          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=5&sort=efYd`),
-          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`),
-          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`)
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=eflaw&type=JSON&query=${enc}&nw=3&display=5&sort=efYd`, { headers: ASK_HEADERS }),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`, { headers: ASK_HEADERS }),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`, { headers: ASK_HEADERS })
         ]);
         let sources = [], context = '';
         if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
           try {
             const d = await lawRes.value.json();
-            const arr = (Array.isArray(d?.LawSearch?.law) ? d.LawSearch.law : d?.LawSearch?.law ? [d.LawSearch.law] : []).filter(l => l['법령명한글'] || l['법령명']);
+            const root = d?.LawSearch || d?.EflawSearch || {};
+            const rawArr = root.law || [];
+            const arr = (Array.isArray(rawArr) ? rawArr : rawArr ? [rawArr] : []).filter(l => l['법령명한글'] || l['법령명']);
             if (arr.length) {
               context += '【관련 법령】\n' + arr.map(l => `- ${l['법령명한글']||l['법령명']} (시행: ${fmtDate(l['시행일자']||'')})`).join('\n') + '\n\n';
               arr.forEach(l => sources.push({ type: 'law', name: l['법령명한글']||l['법령명'], id: l['법령일련번호'] }));
