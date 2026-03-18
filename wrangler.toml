@@ -12,8 +12,8 @@ binding = "R2"
 bucket_name = "band-archive"
 
 [vars]
-# law.go.kr OPEN API OC 코드 (등록 이메일 아이디 @ 앞부분)
-LAW_OC = "cm99i"
+# law.go.kr OPEN API OC 코드 (law.go.kr 등록 화면의 "현재 OC값")
+LAW_OC = "STEP-OPENAPI"
 
 [triggers]
 # "*/10 * * * *" → 10분마다 댓글 자동 답변

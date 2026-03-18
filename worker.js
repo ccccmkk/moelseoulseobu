@@ -178,7 +178,7 @@ export default {
 
       // ── 법령 검색 ──
       if (p === '/api/law-search' && m === 'GET') {
-        const OC = env.LAW_OC || 'cm99i';
+        const OC = env.LAW_OC || 'STEP-OPENAPI';
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
         const nocache = url.searchParams.get('nocache') === '1';
@@ -255,7 +255,7 @@ export default {
         const b = await request.json();
         const question = (b.question || '').trim().slice(0, 500);
         if (!question) return json({ error: '질문을 입력해주세요.' }, 400);
-        const OC = env.LAW_OC || 'cm99i';
+        const OC = env.LAW_OC || 'STEP-OPENAPI';
         const enc = encodeURIComponent(question.slice(0, 50));
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
         const ASK_HEADERS = {
