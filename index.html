@@ -1335,7 +1335,8 @@ async function lawSearch(){
       </a>`).join('');
       if(data.expcs.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'expc-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">해석례 ${data.expcs.length-3}개 더 보기 ▾</button>`;
     }
-    box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
+    const dbgHtml=data.debug&&data.debug.length?`<div style="padding:4px 12px 8px;font-size:10px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
+    box.innerHTML=html?(html+dbgHtml):'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>'+dbgHtml;
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
 async function openLawContent(id,lawName,lawtype,mst){
