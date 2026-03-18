@@ -182,7 +182,7 @@ export default {
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
         const nocache = url.searchParams.get('nocache') === '1';
-        const cacheKey = `law2_${OC}_${target}_${q.slice(0,30)}`;
+        const cacheKey = `law3_${OC}_${target}_${q.slice(0,30)}`;
         if (!nocache) {
           const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
           if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
@@ -218,16 +218,23 @@ export default {
           let d;
           try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,50)}`); continue; }
           if (type === 'law') {
-            // LawSearch.law 구조
+            // LawSearch.law 구조 (공공데이터포털 API 가이드 기준)
+            // 법령일련번호 = lawService.do?MST= 에 쓰이는 값 (법령상세링크에서도 확인)
             const root = d?.LawSearch || {};
             const arr = root.law || [];
-            laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
-              name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
-              date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
-              id: l['법령ID'] || l['법령일련번호'] || '',
-              mst: l['MST'] || l['법령MST번호'] || ''
-            })).filter(l => l.name);
-            if (!laws.length) apiDebug.push(`law:empty:${JSON.stringify(root).slice(0,80)}`);
+            laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => {
+              const link = l['법령상세링크'] || '';
+              // 법령상세링크에서 MST 직접 추출 (가장 신뢰도 높음)
+              const mstFromLink = (link.match(/MST=(\d+)/) || [])[1] || '';
+              return {
+                name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
+                date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
+                id: l['법령ID'] || l['법령일련번호'] || '',
+                // 법령일련번호 = MST (API 문서 기준)
+                mst: mstFromLink || l['법령일련번호'] || l['MST'] || l['법령MST번호'] || ''
+              };
+            }).filter(l => l.name);
+            if (!laws.length) apiDebug.push(`law:empty:${JSON.stringify(root).slice(0,120)}`);
           } else if (type === 'prec') {
             const arr = d?.PrecSearch?.prec || [];
             precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
