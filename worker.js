@@ -672,6 +672,11 @@ export default {
         if (!token) return json({ error: 'no token' }, 401);
         const sess = await env.DB.prepare('SELECT * FROM sessions WHERE token=?').bind(token).first();
         if (!sess) return json({ error: 'invalid' }, 401);
+        // 1시간(3600초) 초과 세션 만료
+        if (Math.floor(Date.now() / 1000) - (sess.created_at || 0) > 3600) {
+          await env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(token).run();
+          return json({ error: 'expired' }, 401);
+        }
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(sess.user_id).first();
         if (!user || user.status !== 'active') return json({ error: 'user not found' }, 401);
         return json({ ok: true, id: user.id, name: user.name || user.id, must_change_password: user.password === '1234' });
