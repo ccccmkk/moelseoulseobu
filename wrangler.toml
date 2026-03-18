@@ -13,7 +13,7 @@ bucket_name = "band-archive"
 
 [vars]
 # law.go.kr OPEN API OC 코드 (등록 이메일 아이디 @ 앞부분)
-LAW_OC = "이메일ID입력"
+LAW_OC = "cm99i"
 
 [triggers]
 # "*/10 * * * *" → 10분마다 댓글 자동 답변
