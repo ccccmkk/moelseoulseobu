@@ -223,7 +223,8 @@ export default {
             const arr = root.law || [];
             laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
               name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
-              date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
+              date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || '',
+              mst: l['법령MST번호'] || ''
             })).filter(l => l.name);
           } else if (type === 'prec') {
             const arr = d?.PrecSearch?.prec || [];
@@ -249,44 +250,56 @@ export default {
         return json(result);
       }
 
-      // ── 법령 본문 조회 ──
+      // ── 법령/판례 본문 조회 (모바일 HTML) ──
       if (p === '/api/law-content' && m === 'GET') {
         const OC = env.LAW_OC || 'STEP-OPENAPI';
         const id = url.searchParams.get('id') || '';
-        if (!id) return json({ error: 'id 필요' }, 400);
-        const cacheKey = `lawcontent_${id}`;
+        const mst = url.searchParams.get('mst') || '';
+        const lawtype = url.searchParams.get('lawtype') || 'law'; // law | prec
+        if (!id && !mst) return json({ error: 'id 필요' }, 400);
+        const cacheKey = `lawhtml2_${lawtype}_${id||mst}`;
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
         if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 86400) {
-          try { return json(JSON.parse(cached.data)); } catch (e) {}
+          try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50) return json(r); } catch (e) {}
         }
         const headers = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Referer': 'https://www.law.go.kr/',
-          'Accept-Language': 'ko-KR,ko;q=0.9'
+          'Accept-Language': 'ko-KR,ko;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br'
         };
-        const res = await fetch(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${encodeURIComponent(id)}&type=JSON`, { headers });
-        if (!res.ok) return json({ error: `API 오류 ${res.status}` }, 502);
-        let d;
-        try { d = await res.json(); } catch (e) { return json({ error: '응답 파싱 실패' }, 502); }
-        const root = d?.법령 || {};
-        const lawName = root['기본정보']?.['법령명_한글'] || '';
-        const rawJos = root['조문']?.['조문단위'] || [];
-        const jos = (Array.isArray(rawJos) ? rawJos : rawJos ? [rawJos] : []).map(jo => {
-          const num = jo['조문번호'] || '';
-          const sub = jo['조문가지번호'];
-          const title = jo['조문제목'] || '';
-          const content = jo['조문내용'] || '';
-          const rawItems = jo['항'] || [];
-          const items = (Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : []).map(h => ({
-            num: h['항번호'] || '',
-            content: h['항내용'] || ''
-          }));
-          return { num, sub: sub || 0, title, content, items };
-        });
-        const result = { lawName, jos };
+        // 시도할 URL 목록 (법령: law→eflaw, 판례: prec, mst 우선)
+        const attempts = [];
+        if (lawtype === 'prec') {
+          if (id) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=HTML&mobileYn=Y`);
+        } else {
+          if (mst) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=HTML&mobileYn=Y`);
+          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=HTML&mobileYn=Y`);
+          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=HTML&mobileYn=Y`);
+        }
+        let html = '';
+        const debug = [];
+        for (const apiUrl of attempts) {
+          try {
+            const res = await fetch(apiUrl, { headers });
+            const raw = await res.text();
+            debug.push(`${apiUrl.match(/target=(\w+)/)?.[1]}:${res.status}:${raw.length}chars`);
+            if (res.ok && raw.length > 200) { html = raw; break; }
+          } catch(e) { debug.push(`fetch_fail:${e.message}`); }
+        }
+        if (!html) return json({ error: `조문을 가져오지 못했습니다`, debug });
+        // head/script/style 제거, body 내부만 추출
+        html = html.replace(/<head\b[\s\S]*?<\/head>/gi, '');
+        html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+        html = html.replace(/<!--[\s\S]*?-->/g, '');
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        if (bodyMatch) html = bodyMatch[1];
+        html = html.replace(/<html[^>]*>|<\/html>/gi, '').trim();
+        const result = { html, id, lawtype, debug };
         const now = Math.floor(Date.now() / 1000);
-        if (jos.length) {
+        if (html.length > 200) {
           await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
             .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
         }
