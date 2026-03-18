@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="STEP"/>
 <meta name="theme-color" content="#37c272"/>
 <title>STEP</title>
+<script src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=663rfknnj7" defer></script>
 <style>
 html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -464,10 +465,7 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="section-title">공덕·마포역 맛집</span>
         <button class="btn-sm primary" id="addRestBtn" style="display:none" onclick="openAddRestModal()">+ 맛집 추가</button>
       </div>
-      <div style="position:relative;width:100%;height:220px;border-radius:var(--radius);overflow:hidden;margin-bottom:12px;border:1px solid var(--border)">
-        <iframe src="https://www.openstreetmap.org/export/embed.html?bbox=126.934%2C37.541%2C126.958%2C37.554&layer=mapnik&marker=37.5474%2C126.9476" style="width:100%;height:100%;border:none" loading="lazy" title="공덕·마포역 지도"></iframe>
-        <a href="https://map.naver.com/v5/search/%EA%B3%B5%EB%8D%95%EC%97%AD%20%EB%A7%9B%EC%A7%91" target="_blank" rel="noopener" style="position:absolute;bottom:8px;right:8px;background:var(--green);color:#fff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.2)">네이버 지도 ↗</a>
-      </div>
+      <div id="naverMap" style="width:100%;height:260px;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
       <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
     </div>
   </div>
@@ -577,6 +575,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="padding:0 0 12px">
       <button class="more-logout-btn" id="logoutBtn">로그아웃</button>
     </div>
+    <div style="text-align:center;padding:8px 0 4px;font-size:11px;color:var(--text-hint)">STEP v1.2.0</div>
   </div>
 
   <!-- 하단 네비 -->
@@ -1153,6 +1152,7 @@ function switchNewsMainTab(sub){
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
   if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
+  if(sub==='lunch') setTimeout(initNaverMap, 100);
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
 // legacy stub
@@ -1228,6 +1228,9 @@ async function lawSearch(){
         <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(e.name)}</div>
         <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
       </a>`).join('');
+    }
+    if(!html&&data.debug&&data.debug.length){
+      html=`<div style="padding:16px;color:var(--danger);font-size:12px">검색 결과 없음 (OC:${escHtml(data.oc||'?')} / ${escHtml(data.debug.join(' | '))})</div>`;
     }
     box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
@@ -2076,6 +2079,23 @@ async function agentHealthReply(){
   finally{btn.disabled=false;}
 }
 
+// ── 네이버 지도 ──
+let _naverMapInited=false;
+function initNaverMap(){
+  if(_naverMapInited||!window.naver||!window.naver.maps)return;
+  _naverMapInited=true;
+  const map=new naver.maps.Map('naverMap',{
+    center:new naver.maps.LatLng(37.5474,126.9476),
+    zoom:16,mapTypeControl:false,zoomControl:true,
+    zoomControlOptions:{position:naver.maps.Position.TOP_RIGHT}
+  });
+  [{lat:37.5455,lng:126.9513,title:'공덕역'},{lat:37.5496,lng:126.9438,title:'마포역'}].forEach(s=>{
+    new naver.maps.Marker({position:new naver.maps.LatLng(s.lat,s.lng),map,
+      icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2)">${s.title}</div>`,anchor:new naver.maps.Point(0,0)}
+    });
+  });
+  window._naverMap=map;
+}
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 async function loadRestaurants(){
