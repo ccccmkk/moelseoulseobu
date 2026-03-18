@@ -168,10 +168,17 @@ export default {
         const OC = env.LAW_OC || 'cm99i';
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
-        const cacheKey = `law_s_${target}_${q.slice(0,30)}`;
-        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
-        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
-          try { return json(JSON.parse(cached.data)); } catch (e) {}
+        const nocache = url.searchParams.get('nocache') === '1';
+        const cacheKey = `law_${OC}_${target}_${q.slice(0,30)}`;
+        if (!nocache) {
+          const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
+          if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
+            try {
+              const parsed = JSON.parse(cached.data);
+              // 빈 결과는 캐시 무효화
+              if (parsed.laws?.length || parsed.precs?.length || parsed.expcs?.length) return json(parsed);
+            } catch (e) {}
+          }
         }
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
         const enc = encodeURIComponent(q);
@@ -180,37 +187,44 @@ export default {
         if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
         if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
         const settled = await Promise.allSettled(tasks.map(([, f]) => f));
-        let laws = [], precs = [], expcs = [];
+        let laws = [], precs = [], expcs = [], apiDebug = [];
         for (let i = 0; i < tasks.length; i++) {
           const [type] = tasks[i]; const res = settled[i];
-          if (res.status !== 'fulfilled' || !res.value.ok) continue;
+          if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail`); continue; }
+          if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}`); continue; }
           try {
-            const d = await res.value.json();
+            const rawText = await res.value.text();
+            let d;
+            try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_parse_fail:${rawText.slice(0,80)}`); continue; }
             if (type === 'law') {
+              if (d?.LawSearch?.err || d?.error) { apiDebug.push(`${type}:api_err:${JSON.stringify(d).slice(0,80)}`); }
               const arr = d?.LawSearch?.law || [];
-              laws = (Array.isArray(arr) ? arr : [arr]).map(l => ({
+              laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
                 name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
                 date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
               })).filter(l => l.name);
             } else if (type === 'prec') {
               const arr = d?.PrecSearch?.prec || [];
-              precs = (Array.isArray(arr) ? arr : [arr]).map(p => ({
+              precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
                 name: p['사건명'] || '', num: p['사건번호'] || '',
                 court: p['법원명'] || '', date: fmtDate(p['선고일자'] || ''), id: p['판례일련번호'] || ''
               })).filter(p => p.name);
             } else if (type === 'expc') {
               const arr = d?.ExpCSearch?.expc || d?.ExpcSearch?.expc || [];
-              expcs = (Array.isArray(arr) ? arr : [arr]).map(e => ({
+              expcs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(e => ({
                 name: e['해석례명'] || e['제목'] || '', dept: e['소관부처명'] || e['소관부처'] || '',
                 date: fmtDate(e['회신일자'] || e['시행일자'] || ''), id: e['해석례일련번호'] || e['일련번호'] || ''
               })).filter(e => e.name);
             }
-          } catch (e) {}
+          } catch (e) { apiDebug.push(`${type}:err:${e.message}`); }
         }
-        const result = { laws, precs, expcs, query: q };
+        const result = { laws, precs, expcs, query: q, oc: OC, debug: apiDebug };
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
-          .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
+        // 결과가 있을 때만 캐시 저장
+        if (laws.length || precs.length || expcs.length) {
+          await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
+        }
         return json(result);
       }
 
