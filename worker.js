@@ -257,87 +257,79 @@ export default {
         const mst = url.searchParams.get('mst') || '';
         const lawtype = url.searchParams.get('lawtype') || 'law'; // law | prec
         if (!id && !mst) return json({ error: 'id 필요' }, 400);
-        const cacheKey = `lawhtml3_${lawtype}_${id||mst}`;
+        const cacheKey = `lawxml1_${lawtype}_${id||mst}`;
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
         if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 86400) {
           try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50 && !r.error) return json(r); } catch (e) {}
         }
-        // Accept-Encoding 미설정: Cloudflare Worker가 자동 압축해제하도록 (직접 설정 시 binary 그대로 반환됨)
-        const headers = {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        const xhdr = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/xml,text/xml,*/*',
           'Referer': 'https://www.law.go.kr/',
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
-        // Cloudflare/SSL 오류 페이지 판별
-        const isCfError = (raw) => /Error code [0-9]+|SSL handshake failed|cloudflare/i.test(raw.slice(0, 2000));
-        // XML → HTML 변환 (판례/법령 공통)
+        // XML 오류/무결과 판별
+        const isXmlError = (s) => /일치하는.*없습니다|법령명을 확인|Error code|SSL handshake|cloudflare/i.test(s.slice(0, 3000));
+        // 태그 내용 추출 + 태그 제거 유틸
+        const strip = (s) => s.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim();
+        const xtag = (xml, t) => { const m = xml.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`, 'i')); return m ? m[1] : ''; };
+        // XML → HTML 변환
         const xmlToHtml = (xml) => {
-          const tag = (t) => { const m = xml.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`, 'i')); return m ? m[1].trim() : ''; };
           // 판례
-          if (/<PrecService/i.test(xml) || /<prec>/i.test(xml)) {
-            const fields = [
-              ['사건명','사건명'],['사건번호','사건번호'],['선고일자','선고'],['법원명','법원'],
+          if (/<PrecService|<판시사항|<판결요지/i.test(xml)) {
+            const fields = [['사건명','사건명'],['사건번호','사건번호'],['선고일자','선고'],['법원명','법원'],
               ['판시사항','판시사항'],['판결요지','판결요지'],['참조조문','참조 조문'],
-              ['참조판례','참조 판례'],['판결이유','판결 이유'],['주문','주문']
-            ];
+              ['참조판례','참조 판례'],['판결이유','판결이유'],['주문','주문']];
             let h = '';
-            for (const [tagName, label] of fields) {
-              const v = tag(tagName);
-              if (v) h += `<div style="margin:12px 0"><strong style="color:#1a1a1a">${label}</strong><div style="margin-top:6px;line-height:1.7;white-space:pre-wrap">${v.replace(/<[^>]+>/g,'')}</div></div><hr style="border:none;border-top:1px solid #eee">`;
+            for (const [t, label] of fields) {
+              const v = strip(xtag(xml, t));
+              if (v) h += `<div style="margin:12px 0 0"><strong style="font-size:13px;color:#555">${label}</strong><div style="margin-top:4px;line-height:1.8;white-space:pre-wrap;font-size:14px">${v}</div></div><hr style="border:none;border-top:1px solid #eee;margin:12px 0 0">`;
             }
             return h;
           }
-          // 법령 XML
-          const articles = [...xml.matchAll(/<조문[^>]*>([\s\S]*?)<\/조문>/gi)];
-          if (articles.length) {
-            return articles.map(m => `<div style="margin:10px 0;padding:10px;border-left:3px solid #4caf50">${m[1].replace(/<[^>]+>/g,'').trim()}</div>`).join('');
+          // 법령 - 조문단위
+          const units = [...xml.matchAll(/<조문단위>([\s\S]*?)<\/조문단위>/gi)];
+          if (units.length) {
+            return units.map(u => {
+              const num   = strip(xtag(u[1], '조문번호'));
+              const title = strip(xtag(u[1], '조문제목'));
+              const body  = strip(xtag(u[1], '조문내용'));
+              const paras = [...u[1].matchAll(/<항>([\s\S]*?)<\/항>/gi)].map(a => {
+                const pn = strip(xtag(a[1], '항번호'));
+                const pc = strip(xtag(a[1], '항내용'));
+                return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7">${pn} ${pc}</div>` : '';
+              }).join('');
+              return `<div style="padding:12px 14px;border-left:3px solid var(--green,#4caf50);margin:10px 0;background:#f9fafb;border-radius:0 6px 6px 0">
+                <strong style="font-size:14px">제${num}조${title?' ('+title+')':''}</strong>
+                ${body?`<div style="margin-top:6px;line-height:1.8;font-size:14px">${body}</div>`:''}
+                ${paras}
+              </div>`;
+            }).join('');
           }
           return '';
         };
-        // 시도할 URL 목록
+        // XML 전용 시도 목록 (HTML은 gzip/EUC-KR 문제로 제외)
         const attempts = [];
         if (lawtype === 'prec') {
-          if (id) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=HTML&mobileYn=Y`, fmt: 'html' });
-          if (id) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=XML`, fmt: 'xml' });
+          if (id) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=XML`);
         } else {
-          if (mst) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=HTML&mobileYn=Y`, fmt: 'html' });
-          if (id)  attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=HTML&mobileYn=Y`, fmt: 'html' });
-          if (mst) attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=XML`, fmt: 'xml' });
-          if (id)  attempts.push({ url: `https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=XML`, fmt: 'xml' });
+          if (mst) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=XML`);
+          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=XML`);
+          if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=XML`);
         }
         let html = '';
         const debug = [];
-        for (const { url: apiUrl, fmt } of attempts) {
+        for (const apiUrl of attempts) {
           try {
-            const res = await fetch(apiUrl, { headers });
-            const buf = await res.arrayBuffer();
-            // Content-Type에서 charset 확인, EUC-KR 이면 해당 디코더 사용
-            const ct = res.headers.get('content-type') || '';
-            const charset = (ct.match(/charset=([\w-]+)/i)?.[1] || 'utf-8').toLowerCase();
-            const decoder = new TextDecoder(charset === 'euc-kr' || charset === 'ks_c_5601-1987' ? 'euc-kr' : 'utf-8', { fatal: false });
-            const raw = decoder.decode(buf);
+            const res = await fetch(apiUrl, { headers: xhdr });
+            const raw = await res.text(); // text()로 자동 디코딩/압축해제
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
-            debug.push(`${tgt}:${res.status}:${raw.length}chars:${fmt}:${charset}`);
-            if (raw.length < 200 || isCfError(raw)) continue;
-            if (fmt === 'xml') {
-              const converted = xmlToHtml(raw);
-              if (converted.length > 50) { html = converted; break; }
-            } else {
-              html = raw; break;
-            }
-          } catch(e) { debug.push(`fetch_fail:${e.message}`); }
-        }
-        if (!html) return json({ error: `조문을 가져오지 못했습니다`, debug });
-        // HTML 방식: head/script/style 제거, body 내부만 추출
-        if (!html.startsWith('<div')) {
-          html = html.replace(/<head\b[\s\S]*?<\/head>/gi, '');
-          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-          html = html.replace(/<!--[\s\S]*?-->/g, '');
-          const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          if (bodyMatch) html = bodyMatch[1];
-          html = html.replace(/<html[^>]*>|<\/html>/gi, '').trim();
+            debug.push(`${tgt}:${res.status}:${raw.length}chars`);
+            if (raw.length < 100 || isXmlError(raw)) continue;
+            const converted = xmlToHtml(raw);
+            if (converted.length > 50) { html = converted; break; }
+            debug.push('xml_parse_fail');
+          } catch(e) { debug.push(`fail:${e.message}`); }
         }
         const result = { html, id, lawtype, debug };
         const now = Math.floor(Date.now() / 1000);
@@ -405,11 +397,14 @@ export default {
         const gResp = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } } }) }
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 2048 } }) }
         );
         const gData = await gResp.json();
         const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (!answer) return json({ error: 'AI 응답 생성 실패' }, 500);
+        if (!answer) {
+          const geminiErr = gData?.error?.message || gData?.candidates?.[0]?.finishReason || JSON.stringify(gData).slice(0,200);
+          return json({ error: `AI 응답 생성 실패: ${geminiErr}` }, 500);
+        }
         // 토큰 사용량 기록
         const tokIn = gData?.usageMetadata?.promptTokenCount || 0;
         const tokOut = gData?.usageMetadata?.candidatesTokenCount || 0;
