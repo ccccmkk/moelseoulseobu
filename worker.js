@@ -182,7 +182,7 @@ export default {
         const q = url.searchParams.get('q') || '근로';
         const target = url.searchParams.get('target') || 'all';
         const nocache = url.searchParams.get('nocache') === '1';
-        const cacheKey = `law2_${OC}_${target}_${q.slice(0,30)}`;
+        const cacheKey = `law3_${OC}_${target}_${q.slice(0,30)}`;
         if (!nocache) {
           const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
           if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
@@ -218,16 +218,23 @@ export default {
           let d;
           try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,50)}`); continue; }
           if (type === 'law') {
-            // LawSearch.law 구조
+            // LawSearch.law 구조 (공공데이터포털 API 가이드 기준)
+            // 법령일련번호 = lawService.do?MST= 에 쓰이는 값 (법령상세링크에서도 확인)
             const root = d?.LawSearch || {};
             const arr = root.law || [];
-            laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => ({
-              name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
-              date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
-              id: l['법령ID'] || l['법령일련번호'] || '',
-              mst: l['MST'] || l['법령MST번호'] || ''
-            })).filter(l => l.name);
-            if (!laws.length) apiDebug.push(`law:empty:${JSON.stringify(root).slice(0,80)}`);
+            laws = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(l => {
+              const link = l['법령상세링크'] || '';
+              // 법령상세링크에서 MST 직접 추출 (가장 신뢰도 높음)
+              const mstFromLink = (link.match(/MST=(\d+)/) || [])[1] || '';
+              return {
+                name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
+                date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
+                id: l['법령ID'] || l['법령일련번호'] || '',
+                // 법령일련번호 = MST (API 문서 기준)
+                mst: mstFromLink || l['법령일련번호'] || l['MST'] || l['법령MST번호'] || ''
+              };
+            }).filter(l => l.name);
+            if (!laws.length) apiDebug.push(`law:empty:${JSON.stringify(root).slice(0,120)}`);
           } else if (type === 'prec') {
             const arr = d?.PrecSearch?.prec || [];
             precs = (Array.isArray(arr) ? arr : arr ? [arr] : []).map(p => ({
@@ -289,22 +296,25 @@ export default {
             }
             return h;
           }
-          // 법령 - 조문단위
+          // 법령 - 조문단위 (아코디언: 제목만 표시, 탭하면 내용 펼침)
           const units = [...xml.matchAll(/<조문단위>([\s\S]*?)<\/조문단위>/gi)];
           if (units.length) {
-            return units.map(u => {
+            return units.map((u, i) => {
               const num   = strip(xtag(u[1], '조문번호'));
               const title = strip(xtag(u[1], '조문제목'));
               const body  = strip(xtag(u[1], '조문내용'));
               const paras = [...u[1].matchAll(/<항>([\s\S]*?)<\/항>/gi)].map(a => {
                 const pn = strip(xtag(a[1], '항번호'));
                 const pc = strip(xtag(a[1], '항내용'));
-                return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7">${pn} ${pc}</div>` : '';
+                return pn||pc ? `<div style="margin:4px 0 0 14px;line-height:1.7;color:#333">${pn} ${pc}</div>` : '';
               }).join('');
-              return `<div style="padding:12px 14px;border-left:3px solid var(--green,#4caf50);margin:10px 0;background:#f9fafb;border-radius:0 6px 6px 0">
-                <strong style="font-size:14px">제${num}조${title?' ('+title+')':''}</strong>
-                ${body?`<div style="margin-top:6px;line-height:1.8;font-size:14px">${body}</div>`:''}
-                ${paras}
+              const hasBody = body || paras;
+              const bodyHtml = hasBody ? `<div class="la-body" style="display:none;padding:10px 0 4px;border-top:1px solid #e8e8e8;margin-top:8px">${body?`<div style="line-height:1.8;font-size:14px;color:#222">${body}</div>`:''}${paras}</div>` : '';
+              return `<div class="la-item" onclick="toggleLawArticle(this)" style="padding:11px 14px;border-left:3px solid var(--green,#4caf50);margin:6px 0;background:#f9fafb;border-radius:0 6px 6px 0;cursor:${hasBody?'pointer':'default'}">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <strong style="font-size:14px;color:#111">제${num}조${title?` <span style="font-weight:400;color:#555">(${title})</span>`:''}</strong>
+                  ${hasBody?`<span class="la-arr" style="font-size:11px;color:#aaa;transition:transform .2s">▼</span>`:''}
+                </div>${bodyHtml}
               </div>`;
             }).join('');
           }
@@ -324,7 +334,23 @@ export default {
         for (const apiUrl of attempts) {
           try {
             const res = await fetch(apiUrl, { headers: xhdr });
-            const raw = await res.text(); // text()로 자동 디코딩/압축해제
+            // 대형 법령 XML 타임아웃 방지: 500KB 이상이면 앞부분만 사용
+            const MAX_XML = 1500 * 1024;
+            let raw;
+            const ct = res.headers.get('content-length');
+            if (ct && parseInt(ct) > MAX_XML) {
+              const reader = res.body.getReader();
+              const chunks = []; let total = 0;
+              while (total < MAX_XML) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value); total += value.length;
+              }
+              reader.cancel();
+              raw = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+            } else {
+              raw = await res.text();
+            }
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
             debug.push(`${tgt}:${res.status}:${raw.length}chars`);
             if (raw.length < 100 || isXmlError(raw)) { debug.push(`filtered:${raw.slice(0,60)}`); continue; }

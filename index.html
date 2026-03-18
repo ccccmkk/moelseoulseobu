@@ -1371,6 +1371,14 @@ async function openLawContent(id,lawName,lawtype,mst){
     processLawArticles(wrap,lawName||'');
   }catch(e){$('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
+function toggleLawArticle(el){
+  const body=el.querySelector('.la-body');
+  const arr=el.querySelector('.la-arr');
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  if(arr)arr.style.transform=open?'':'rotate(180deg)';
+}
 function processLawArticles(container,lawName){
   // 전략1: law.go.kr 모바일 HTML 클래스명 기반
   const joEls=container.querySelectorAll('.law_jo,.joWrap,[class*="jo_no"],[class*="joNo"]');
