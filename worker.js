@@ -698,16 +698,66 @@ export default {
         // 국가건강정보포털 공공 API (질병관리청 KDCA)
         const KDCA_TOKEN = '19cf9b774122';
         const KDCA_CONTENTS = [
-          { sn: 5423, name: '감기' }, { sn: 6543, name: '객혈' }, { sn: 1344, name: '건선' },
-          { sn: 6561, name: '결핵' }, { sn: 5463, name: '골절' }, { sn: 5841, name: '구취' },
-          { sn: 5493, name: '기흉' }, { sn: 1743, name: '낙상' }, { sn: 5684, name: '직장탈출증' },
-          { sn: 5425, name: '독감' }, { sn: 5426, name: '폐렴' }, { sn: 5427, name: '천식' },
-          { sn: 5428, name: '당뇨병' }, { sn: 5429, name: '고혈압' }, { sn: 5430, name: '심근경색' },
-          { sn: 5431, name: '뇌졸중' }, { sn: 5432, name: '위염' }, { sn: 5433, name: '대장암' },
-          { sn: 5434, name: '폐암' }, { sn: 5435, name: '간염' }, { sn: 5436, name: '요통' },
-          { sn: 5437, name: '관절염' }, { sn: 5438, name: '두통' }, { sn: 5439, name: '불면증' },
-          { sn: 5440, name: '우울증' }, { sn: 5441, name: '비만' }, { sn: 5442, name: '빈혈' },
-          { sn: 5443, name: '알레르기' }, { sn: 5444, name: '치질' }, { sn: 5445, name: '담석증' },
+          // 감염·호흡기
+          { sn: 5423, name: '감기' }, { sn: 5232, name: '인플루엔자(독감)' }, { sn: 5249, name: '폐렴' },
+          { sn: 5466, name: '천식' }, { sn: 6253, name: '기침' }, { sn: 5239, name: '식중독' },
+          { sn: 6551, name: '탈수' }, { sn: 5806, name: '알레르기' }, { sn: 6581, name: '두드러기' },
+          { sn: 5284, name: '뇌수막염' }, { sn: 6561, name: '결핵' }, { sn: 6677, name: '코로나19' },
+          { sn: 5307, name: 'A형간염' }, { sn: 6672, name: 'B형간염' }, { sn: 5309, name: 'C형간염' },
+          { sn: 5703, name: '만성비염' }, { sn: 1101, name: '비부비동염' }, { sn: 5707, name: '편도염' },
+          { sn: 5801, name: '기관지확장증' }, { sn: 6536, name: '만성폐쇄성폐질환' },
+          // 심장·혈관
+          { sn: 5300, name: '고혈압' }, { sn: 5243, name: '급성 심근경색증' }, { sn: 6566, name: '협심증' },
+          { sn: 1102, name: '부정맥' }, { sn: 3828, name: '심부전' }, { sn: 5337, name: '흉통' },
+          { sn: 5260, name: '죽상경화증' }, { sn: 5854, name: '심부 정맥 혈전증' }, { sn: 6540, name: '폐 색전증' },
+          // 대사·내분비
+          { sn: 5305, name: '당뇨병' }, { sn: 6694, name: '비만' }, { sn: 5304, name: '고혈당' },
+          { sn: 5427, name: '대사증후군' }, { sn: 6715, name: '이상지질혈증' }, { sn: 5242, name: '고칼슘혈증' },
+          { sn: 5810, name: '갑상선기능저하증' }, { sn: 1831, name: '갑상선기능항진증' },
+          // 소화기
+          { sn: 6263, name: '소화불량' }, { sn: 5827, name: '변비' }, { sn: 1667, name: '설사' },
+          { sn: 1081, name: '복통' }, { sn: 6777, name: '위염' }, { sn: 5359, name: '위십이지장 궤양' },
+          { sn: 2057, name: '위식도역류질환' }, { sn: 5248, name: '췌장염' }, { sn: 5818, name: '치핵' },
+          { sn: 5297, name: '음주와 건강' }, { sn: 5310, name: '알코올 간질환' }, { sn: 6735, name: '담석증' },
+          { sn: 5820, name: '담낭염' }, { sn: 5804, name: '구역질과 구토' }, { sn: 5858, name: '복부 팽만' },
+          // 근골격·통증
+          { sn: 3796, name: '요통' }, { sn: 5830, name: '두통' }, { sn: 6557, name: '편두통' },
+          { sn: 5441, name: '염좌' }, { sn: 5463, name: '골절' }, { sn: 1988, name: '골관절염' },
+          { sn: 5833, name: '골다공증' }, { sn: 5972, name: '일자목(거북목)증후군' },
+          { sn: 1567, name: '오십견' }, { sn: 6292, name: '수근관 증후군' },
+          { sn: 3348, name: '추간판탈출증(디스크)' }, { sn: 4047, name: '척추관 협착증' },
+          { sn: 3512, name: '좌골신경통' }, { sn: 5975, name: '족저근막염' },
+          { sn: 5687, name: '하지정맥류' }, { sn: 6732, name: '통풍' },
+          { sn: 5826, name: '섬유근육통' }, { sn: 5536, name: '반월상 연골판 손상' },
+          // 눈
+          { sn: 6306, name: '안구건조증' }, { sn: 5226, name: '노안' }, { sn: 6689, name: '백내장' },
+          { sn: 6690, name: '녹내장' }, { sn: 5846, name: '눈 충혈' }, { sn: 5269, name: '황반변성' },
+          { sn: 5223, name: '비문증(날파리증)' },
+          // 귀·코·입
+          { sn: 5706, name: '이명' }, { sn: 5705, name: '목쉼' }, { sn: 3568, name: '중이염' },
+          { sn: 5362, name: '코골이' }, { sn: 6308, name: '수면무호흡증' }, { sn: 3768, name: '코피' },
+          { sn: 5841, name: '구취' }, { sn: 6288, name: '충치' }, { sn: 5716, name: '잇몸병(치주질환)' },
+          { sn: 5704, name: '구강건조증' }, { sn: 5485, name: '구내염' }, { sn: 6550, name: '어지럼증' },
+          // 피부
+          { sn: 3947, name: '여드름' }, { sn: 5694, name: '습진' }, { sn: 6289, name: '지루 피부염' },
+          { sn: 5695, name: '가려움증' }, { sn: 5690, name: '원형탈모' }, { sn: 2067, name: '남성형 탈모' },
+          { sn: 5500, name: '일광화상' }, { sn: 6670, name: '동상' }, { sn: 5693, name: '발 백선(무좀)' },
+          // 정신·신경
+          { sn: 5294, name: '우울감' }, { sn: 6549, name: '만성피로증후군' },
+          { sn: 5495, name: '뇌졸중' }, { sn: 5853, name: '실신' },
+          { sn: 5860, name: '다한증' }, { sn: 6487, name: '손떨림(수전증)' },
+          // 비뇨기
+          { sn: 5968, name: '방광염' }, { sn: 6674, name: '요로감염' }, { sn: 5433, name: '신장결석' },
+          { sn: 3193, name: '전립선비대증' }, { sn: 1104, name: '빈혈' },
+          // 생활·예방
+          { sn: 5293, name: '운동과 건강' }, { sn: 5299, name: '흡연과 건강' },
+          { sn: 5482, name: '황사와 미세먼지' }, { sn: 6545, name: '올바른 손씻기' },
+          { sn: 6548, name: '건강기능식품' }, { sn: 6671, name: '국가건강검진' },
+          { sn: 6251, name: '신체활동' }, { sn: 6547, name: '건강한 체중조절' },
+          { sn: 5298, name: '식이영양' }, { sn: 5353, name: '영양제 올바른 복용' },
+          { sn: 3848, name: '폭염 건강수칙' }, { sn: 2048, name: '겨울철 한파 건강수칙' },
+          { sn: 6529, name: '직업성 호흡기질환' }, { sn: 6309, name: '스포츠 손상 예방' },
+          { sn: 6226, name: '심폐소생술(CPR)' }, { sn: 6264, name: '소음과 건강' },
         ];
         // 최근 봇 게시물에서 사용한 주제 추출 → 중복 방지
         const recentBot = await env.DB.prepare('SELECT blocks FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 15').bind(AGENT_ID).all();
@@ -979,9 +1029,24 @@ export default {
     }
   },
 
-  // Cloudflare Cron 트리거 (10분마다 자동 실행)
-  async scheduled(_event, env, ctx) {
+  // Cloudflare Cron 트리거
+  // "0 1 * * *"  → 10:00 KST  건강 글 게시
+  // "0 7 * * *"  → 16:00 KST  건강 글 게시
+  // "*/10 * * * *" → 10분마다 댓글 자동 답변
+  async scheduled(event, env, ctx) {
     await initDB(env);
+    const cron = event.cron;
+    // 하루 2회 건강 정보 글 자동 게시 (10:00 / 16:00 KST)
+    if (cron === '0 1 * * *' || cron === '0 7 * * *') {
+      ctx.waitUntil(
+        fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }).catch(() => {})
+      );
+    }
+    // 10분마다 댓글 자동 답변
     ctx.waitUntil(
       fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
         method: 'POST',
