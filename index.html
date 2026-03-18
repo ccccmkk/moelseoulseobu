@@ -1388,12 +1388,31 @@ function toggleLawArticle(el){
   if(arr)arr.style.transform=open?'':'rotate(180deg)';
 }
 function processLawArticles(container,lawName){
+  // 전략0: 워커가 만든 아코디언 .la-item → 클릭 시 AI 질문으로 연결
+  const laItems=container.querySelectorAll('.la-item');
+  if(laItems.length>0){
+    laItems.forEach(el=>{
+      const strong=el.querySelector('strong');
+      if(!strong)return;
+      const titleText=strong.textContent.trim();
+      const m=titleText.match(/^제(\d+조(?:의\d+)?)/);
+      if(!m)return;
+      // 기존 onclick(아코디언 토글)은 유지하고, 별도 "→ AI 질문" 링크 추가
+      const askBtn=document.createElement('span');
+      askBtn.textContent='→ AI 질문';
+      askBtn.style.cssText='font-size:11px;color:var(--green-dark);margin-left:10px;cursor:pointer;white-space:nowrap';
+      askBtn.onclick=(e)=>{e.stopPropagation();lawArticleClick(lawName+' 제'+m[1],titleText.slice(0,60));};
+      strong.appendChild(askBtn);
+    });
+    return;
+  }
   // 전략1: law.go.kr 모바일 HTML 클래스명 기반
   const joEls=container.querySelectorAll('.law_jo,.joWrap,[class*="jo_no"],[class*="joNo"]');
   if(joEls.length>0){joEls.forEach(el=>tryMakeClickable(el,lawName));return;}
   // 전략2: 제N조 패턴 텍스트를 가진 요소 탐색
   let found=0;
   container.querySelectorAll('p,div,dt,li,td').forEach(el=>{
+    if(el.closest('.la-item'))return; // 아코디언 내부는 건너뜀
     if(el.children.length>5)return;
     const t=el.textContent.trim();
     if(/^제\d+조/.test(t)&&t.length<500){tryMakeClickable(el,lawName);found++;}
