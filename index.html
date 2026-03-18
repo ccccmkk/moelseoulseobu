@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="STEP"/>
 <meta name="theme-color" content="#37c272"/>
 <title>STEP</title>
-<script src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=663rfknnj7" defer></script>
 <style>
 html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -465,7 +464,10 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="section-title">공덕·마포역 맛집</span>
         <button class="btn-sm primary" id="addRestBtn" style="display:none" onclick="openAddRestModal()">+ 맛집 추가</button>
       </div>
-      <div id="naverMap" style="width:100%;height:260px;border-radius:var(--radius);overflow:hidden;margin-bottom:14px;border:1px solid var(--border)"></div>
+      <a href="https://map.naver.com/v5/search/%EA%B3%B5%EB%8D%95%EC%97%AD%20%EB%A7%9B%EC%A7%91" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;padding:9px;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--green);text-decoration:none">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        네이버 지도에서 공덕·마포역 맛집 보기
+      </a>
       <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
     </div>
   </div>
@@ -1150,7 +1152,7 @@ function switchNewsMainTab(sub){
   });
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
-  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); initNaverMap(); }
+  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
 // legacy stub
@@ -1186,22 +1188,6 @@ async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles
 
 // ── 뉴스 ──
 let newsCat='labor', lawLoaded=false, lunchLoaded=false;
-let _naverMapInited=false;
-function initNaverMap(){
-  if(_naverMapInited||!window.naver||!window.naver.maps)return;
-  _naverMapInited=true;
-  const map=new naver.maps.Map('naverMap',{
-    center:new naver.maps.LatLng(37.5474,126.9476),
-    zoom:16,mapTypeControl:false,zoomControl:true,
-    zoomControlOptions:{position:naver.maps.Position.TOP_RIGHT}
-  });
-  [{lat:37.5455,lng:126.9513,title:'공덕역'},{lat:37.5496,lng:126.9438,title:'마포역'}].forEach(s=>{
-    new naver.maps.Marker({position:new naver.maps.LatLng(s.lat,s.lng),map,
-      icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2)">${s.title}</div>`,anchor:new naver.maps.Point(0,0)}
-    });
-  });
-  window._naverMap=map;
-}
 function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
@@ -2094,10 +2080,12 @@ const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양�
 async function loadRestaurants(){
   const box=$('restaurantList');
   try{
-    const list=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`).then(r=>r.json());
-    if(!list.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
+    const res=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const list=await res.json();
+    if(!Array.isArray(list)||!list.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
     box.innerHTML=list.map(r=>renderRestCard(r)).join('');
-  }catch(e){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
+  }catch(e){box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 function renderRestCard(r){
   const catColor=CAT_COLORS[r.category]||'#90a4ae';
