@@ -72,6 +72,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS restaurants (id TEXT PRIMARY KEY, name TEXT, address TEXT, category TEXT, walk_min INTEGER DEFAULT 5, note TEXT, added_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS restaurant_reviews (id TEXT PRIMARY KEY, restaurant_id TEXT, author TEXT, content TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS restaurant_votes (restaurant_id TEXT, user_id TEXT, vote INTEGER, PRIMARY KEY(restaurant_id, user_id))`,
+    `CREATE TABLE IF NOT EXISTS login_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, ip TEXT, user_agent TEXT, result TEXT, created_at INTEGER)`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -163,6 +164,18 @@ export default {
         return json(items);
       }
 
+      // ── 접속 이력 (관리자) ──
+      if (p === '/api/admin/login-logs' && m === 'GET') {
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 200);
+        const rows = await env.DB.prepare('SELECT l.id, l.user_id, u.name, l.ip, l.user_agent, l.result, l.created_at FROM login_logs l LEFT JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT ?').bind(limit).all();
+        return json(rows.results || []);
+      }
+
       // ── 법령 검색 ──
       if (p === '/api/law-search' && m === 'GET') {
         const OC = env.LAW_OC || 'cm99i';
@@ -183,9 +196,9 @@ export default {
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
         const enc = encodeURIComponent(q);
         const tasks = [];
-        if (target === 'all' || target === 'law')  tasks.push(['law',  fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=10&sort=efYd`)]);
-        if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
-        if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
+        if (target === 'all' || target === 'law')  tasks.push(['law',  fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=10&sort=efYd`)]);
+        if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
+        if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
         const settled = await Promise.allSettled(tasks.map(([, f]) => f));
         let laws = [], precs = [], expcs = [], apiDebug = [];
         for (let i = 0; i < tasks.length; i++) {
@@ -238,9 +251,9 @@ export default {
         const enc = encodeURIComponent(question.slice(0, 50));
         const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=5&sort=efYd`),
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`),
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`)
+          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=5&sort=efYd`),
+          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`),
+          fetch(`http://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`)
         ]);
         let sources = [], context = '';
         if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
@@ -672,13 +685,23 @@ export default {
       // ── 로그인 / 세션 ──
       if (p === '/api/login' && m === 'POST') {
         const { id, password } = await request.json();
+        const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+        const ua = (request.headers.get('User-Agent') || '').slice(0, 200);
+        const now = Math.floor(Date.now() / 1000);
+        const logResult = async (uid, result) => {
+          try {
+            await env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(uid || 'unknown', ip, ua, result, now).run();
+            await env.DB.prepare('DELETE FROM login_logs WHERE id NOT IN (SELECT id FROM login_logs ORDER BY created_at DESC LIMIT 1000)').run();
+          } catch(e) {}
+        };
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
-        if (!user || user.password !== password) return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401);
-        if (user.status === 'pending') return json({ error: '관리자 승인 대기 중입니다.' }, 403);
+        if (!user || user.password !== password) { await logResult(id, 'fail'); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
+        if (user.status === 'pending') { await logResult(id, 'pending'); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
         const token = crypto.randomUUID();
-        await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, Math.floor(Date.now()/1000)).run();
+        await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, now).run();
         // 오래된 세션 정리 (최근 5개만 유지)
         await env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run();
+        await logResult(id, 'ok');
         return json({ ok: true, id: user.id, name: user.name || user.id, token, must_change_password: user.password === '1234' });
       }
       if (p === '/api/verify-session' && m === 'POST') {
