@@ -375,6 +375,29 @@ button,a,[role="button"]{touch-action:manipulation}
 @supports (-webkit-touch-callout:none){
   input,select,textarea{font-size:16px !important}
 }
+/* 법령 스켈레톤 로딩 */
+.law-skeleton{padding:12px 16px}
+.law-skel-item{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+.skel-line{height:12px;border-radius:6px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:skelShimmer 1.2s infinite}
+.skel-line.w80{width:80%}
+.skel-line.w50{width:50%;margin-top:7px;height:10px}
+@keyframes skelShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* 법령 결과 카드 (클릭 가능) */
+.law-result-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s;display:block;text-decoration:none;color:inherit}
+.law-result-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.1)}
+/* 법령 본문 모달 */
+#lawContentModal .modal{max-height:92dvh;border-radius:var(--radius) var(--radius) 0 0}
+.law-jo{border-bottom:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:background .15s}
+.law-jo:hover{background:var(--green-light)}
+.law-jo:last-child{border-bottom:none}
+.law-jo-num{font-size:13px;font-weight:700;color:var(--green-dark);margin-bottom:4px}
+.law-jo-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+.law-jo-content{font-size:13px;color:var(--text-sub);line-height:1.65;white-space:pre-wrap}
+.law-jo-hint{font-size:11px;color:var(--text-hint);margin-top:6px}
+/* AI 질문 키워드 태그 */
+.law-ask-tag{display:inline-flex;align-items:center;gap:4px;background:var(--green-light);color:var(--green-dark);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;margin-bottom:6px;cursor:pointer}
+.law-ask-tag-del{background:none;border:none;color:var(--green-dark);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;opacity:.7}
+.law-ask-tag-del:hover{opacity:1}
 </style>
 </head>
 <body>
@@ -450,7 +473,8 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="lawSearchResult"></div>
       <!-- AI 질문 -->
       <div style="border-top:4px solid var(--border);padding:14px 16px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">⚖️ 법률 AI 질문</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">⚖️ 법률 AI 질문</div>
+        <div id="lawAskTags" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <input id="lawAskInput" type="text" placeholder="예) 연차 미사용 수당 언제 받나요?" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawAsk()">
           <button onclick="lawAsk()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">질문</button>
@@ -496,6 +520,17 @@ button,a,[role="button"]{touch-action:manipulation}
         <textarea id="restNote" placeholder="한줄 설명 (예: 된장찌개 맛집, 점심 특선 7000원)" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none"></textarea>
         <button onclick="submitAddRest()" class="btn-primary" style="width:100%;padding:12px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">추가</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 법령 본문 모달 -->
+  <div class="modal-overlay" id="lawContentModal">
+    <div class="modal" style="border-radius:var(--radius) var(--radius) 0 0;max-height:92dvh">
+      <div class="modal-header">
+        <span class="modal-title" id="lawContentTitle">법령 본문</span>
+        <button class="modal-close" onclick="$('lawContentModal').classList.remove('open')">×</button>
+      </div>
+      <div class="modal-body" id="lawContentBody"></div>
     </div>
   </div>
 
@@ -1213,19 +1248,24 @@ function switchLawTarget(t){
   lawSearch();
 }
 async function loadLaw(){ lawSearch(); }
+function lawSkeleton(){
+  const item='<div class="law-skel-item"><div class="skel-line w80"></div><div class="skel-line w50"></div></div>';
+  return`<div class="law-skeleton">${item}${item}${item}</div>`;
+}
 async function lawSearch(){
   const q=($('lawSearchInput').value||'근로').trim();
   const box=$('lawSearchResult');
-  box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
+  box.innerHTML=lawSkeleton();
   try{
     const data=await fetch(`${API}/api/law-search?q=${encodeURIComponent(q)}&target=${lawTarget}`).then(r=>r.json());
     let html='';
     if(data.laws&&data.laws.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 법령</div>`;
-      html+=data.laws.map(l=>`<a class="news-card" href="https://www.law.go.kr/법령/${encodeURIComponent(l.name)}" target="_blank" rel="noopener">
+      html+=data.laws.map(l=>`<div class="law-result-card" onclick="openLawContent('${escHtml(l.id)}','${escHtml(l.name).replace(/'/g,"\\'")}')">
         <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(l.name)}</div>
         <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
-      </a>`).join('');
+        <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
+      </div>`).join('');
     }
     if(data.precs&&data.precs.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">⚖️ 판례</div>`;
@@ -1241,14 +1281,60 @@ async function lawSearch(){
         <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
       </a>`).join('');
     }
-    if(!html&&data.debug&&data.debug.length){
-      html=`<div style="padding:16px;color:var(--danger);font-size:12px">검색 결과 없음 (OC:${escHtml(data.oc||'?')} / ${escHtml(data.debug.join(' | '))})</div>`;
-    }
     box.innerHTML=html||'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>';
-  }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
+  }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
+}
+async function openLawContent(id,lawName){
+  if(!id){return;}
+  $('lawContentTitle').textContent=lawName||'법령 본문';
+  $('lawContentBody').innerHTML=lawSkeleton();
+  $('lawContentModal').classList.add('open');
+  try{
+    const data=await fetch(`${API}/api/law-content?id=${encodeURIComponent(id)}`).then(r=>r.json());
+    if(data.error){$('lawContentBody').innerHTML=`<div style="padding:20px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>`;return;}
+    const name=data.lawName||lawName;
+    $('lawContentTitle').textContent=name;
+    if(!data.jos||!data.jos.length){
+      $('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">조문 내용이 없습니다</div>';
+      return;
+    }
+    const topHtml=`<div style="padding:10px 16px;background:var(--green-light);font-size:12px;color:var(--green-dark)">조항을 탭하면 AI 질문으로 가져올 수 있습니다</div>`;
+    const josHtml=data.jos.map(jo=>{
+      const joLabel=`제${jo.num}조${jo.sub?'의'+jo.sub:''}`;
+      const safeLabel=escHtml(`${name} ${joLabel}`).replace(/'/g,"&apos;");
+      const safeContent=escHtml(jo.title||(jo.content||'').slice(0,30)).replace(/'/g,"&apos;");
+      return`<div class="law-jo" onclick="lawArticleClick('${safeLabel}','${safeContent}')">
+        <div class="law-jo-num">${joLabel}${jo.title?' ('+escHtml(jo.title)+')':''}</div>
+        ${jo.content?`<div class="law-jo-content">${escHtml(jo.content)}</div>`:''}
+        ${jo.items.map(h=>`<div style="padding-left:12px;margin-top:4px;font-size:12px;color:var(--text-sub)">②${h.num>1?'~'+h.num:''} ${escHtml((h.content||'').slice(0,60))}${h.content&&h.content.length>60?'...':''}</div>`).join('')}
+        <div class="law-jo-hint">탭하여 AI에 질문</div>
+      </div>`;
+    }).join('');
+    $('lawContentBody').innerHTML=topHtml+josHtml;
+  }catch(e){$('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
+}
+let _lawAskTags=[];
+function lawArticleClick(label,preview){
+  $('lawContentModal').classList.remove('open');
+  _lawAskTags.push({label,preview});
+  renderLawAskTags();
+  $('lawAskInput').focus();
+  $('lawMainPane').scrollIntoView({behavior:'smooth',block:'end'});
+}
+function renderLawAskTags(){
+  const box=$('lawAskTags');
+  if(!_lawAskTags.length){box.style.display='none';box.innerHTML='';return;}
+  box.style.display='flex';
+  box.innerHTML=_lawAskTags.map((t,i)=>`<span class="law-ask-tag">${escHtml(t.label)}<button class="law-ask-tag-del" onclick="removeLawAskTag(${i})">×</button></span>`).join('');
+}
+function removeLawAskTag(i){
+  _lawAskTags.splice(i,1);
+  renderLawAskTags();
 }
 async function lawAsk(){
-  const q=($('lawAskInput').value||'').trim();
+  const userQ=($('lawAskInput').value||'').trim();
+  const tagContext=_lawAskTags.map(t=>t.label).join(', ');
+  const q=tagContext?(tagContext+(userQ?' '+userQ:'')):userQ;
   if(!q)return;
   const box=$('lawAskResult');
   box.innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">AI가 관련 법령을 검색하고 답변을 생성 중입니다...</div>';
