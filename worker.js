@@ -296,10 +296,16 @@ export default {
             }
             return h;
           }
-          // 법령 - 조문단위
+          // 법령 - 조문단위 (최대 50개, 대형 법령 타임아웃 방지)
           const units = [...xml.matchAll(/<조문단위>([\s\S]*?)<\/조문단위>/gi)];
           if (units.length) {
-            return units.map(u => {
+            const MAX = 50;
+            const sliced = units.slice(0, MAX);
+            const more = units.length > MAX ? units.length - MAX : 0;
+            const mstVal = (xml.match(/MST[="](\d+)/) || [])[1] || '';
+            const moreLink = mstVal ? `https://www.law.go.kr/법령/${encodeURIComponent('')}` : 'https://www.law.go.kr';
+            const moreHtml = more > 0 ? `<div style="padding:14px;text-align:center;background:#f0faf0;border-radius:8px;margin:10px 0;font-size:13px">나머지 <strong>${more}개 조항</strong>은 <a href="${moreLink}" target="_blank" style="color:var(--green-dark)">법제처 국가법령정보센터</a>에서 확인하세요</div>` : '';
+            return sliced.map(u => {
               const num   = strip(xtag(u[1], '조문번호'));
               const title = strip(xtag(u[1], '조문제목'));
               const body  = strip(xtag(u[1], '조문내용'));
@@ -313,7 +319,7 @@ export default {
                 ${body?`<div style="margin-top:6px;line-height:1.8;font-size:14px">${body}</div>`:''}
                 ${paras}
               </div>`;
-            }).join('');
+            }).join('') + moreHtml;
           }
           return '';
         };
@@ -331,7 +337,23 @@ export default {
         for (const apiUrl of attempts) {
           try {
             const res = await fetch(apiUrl, { headers: xhdr });
-            const raw = await res.text(); // text()로 자동 디코딩/압축해제
+            // 대형 법령 XML 타임아웃 방지: 500KB 이상이면 앞부분만 사용
+            const MAX_XML = 500 * 1024;
+            let raw;
+            const ct = res.headers.get('content-length');
+            if (ct && parseInt(ct) > MAX_XML) {
+              const reader = res.body.getReader();
+              const chunks = []; let total = 0;
+              while (total < MAX_XML) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value); total += value.length;
+              }
+              reader.cancel();
+              raw = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+            } else {
+              raw = await res.text();
+            }
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
             debug.push(`${tgt}:${res.status}:${raw.length}chars`);
             if (raw.length < 100 || isXmlError(raw)) { debug.push(`filtered:${raw.slice(0,60)}`); continue; }
