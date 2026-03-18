@@ -1190,15 +1190,30 @@ async function loadLaw(){
   const box=$('lawContent');
   box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
   try{
-    const items=await fetch(`${API}/api/news?category=law`).then(r=>r.json());
-    if(!Array.isArray(items)||!items.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">뉴스 없음</div>';return;}
-    box.innerHTML=items.map(it=>{
-      const d=it.pubDate?new Date(it.pubDate).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}):'';
-      return `<a class="news-card" href="${escHtml(it.link||'#')}" target="_blank" rel="noopener">
-        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:6px;color:var(--text)">${escHtml(it.title)}</div>
-        <div style="font-size:12px;color:var(--text-hint)">${escHtml(it.source||'')} ${d}</div>
-      </a>`;
-    }).join('');
+    const data=await fetch(`${API}/api/law-info`).then(r=>r.json());
+    let html='';
+    if(data.laws&&data.laws.length){
+      html+=`<div style="padding:12px 16px 6px;font-size:13px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📜 최근 시행 노동법령</div>`;
+      html+=data.laws.map(l=>{
+        const href=`https://www.law.go.kr/법령/${encodeURIComponent(l.name)}`;
+        return `<a class="news-card" href="${escHtml(href)}" target="_blank" rel="noopener">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:4px;color:var(--text)">${escHtml(l.name)}</div>
+          <div style="font-size:12px;color:var(--text-hint)">${escHtml(l.dept)}${l.date?' · 시행 '+escHtml(l.date):''}</div>
+        </a>`;
+      }).join('');
+    }
+    if(data.precs&&data.precs.length){
+      html+=`<div style="padding:16px 16px 6px;font-size:13px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">⚖️ 최근 판례</div>`;
+      html+=data.precs.map(p=>{
+        const href=`https://www.law.go.kr/판례/${encodeURIComponent(p.num||p.name)}`;
+        return `<a class="news-card" href="${escHtml(href)}" target="_blank" rel="noopener">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:4px;color:var(--text)">${escHtml(p.name)}</div>
+          <div style="font-size:12px;color:var(--text-hint)">${escHtml(p.court)}${p.date?' · '+escHtml(p.date):''}${p.num?' · '+escHtml(p.num):''}</div>
+        </a>`;
+      }).join('');
+    }
+    if(!html){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">법령 정보 없음</div>';return;}
+    box.innerHTML=html;
   }catch(e){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패</div>';}
 }
 async function loadNews(){

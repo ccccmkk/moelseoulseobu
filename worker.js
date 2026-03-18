@@ -163,6 +163,51 @@ export default {
         return json(items);
       }
 
+      // ── 법령 정보 ──
+      if (p === '/api/law-info' && m === 'GET') {
+        const OC = 'STEP-OPENAPI';
+        const cached = await env.DB.prepare("SELECT data, cached_at FROM news_cache WHERE category='law_api'").first();
+        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 3600) {
+          try { return json(JSON.parse(cached.data)); } catch (e) {}
+        }
+        const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const [lawRes, precRes] = await Promise.allSettled([
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=%EA%B7%BC%EB%A1%9C&display=15&sort=efYd`),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=%EA%B7%BC%EB%A1%9C&display=15&sort=date`)
+        ]);
+        let laws = [], precs = [];
+        if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
+          try {
+            const d = await lawRes.value.json();
+            const arr = d?.LawSearch?.law || [];
+            laws = (Array.isArray(arr) ? arr : [arr]).map(l => ({
+              name: l['법령명한글'] || l['법령명'] || '',
+              dept: l['소관부처명'] || '',
+              date: fmtDate(l['시행일자'] || l['공포일자'] || ''),
+              id: l['법령일련번호'] || ''
+            })).filter(l => l.name);
+          } catch (e) {}
+        }
+        if (precRes.status === 'fulfilled' && precRes.value.ok) {
+          try {
+            const d = await precRes.value.json();
+            const arr = d?.PrecSearch?.prec || [];
+            precs = (Array.isArray(arr) ? arr : [arr]).map(p => ({
+              name: p['사건명'] || '',
+              num: p['사건번호'] || '',
+              court: p['법원명'] || '',
+              date: fmtDate(p['선고일자'] || ''),
+              id: p['판례일련번호'] || ''
+            })).filter(p => p.name);
+          } catch (e) {}
+        }
+        const result = { laws, precs };
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare("INSERT INTO news_cache(category,data,cached_at) VALUES('law_api',?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?")
+          .bind(JSON.stringify(result), now, JSON.stringify(result), now).run();
+        return json(result);
+      }
+
       // ── 글 목록 ──
       if (p === '/api/posts' && m === 'GET') {
         const rows = await env.DB.prepare(
