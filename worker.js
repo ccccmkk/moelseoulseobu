@@ -163,6 +163,114 @@ export default {
         return json(items);
       }
 
+      // ── 법령 검색 ──
+      if (p === '/api/law-search' && m === 'GET') {
+        const OC = 'STEP-OPENAPI';
+        const q = url.searchParams.get('q') || '근로';
+        const target = url.searchParams.get('target') || 'all';
+        const cacheKey = `law_s_${target}_${q.slice(0,30)}`;
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
+        if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
+          try { return json(JSON.parse(cached.data)); } catch (e) {}
+        }
+        const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const enc = encodeURIComponent(q);
+        const tasks = [];
+        if (target === 'all' || target === 'law')  tasks.push(['law',  fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=10&sort=efYd`)]);
+        if (target === 'all' || target === 'prec')  tasks.push(['prec', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=10&sort=date`)]);
+        if (target === 'all' || target === 'expc')  tasks.push(['expc', fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=10`)]);
+        const settled = await Promise.allSettled(tasks.map(([, f]) => f));
+        let laws = [], precs = [], expcs = [];
+        for (let i = 0; i < tasks.length; i++) {
+          const [type] = tasks[i]; const res = settled[i];
+          if (res.status !== 'fulfilled' || !res.value.ok) continue;
+          try {
+            const d = await res.value.json();
+            if (type === 'law') {
+              const arr = d?.LawSearch?.law || [];
+              laws = (Array.isArray(arr) ? arr : [arr]).map(l => ({
+                name: l['법령명한글'] || l['법령명'] || '', dept: l['소관부처명'] || '',
+                date: fmtDate(l['시행일자'] || l['공포일자'] || ''), id: l['법령일련번호'] || ''
+              })).filter(l => l.name);
+            } else if (type === 'prec') {
+              const arr = d?.PrecSearch?.prec || [];
+              precs = (Array.isArray(arr) ? arr : [arr]).map(p => ({
+                name: p['사건명'] || '', num: p['사건번호'] || '',
+                court: p['법원명'] || '', date: fmtDate(p['선고일자'] || ''), id: p['판례일련번호'] || ''
+              })).filter(p => p.name);
+            } else if (type === 'expc') {
+              const arr = d?.ExpCSearch?.expc || d?.ExpcSearch?.expc || [];
+              expcs = (Array.isArray(arr) ? arr : [arr]).map(e => ({
+                name: e['해석례명'] || e['제목'] || '', dept: e['소관부처명'] || e['소관부처'] || '',
+                date: fmtDate(e['회신일자'] || e['시행일자'] || ''), id: e['해석례일련번호'] || e['일련번호'] || ''
+              })).filter(e => e.name);
+            }
+          } catch (e) {}
+        }
+        const result = { laws, precs, expcs, query: q };
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+          .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
+        return json(result);
+      }
+
+      // ── 법률 AI 질문 ──
+      if (p === '/api/law-ask' && m === 'POST') {
+        if (!env.GEMINI_API_KEY) return json({ error: 'AI 서비스를 사용할 수 없습니다.' }, 503);
+        const b = await request.json();
+        const question = (b.question || '').trim().slice(0, 500);
+        if (!question) return json({ error: '질문을 입력해주세요.' }, 400);
+        const OC = 'STEP-OPENAPI';
+        const enc = encodeURIComponent(question.slice(0, 50));
+        const fmtDate = d => d && d.length === 8 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (d || '');
+        const [lawRes, precRes, expcRes] = await Promise.allSettled([
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=law&type=JSON&query=${enc}&display=5&sort=efYd`),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`),
+          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`)
+        ]);
+        let sources = [], context = '';
+        if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
+          try {
+            const d = await lawRes.value.json();
+            const arr = (Array.isArray(d?.LawSearch?.law) ? d.LawSearch.law : d?.LawSearch?.law ? [d.LawSearch.law] : []).filter(l => l['법령명한글'] || l['법령명']);
+            if (arr.length) {
+              context += '【관련 법령】\n' + arr.map(l => `- ${l['법령명한글']||l['법령명']} (시행: ${fmtDate(l['시행일자']||'')})`).join('\n') + '\n\n';
+              arr.forEach(l => sources.push({ type: 'law', name: l['법령명한글']||l['법령명'], id: l['법령일련번호'] }));
+            }
+          } catch (e) {}
+        }
+        if (precRes.status === 'fulfilled' && precRes.value.ok) {
+          try {
+            const d = await precRes.value.json();
+            const arr = (Array.isArray(d?.PrecSearch?.prec) ? d.PrecSearch.prec : d?.PrecSearch?.prec ? [d.PrecSearch.prec] : []).filter(p => p['사건명']);
+            if (arr.length) {
+              context += '【관련 판례】\n' + arr.map(p => `- ${p['사건명']} (${p['법원명']||''} ${fmtDate(p['선고일자']||'')})`).join('\n') + '\n\n';
+              arr.forEach(p => sources.push({ type: 'prec', name: p['사건명'], num: p['사건번호'], court: p['법원명'], date: fmtDate(p['선고일자']||'') }));
+            }
+          } catch (e) {}
+        }
+        if (expcRes.status === 'fulfilled' && expcRes.value.ok) {
+          try {
+            const d = await expcRes.value.json();
+            const arr = (Array.isArray(d?.ExpCSearch?.expc) ? d.ExpCSearch.expc : d?.ExpCSearch?.expc ? [d.ExpCSearch.expc] : []).filter(e => e['해석례명']||e['제목']);
+            if (arr.length) {
+              context += '【관련 해석례】\n' + arr.map(e => `- ${e['해석례명']||e['제목']||''}`).join('\n') + '\n\n';
+              arr.forEach(e => sources.push({ type: 'expc', name: e['해석례명']||e['제목']||'' }));
+            }
+          } catch (e) {}
+        }
+        const prompt = `당신은 대한민국 노동법 전문가입니다. 아래 검색된 법령·판례·해석례를 참고하여 질문에 답변하세요.\n\n${context || '(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n'}질문: ${question}\n\n답변 시 유의사항:\n- 관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조)\n- 일반인이 이해하기 쉽게 설명하세요\n- 마크다운 없이 일반 텍스트로 작성하세요\n- 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요`;
+        const gResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } } }) }
+        );
+        const gData = await gResp.json();
+        const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!answer) return json({ error: 'AI 응답 생성 실패' }, 500);
+        return json({ answer, sources });
+      }
+
       // ── 글 목록 ──
       if (p === '/api/posts' && m === 'GET') {
         const rows = await env.DB.prepare(
@@ -695,28 +803,149 @@ export default {
       // ── 건강봇 에이전트 ──
       const AGENT_ID = '000000099';
       if (p === '/api/agent/health/post' && m === 'POST') {
-        // 기존 health 뉴스 캐시 우선 사용, 없으면 직접 fetch
-        let items = [];
-        const cached = await env.DB.prepare('SELECT data FROM news_cache WHERE category=?').bind('health').first();
-        if (cached) { try { items = JSON.parse(cached.data); } catch(e) {} }
-        if (!items.length) {
-          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent('질병관리청 OR 보건복지부 건강') + '&hl=ko&gl=KR&ceid=KR:ko';
-          const resp = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' } });
-          if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다. 건강 탭에서 먼저 뉴스를 로드해주세요.' }, 502);
-          items = parseRSS(await resp.text());
+        // 국가건강정보포털 공공 API (질병관리청 KDCA)
+        const KDCA_TOKEN = '19cf9b774122';
+        const KDCA_CONTENTS = [
+          // 감염·호흡기
+          { sn: 5423, name: '감기' }, { sn: 5232, name: '인플루엔자(독감)' }, { sn: 5249, name: '폐렴' },
+          { sn: 5466, name: '천식' }, { sn: 6253, name: '기침' }, { sn: 5239, name: '식중독' },
+          { sn: 6551, name: '탈수' }, { sn: 5806, name: '알레르기' }, { sn: 6581, name: '두드러기' },
+          { sn: 5284, name: '뇌수막염' }, { sn: 6561, name: '결핵' }, { sn: 6677, name: '코로나19' },
+          { sn: 5307, name: 'A형간염' }, { sn: 6672, name: 'B형간염' }, { sn: 5309, name: 'C형간염' },
+          { sn: 5703, name: '만성비염' }, { sn: 1101, name: '비부비동염' }, { sn: 5707, name: '편도염' },
+          { sn: 5801, name: '기관지확장증' }, { sn: 6536, name: '만성폐쇄성폐질환' },
+          // 심장·혈관
+          { sn: 5300, name: '고혈압' }, { sn: 5243, name: '급성 심근경색증' }, { sn: 6566, name: '협심증' },
+          { sn: 1102, name: '부정맥' }, { sn: 3828, name: '심부전' }, { sn: 5337, name: '흉통' },
+          { sn: 5260, name: '죽상경화증' }, { sn: 5854, name: '심부 정맥 혈전증' }, { sn: 6540, name: '폐 색전증' },
+          // 대사·내분비
+          { sn: 5305, name: '당뇨병' }, { sn: 6694, name: '비만' }, { sn: 5304, name: '고혈당' },
+          { sn: 5427, name: '대사증후군' }, { sn: 6715, name: '이상지질혈증' }, { sn: 5242, name: '고칼슘혈증' },
+          { sn: 5810, name: '갑상선기능저하증' }, { sn: 1831, name: '갑상선기능항진증' },
+          // 소화기
+          { sn: 6263, name: '소화불량' }, { sn: 5827, name: '변비' }, { sn: 1667, name: '설사' },
+          { sn: 1081, name: '복통' }, { sn: 6777, name: '위염' }, { sn: 5359, name: '위십이지장 궤양' },
+          { sn: 2057, name: '위식도역류질환' }, { sn: 5248, name: '췌장염' }, { sn: 5818, name: '치핵' },
+          { sn: 5297, name: '음주와 건강' }, { sn: 5310, name: '알코올 간질환' }, { sn: 6735, name: '담석증' },
+          { sn: 5820, name: '담낭염' }, { sn: 5804, name: '구역질과 구토' }, { sn: 5858, name: '복부 팽만' },
+          // 근골격·통증
+          { sn: 3796, name: '요통' }, { sn: 5830, name: '두통' }, { sn: 6557, name: '편두통' },
+          { sn: 5441, name: '염좌' }, { sn: 5463, name: '골절' }, { sn: 1988, name: '골관절염' },
+          { sn: 5833, name: '골다공증' }, { sn: 5972, name: '일자목(거북목)증후군' },
+          { sn: 1567, name: '오십견' }, { sn: 6292, name: '수근관 증후군' },
+          { sn: 3348, name: '추간판탈출증(디스크)' }, { sn: 4047, name: '척추관 협착증' },
+          { sn: 3512, name: '좌골신경통' }, { sn: 5975, name: '족저근막염' },
+          { sn: 5687, name: '하지정맥류' }, { sn: 6732, name: '통풍' },
+          { sn: 5826, name: '섬유근육통' }, { sn: 5536, name: '반월상 연골판 손상' },
+          // 눈
+          { sn: 6306, name: '안구건조증' }, { sn: 5226, name: '노안' }, { sn: 6689, name: '백내장' },
+          { sn: 6690, name: '녹내장' }, { sn: 5846, name: '눈 충혈' }, { sn: 5269, name: '황반변성' },
+          { sn: 5223, name: '비문증(날파리증)' },
+          // 귀·코·입
+          { sn: 5706, name: '이명' }, { sn: 5705, name: '목쉼' }, { sn: 3568, name: '중이염' },
+          { sn: 5362, name: '코골이' }, { sn: 6308, name: '수면무호흡증' }, { sn: 3768, name: '코피' },
+          { sn: 5841, name: '구취' }, { sn: 6288, name: '충치' }, { sn: 5716, name: '잇몸병(치주질환)' },
+          { sn: 5704, name: '구강건조증' }, { sn: 5485, name: '구내염' }, { sn: 6550, name: '어지럼증' },
+          // 피부
+          { sn: 3947, name: '여드름' }, { sn: 5694, name: '습진' }, { sn: 6289, name: '지루 피부염' },
+          { sn: 5695, name: '가려움증' }, { sn: 5690, name: '원형탈모' }, { sn: 2067, name: '남성형 탈모' },
+          { sn: 5500, name: '일광화상' }, { sn: 6670, name: '동상' }, { sn: 5693, name: '발 백선(무좀)' },
+          // 정신·신경
+          { sn: 5294, name: '우울감' }, { sn: 6549, name: '만성피로증후군' },
+          { sn: 5495, name: '뇌졸중' }, { sn: 5853, name: '실신' },
+          { sn: 5860, name: '다한증' }, { sn: 6487, name: '손떨림(수전증)' },
+          // 비뇨기
+          { sn: 5968, name: '방광염' }, { sn: 6674, name: '요로감염' }, { sn: 5433, name: '신장결석' },
+          { sn: 3193, name: '전립선비대증' }, { sn: 1104, name: '빈혈' },
+          // 생활·예방
+          { sn: 5293, name: '운동과 건강' }, { sn: 5299, name: '흡연과 건강' },
+          { sn: 5482, name: '황사와 미세먼지' }, { sn: 6545, name: '올바른 손씻기' },
+          { sn: 6548, name: '건강기능식품' }, { sn: 6671, name: '국가건강검진' },
+          { sn: 6251, name: '신체활동' }, { sn: 6547, name: '건강한 체중조절' },
+          { sn: 5298, name: '식이영양' }, { sn: 5353, name: '영양제 올바른 복용' },
+          { sn: 3848, name: '폭염 건강수칙' }, { sn: 2048, name: '겨울철 한파 건강수칙' },
+          { sn: 6529, name: '직업성 호흡기질환' }, { sn: 6309, name: '스포츠 손상 예방' },
+          { sn: 6226, name: '심폐소생술(CPR)' }, { sn: 6264, name: '소음과 건강' },
+        ];
+        // 최근 봇 게시물에서 사용한 주제 추출 → 중복 방지
+        const recentBot = await env.DB.prepare('SELECT blocks FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 15').bind(AGENT_ID).all();
+        const usedTopics = new Set();
+        for (const rp of (recentBot.results || [])) {
+          try {
+            const bl = JSON.parse(rp.blocks);
+            const txt = bl[0]?.content || '';
+            const tm = txt.match(/오늘의 건강 정보[:\s]+([^\n]+)/);
+            if (tm) usedTopics.add(tm[1].trim());
+          } catch(e) {}
         }
-        if (!items.length) return json({ error: '기사를 찾지 못했습니다' }, 404);
-        // 최근 5개 중 랜덤 선택
-        const item = items[Math.floor(Math.random() * Math.min(5, items.length))];
-        const srcLabel = item.source || '건강 정보';
-        const content = `📋 [${srcLabel}]\n\n${item.title}${item.link ? `\n\n🔗 원문: ${item.link}` : ''}\n\n─\n출처: 공신력 있는 건강 정보를 제공합니다.\n더 궁금한 점은 질병관리청 1339 또는 보건복지부 129로 문의하세요.`;
+        const available = KDCA_CONTENTS.filter(c => !usedTopics.has(c.name));
+        const candidates = available.length ? available : KDCA_CONTENTS;
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+
+        // KDCA API 호출 (XML)
+        let xmlText = '';
+        try {
+          const kdcaResp = await fetch(`http://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`);
+          if (!kdcaResp.ok) throw new Error(`HTTP ${kdcaResp.status}`);
+          xmlText = await kdcaResp.text();
+        } catch(e) {
+          return json({ error: 'KDCA API 호출 실패: ' + e.message }, 502);
+        }
+
+        // XML에서 CDATA 추출 헬퍼
+        const extractCD = (xml, tag) => {
+          const re = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i');
+          const mt = re.exec(xml); return mt ? mt[1].trim() : '';
+        };
+        // 에러 코드 확인
+        const code = extractCD(xmlText, 'CODE');
+        if (code && code !== 'S001') return json({ error: `KDCA API 오류 코드: ${code}` }, 502);
+
+        const topic = extractCD(xmlText, 'CNTNTSSN') || chosen.name;
+        // 섹션 파싱 (최대 4개)
+        const sections = [];
+        const ciBlocks = xmlText.match(/<cntntsCI>([\s\S]*?)<\/cntntsCI>/g) || [];
+        for (const ci of ciBlocks.slice(0, 4)) {
+          const nm = extractCD(ci, 'CNTNTS_CL_NM');
+          const cn = extractCD(ci, 'CNTNTSCL_CN');
+          if (nm && cn && cn.length > 10) sections.push({ title: nm, content: cn });
+        }
+        if (!sections.length) return json({ error: `"${topic}" 건강 정보 내용이 없습니다 (cntntsSn=${chosen.sn})` }, 404);
+
+        // Gemini로 친근한 게시글 요약 생성
+        let postBody = '';
+        const rawText = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n').slice(0, 3000);
+        if (env.GEMINI_API_KEY) {
+          try {
+            const prompt = `다음은 국가건강정보포털의 "${topic}" 건강 정보입니다.\n직장인 동료들에게 알려주는 짧은 건강 팁 형식으로, 핵심 내용을 4~6문장으로 정리해주세요.\n- 친근하고 실용적인 톤으로 작성\n- 마크다운 없이 일반 텍스트로\n- 예방법이나 주의사항 위주로\n\n원문:\n${rawText}`;
+            const gResp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 0 } } }) }
+            );
+            const gData = await gResp.json();
+            const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (gText) {
+              postBody = gText.trim();
+              const gIn = gData.usageMetadata?.promptTokenCount || 0;
+              const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
+              await env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+                .bind(gIn, gOut, Math.floor(Date.now()/1000), gIn, gOut, Math.floor(Date.now()/1000)).run();
+            }
+          } catch(e) {}
+        }
+        // AI 요약 실패 시 원문 첫 2섹션으로 대체
+        if (!postBody) {
+          postBody = sections.slice(0, 2).map(s => `▪ ${s.title}\n${s.content.slice(0, 300)}`).join('\n\n');
+        }
+        const content = `🏥 오늘의 건강 정보: ${topic}\n\n${postBody}\n\n─\n📋 출처: 국가건강정보포털 (질병관리청)\n더 궁금한 점은 ☎1339로 문의하세요.`;
         const blocks = [{ type: 'text', content }];
         const postId = 'post_' + Date.now();
         await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
           .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
           .bind(postId, '건강', '건강').run();
-        return json({ ok: true, id: postId, title: item.title });
+        return json({ ok: true, id: postId, title: topic });
       }
       if (p === '/api/agent/health/reply' && m === 'POST') {
         // 에이전트 게시글에 달린 미답변 댓글 찾기
@@ -908,9 +1137,24 @@ export default {
     }
   },
 
-  // Cloudflare Cron 트리거 (10분마다 자동 실행)
-  async scheduled(_event, env, ctx) {
+  // Cloudflare Cron 트리거
+  // "0 1 * * *"  → 10:00 KST  건강 글 게시
+  // "0 7 * * *"  → 16:00 KST  건강 글 게시
+  // "*/10 * * * *" → 10분마다 댓글 자동 답변
+  async scheduled(event, env, ctx) {
     await initDB(env);
+    const cron = event.cron;
+    // 하루 2회 건강 정보 글 자동 게시 (10:00 / 16:00 KST)
+    if (cron === '0 1 * * *' || cron === '0 7 * * *') {
+      ctx.waitUntil(
+        fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }).catch(() => {})
+      );
+    }
+    // 10분마다 댓글 자동 답변
     ctx.waitUntil(
       fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
         method: 'POST',
