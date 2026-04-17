@@ -1249,7 +1249,7 @@ async function fetchPosts(reset=false){
   if(feedLoading||(reset===false&&!feedHasMore))return;
   feedLoading=true;
   if(reset){posts=[];feedCursor=null;feedHasMore=true;}
-  const params=new URLSearchParams({limit:'20'});
+  const params=new URLSearchParams({limit:'6'});
   if(feedCursor)params.set('before',String(feedCursor));
   try{
     const r=await fetch(`${API}/api/posts?${params}`);
