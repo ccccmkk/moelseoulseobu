@@ -483,12 +483,18 @@ export default {
         return json({ answer, sources, model: 'Gemini 2.5 Flash' });
       }
 
-      // ── 글 목록 ──
+      // ── 글 목록 (커서 기반 페이지네이션) ──
       if (p === '/api/posts' && m === 'GET') {
-        const rows = await env.DB.prepare(
-          'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id ORDER BY p.created_at DESC'
-        ).all();
-        return json(rows.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })));
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 50);
+        const before = parseInt(url.searchParams.get('before') || '0');
+        const baseSQL = 'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
+        const rows = before > 0
+          ? await env.DB.prepare(baseSQL + ' WHERE p.created_at < ? ORDER BY p.created_at DESC LIMIT ?').bind(before, limit + 1).all()
+          : await env.DB.prepare(baseSQL + ' ORDER BY p.created_at DESC LIMIT ?').bind(limit + 1).all();
+        const items = rows.results || [];
+        const has_more = items.length > limit;
+        if (has_more) items.pop();
+        return json({ posts: items.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })), has_more, next_cursor: has_more ? items[items.length - 1].created_at : null });
       }
 
       // ── 글 작성 ──
@@ -812,18 +818,23 @@ export default {
       if (p === '/api/users/bulk' && m === 'POST') {
         const { users: list } = await request.json();
         if (!Array.isArray(list)) return json({ error: 'invalid' }, 400);
-        let created = 0, skipped = 0;
-        for (const u of list) {
-          const uid = (u.id || '').trim(), uname = (u.name || '').trim(), upw = (u.password || '1234').trim(), udept = (u.dept || '').trim();
-          if (!uid || !/^\d{9}$/.test(uid) || !uname) { skipped++; continue; }
-          const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(uid).first();
-          if (exists) { skipped++; continue; }
-          await env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?)')
-            .bind(uid, uname, udept, upw, 'active', Math.floor(Date.now() / 1000)).run();
-          await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(uid, 'user').run();
-          created++;
+        const now = Math.floor(Date.now() / 1000);
+        const valid = list.map(u => ({
+          uid: (u.id || '').trim(), uname: (u.name || '').trim(),
+          upw: (u.password || '1234').trim(), udept: (u.dept || '').trim()
+        })).filter(u => u.uid && /^\d{9}$/.test(u.uid) && u.uname);
+        if (!valid.length) return json({ ok: true, created: 0, skipped: list.length });
+        const placeholders = valid.map(() => '?').join(',');
+        const existing = await env.DB.prepare(`SELECT id FROM users WHERE id IN (${placeholders})`).bind(...valid.map(u => u.uid)).all();
+        const existingSet = new Set((existing.results || []).map(r => r.id));
+        const toInsert = valid.filter(u => !existingSet.has(u.uid));
+        if (toInsert.length) {
+          await env.DB.batch([
+            ...toInsert.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
+            ...toInsert.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
+          ]);
         }
-        return json({ ok: true, created, skipped });
+        return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
       }
       if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
         const userId = decodeURIComponent(p.split('/')[3]);
@@ -876,7 +887,7 @@ export default {
         const logResult = async (uid, result) => {
           try {
             await env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(uid || 'unknown', ip, ua, result, now).run();
-            await env.DB.prepare('DELETE FROM login_logs WHERE id NOT IN (SELECT id FROM login_logs ORDER BY created_at DESC LIMIT 1000)').run();
+            await env.DB.prepare('DELETE FROM login_logs WHERE created_at < (SELECT created_at FROM login_logs ORDER BY created_at DESC LIMIT 1 OFFSET 999)').run();
           } catch(e) {}
         };
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
@@ -1231,17 +1242,12 @@ export default {
         const replyBody = await request.json().catch(() => ({}));
         const isDebugMode = replyBody.debug === true; // 관리자 수동 실행 시 Claude 사용 금지
         // 에이전트 게시글에 달린 미답변 댓글 찾기
-        const agentPosts = await env.DB.prepare('SELECT id FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 20').bind(AGENT_ID).all();
-        if (!agentPosts.results.length) return json({ error: '에이전트 게시글 없음' }, 404);
-        let targetComment = null;
-        for (const post of agentPosts.results) {
-          const cmts = await env.DB.prepare('SELECT id, content FROM comments WHERE post_id=? ORDER BY created_at ASC').bind(post.id).all();
-          for (const cmt of cmts.results) {
-            const already = await env.DB.prepare('SELECT 1 FROM comment_replies WHERE comment_id=? AND author=?').bind(cmt.id, AGENT_ID).first();
-            if (!already) { targetComment = cmt; break; }
-          }
-          if (targetComment) break;
-        }
+        const agentPostCheck = await env.DB.prepare('SELECT 1 FROM posts WHERE author=? LIMIT 1').bind(AGENT_ID).first();
+        if (!agentPostCheck) return json({ error: '에이전트 게시글 없음' }, 404);
+        const targetRow = await env.DB.prepare(
+          'SELECT c.id, c.content FROM comments c JOIN posts p ON c.post_id=p.id WHERE p.author=? AND NOT EXISTS (SELECT 1 FROM comment_replies cr WHERE cr.comment_id=c.id AND cr.author=?) ORDER BY c.created_at ASC LIMIT 1'
+        ).bind(AGENT_ID, AGENT_ID).first();
+        const targetComment = targetRow || null;
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
         // Gemini(무료) 우선 → 한도초과 시 Claude Haiku 폴백
         const SYSTEM_PROMPT = '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.';

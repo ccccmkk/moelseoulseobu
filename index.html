@@ -447,6 +447,8 @@ button,a,[role="button"]{touch-action:manipulation}
   <div id="tabFeed" class="tab-page active">
     <div id="ptrIndicator"><div class="ptr-spinner" id="ptrSpinner"></div><span class="ptr-text" id="ptrText">당겨서 새로고침</span></div>
     <div id="feed"></div>
+    <div id="feedSentinel" style="height:1px;margin-top:8px"></div>
+    <div id="feedLoader" style="display:none;text-align:center;padding:16px 0"><div class="ptr-spinner" style="display:inline-block;width:20px;height:20px"></div></div>
   </div>
 
   <!-- 뉴스/정보 탭 -->
@@ -1136,6 +1138,7 @@ function updateNotiBadges(hasNew){
 let posts=[],events=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
 let badgePrefs={};
+let feedCursor=null,feedHasMore=true,feedLoading=false;
 let currentUser='',currentUserName='',currentUserRole='user',sessionToken=null;
 let editingKey=null,editorBlocks=[],commentRepliesCache={};
 let commentingPostId=null;
@@ -1242,7 +1245,22 @@ function switchSubTab(sub){
 }
 
 // ── API ──
-async function fetchPosts(){try{const r=await fetch(`${API}/api/posts`);posts=await r.json();}catch(e){posts=[];}}
+async function fetchPosts(reset=false){
+  if(feedLoading||(reset===false&&!feedHasMore))return;
+  feedLoading=true;
+  if(reset){posts=[];feedCursor=null;feedHasMore=true;}
+  const params=new URLSearchParams({limit:'20'});
+  if(feedCursor)params.set('before',String(feedCursor));
+  try{
+    const r=await fetch(`${API}/api/posts?${params}`);
+    const d=await r.json();
+    const newPosts=d.posts||[];
+    posts=[...posts,...newPosts];
+    feedHasMore=d.has_more||false;
+    feedCursor=d.next_cursor||null;
+  }catch(e){if(reset)posts=[];}
+  finally{feedLoading=false;}
+}
 async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${encodeURIComponent(currentUser)}`);const a=await r.json();likedPosts=new Set(a);}catch(e){}}
 async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events=await r.json();}catch(e){events=[];}}
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
@@ -1265,7 +1283,7 @@ async function fetchRoles(){
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
-async function initApp(){await Promise.all([fetchPosts(),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
+async function initApp(){await Promise.all([fetchPosts(true),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
 
 // ── 뉴스 ──
 let newsCat='labor', lawLoaded=false, lunchLoaded=false;
@@ -1554,28 +1572,54 @@ function renderBlocksInCard(p,blogMode){
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   return html;
 }
+function postCardHtml(p){
+  const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
+  const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
+  const isBlog=p.mode==='blog';
+  return`<div class="post-card" id="pc-${key}">
+    <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+    ${isBlog?`<div style="cursor:pointer" onclick="openFullPost('${key}')">${renderBlocksInCard(p,true)}</div>`:renderBlocksInCard(p,false)}
+    ${isBlog?`<button class="btn-more" onclick="openFullPost('${key}')">더보기 →</button>`:''}
+    ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
+    <div class="post-actions">
+      <button class="act-btn${liked?' liked':''}" onclick="toggleLike('${key}')"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="lc-${key}">${p.like_count||0}</span></button>
+      <button class="act-btn" onclick="openComments('${key}')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span style="font-size:12px">${p.comment_count||''}</span></button>
+    </div>
+  </div>`;
+}
 function renderFeed(){
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
   if(!posts.length){feed.innerHTML=compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
-  const cards=[...posts].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).map(p=>{
-    const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
-    const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
-    const isBlog=p.mode==='blog';
-    return`<div class="post-card">
-      <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
-      ${isBlog?`<div style="cursor:pointer" onclick="openFullPost('${key}')">${renderBlocksInCard(p,true)}</div>`:renderBlocksInCard(p,false)}
-      ${isBlog?`<button class="btn-more" onclick="openFullPost('${key}')">더보기 →</button>`:''}
-      ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
-      <div class="post-actions">
-        <button class="act-btn${liked?' liked':''}" onclick="toggleLike('${key}')"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span id="lc-${key}">${p.like_count||0}</span></button>
-        <button class="act-btn" onclick="openComments('${key}')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span style="font-size:12px">${p.comment_count||''}</span></button>
-      </div>
-    </div>`;
-  }).join('');
-  feed.innerHTML=compose+cards;
+  feed.innerHTML=compose+posts.map(p=>postCardHtml(p)).join('');
   $('composeBox').onclick=openWriteModal;
   initCarousels();
+  setupFeedObserver();
+}
+function appendFeedCards(newPosts){
+  const feed=$('feed');
+  newPosts.forEach(p=>{
+    const div=document.createElement('div');
+    div.innerHTML=postCardHtml(p);
+    feed.appendChild(div.firstChild);
+  });
+  initCarousels();
+}
+let _feedObserver=null;
+function setupFeedObserver(){
+  if(_feedObserver)_feedObserver.disconnect();
+  const sentinel=$('feedSentinel');
+  if(!sentinel||!feedHasMore)return;
+  _feedObserver=new IntersectionObserver(async entries=>{
+    if(!entries[0].isIntersecting||feedLoading||!feedHasMore)return;
+    const loader=$('feedLoader');if(loader)loader.style.display='block';
+    const prevLen=posts.length;
+    await fetchPosts();
+    const loader2=$('feedLoader');if(loader2)loader2.style.display='none';
+    if(posts.length>prevLen)appendFeedCards(posts.slice(prevLen));
+    if(!feedHasMore&&_feedObserver){_feedObserver.disconnect();_feedObserver=null;}
+  },{threshold:0,rootMargin:'200px'});
+  _feedObserver.observe(sentinel);
 }
 function toggleMenu(e,id){e.stopPropagation();document.querySelectorAll('.more-menu.open').forEach(m=>{if(m.id!==id)m.classList.remove('open')});$(id).classList.toggle('open');}
 document.addEventListener('click',()=>document.querySelectorAll('.more-menu.open').forEach(m=>m.classList.remove('open')));
@@ -1800,7 +1844,7 @@ function editPost(key){
   $('postKeyword').value=p.keyword||'';$('blogModeToggle').checked=p.mode==='blog';renderEditor();$('writeModal').classList.add('open');
 }
 $('blogModeToggle').onchange=function(){renderEditor();};
-async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);renderFeed();}
+async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);const el=$('pc-'+key);if(el)el.remove();}
 $('modalClose').onclick=()=>$('writeModal').classList.remove('open');
 $('modalCancel').onclick=()=>$('writeModal').classList.remove('open');
 $('writeModal').onclick=e=>{if(e.target===$('writeModal'))$('writeModal').classList.remove('open');};
@@ -1851,11 +1895,18 @@ $('submitPost').onclick=async function(){
     if(editingKey){
       await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode})});
       const p=posts.find(x=>x.id===editingKey);if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;}
+      const el=$('pc-'+editingKey);if(el&&p){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}initCarousels();
     }else{
       const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode})});
-      const d=await r.json();posts.unshift({id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,keyword:keyword||null,mode});
+      const d=await r.json();
+      const newPost={id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,comment_count:0,keyword:keyword||null,mode};
+      posts.unshift(newPost);
+      const feed=$('feed');const compose=$('composeBox');
+      const div=document.createElement('div');div.innerHTML=postCardHtml(newPost);
+      feed.insertBefore(div.firstChild,compose?compose.nextSibling:feed.firstChild);
+      initCarousels();
     }
-    renderFeed();$('writeModal').classList.remove('open');
+    $('writeModal').classList.remove('open');
   }catch(e){alert('저장 실패: '+e.message);}finally{$('submitPost').disabled=false;}
 };
 
@@ -2211,7 +2262,7 @@ async function submitContest(){
     if(pulling&&(e.changedTouches[0].clientY-startY)>110){
       ind.style.transition='none';ind.style.height='48px';
       txt.textContent='새로고침 중...';spinner.style.display='block';
-      fetchPosts().then(()=>{renderFeed();reset();});
+      fetchPosts(true).then(()=>{renderFeed();reset();});
     }else{reset();}
     startY=0;pulling=false;
   },{passive:true});
@@ -2850,7 +2901,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
 $('searchInput').oninput=function(){renderSearch(this.value.trim());};
 $('logoutBtn').onclick=async function(){
   if(sessionToken){try{await fetch(`${API}/api/sessions`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken})});}catch(e){}}
-  currentUser='';currentUserName='';sessionToken=null;posts=[];events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
+  currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';
   $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
