@@ -338,7 +338,7 @@ export default {
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const lawFetch = (t, params) =>
-          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${t}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS }, 9000);
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${t}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS }, 15000);
         const tasks = [];
         if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('law',  'display=10&sort=efYd')]);
         if (target === 'all' || target === 'prec')  tasks.push(['prec', lawFetch('prec', 'display=10&sort=date')]);
