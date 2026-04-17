@@ -45,7 +45,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .appbar-btn:hover{background:rgba(255,255,255,.32)}
 /* 탭 */
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%}
-.tab-page.active{display:block}
+.tab-page.active{display:block;animation:tabFadeIn .13s ease}
+@keyframes tabFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 /* 서브탭 */
 .sub-tabs{display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
 .sub-tab{flex:1;padding:9px;border:none;background:none;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-hint);font-family:inherit;transition:.15s}
@@ -1220,7 +1221,7 @@ function switchTab(tab){
   $('fab').className='fab'+(tab==='Feed'?' show':'');
   if(tab==='News')loadNews();
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
-  if(tab==='Chal'){fetchAll().then(renderChal);}
+  if(tab==='Chal'){renderChal().catch(()=>{});}
   if(tab==='More'){
     updateAvatarEl($('moreUserAvatar'),currentUser);
     $('moreUserName').textContent=userNames[currentUser]||currentUser;
@@ -1963,8 +1964,9 @@ async function submitEvent(){
 }
 async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/events/${id}`,{method:'DELETE'});events=events.filter(e=>e.id!==id);renderEvents();}
 
-// ── 칭찬합니다 탭 전체 렌더 ──
+// ── 칭찬합니다 탭 전체 렌더 (데이터 로드 후에만 렌더) ──
 async function renderChal(){
+  await fetchAll();
   await renderContests();renderKudos();renderChalEvents();
 }
 
