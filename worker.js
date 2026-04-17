@@ -19,43 +19,24 @@ function fetchTimeout(url, options = {}, ms = 9000) {
   return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(tid));
 }
 
-// MOEL → Gemini → Claude 순서로 시도하는 통합 AI 헬퍼
+// Workers AI → Gemini → Claude 순서로 시도하는 통합 AI 헬퍼
 async function callAI(systemPrompt, userMessage, env, opts = {}) {
   const { type = 'general', maxTokens = 8192 } = opts;
   const _now = () => Math.floor(Date.now() / 1000);
   const _date = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
-  // 1. MOEL LLMAPI (주)
-  if (env.MOEL_LLM_TOKEN) {
+  // 1. Cloudflare Workers AI (주 - 무료, IP 차단 없음)
+  if (env.AI) {
     try {
-      const mRes = await fetchTimeout('https://ai.moel.go.kr/gpt/api/llm', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.MOEL_LLM_TOKEN}`,
-          'Content-Type': 'application/json',
-          ...(env.MOEL_ORG_CODE ? { 'OrgCode': env.MOEL_ORG_CODE } : {}),
-        },
-        body: JSON.stringify({
-          model: '빠른 모델 플러스',
-          messages: [
-            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-            { role: 'user', content: userMessage },
-          ],
-          stream: false,
-          max_tokens: maxTokens,
-        }),
-      }, 25000);
-      if (mRes.ok) {
-        const d = await mRes.json();
-        const text = d?.choices?.[0]?.message?.content || '';
-        if (text) {
-          const tokIn = d?.usage?.prompt_tokens || 0;
-          const tokOut = d?.usage?.completion_tokens || 0;
-          env.DB.prepare('INSERT INTO moel_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-            .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
-          return { text, model: 'moel', tokensIn: tokIn, tokensOut: tokOut };
-        }
-      }
+      const wRes = await env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
+        messages: [
+          ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: Math.min(maxTokens, 4096),
+      });
+      const text = wRes?.response || '';
+      if (text) return { text, model: 'workers-ai' };
     } catch (e) {}
   }
 

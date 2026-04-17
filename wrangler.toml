@@ -11,6 +11,9 @@ database_id = "35d0a1ba-1023-4b63-a491-570d7463576f"
 binding = "R2"
 bucket_name = "band-archive"
 
+[ai]
+binding = "AI"
+
 [vars]
 # law.go.kr OPEN API OC 코드 (law.go.kr 등록 화면의 "현재 OC값")
 LAW_OC = "STEP-OPENAPI"
