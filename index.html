@@ -1254,10 +1254,11 @@ async function fetchPosts(reset=false){
   try{
     const r=await fetch(`${API}/api/posts?${params}`);
     const d=await r.json();
-    const newPosts=d.posts||[];
+    // 구 API(배열) / 신 API({posts,has_more,next_cursor}) 양쪽 대응
+    const newPosts=Array.isArray(d)?d:(d.posts||[]);
     posts=[...posts,...newPosts];
-    feedHasMore=d.has_more||false;
-    feedCursor=d.next_cursor||null;
+    feedHasMore=Array.isArray(d)?false:(d.has_more||false);
+    feedCursor=Array.isArray(d)?null:(d.next_cursor||null);
   }catch(e){if(reset)posts=[];}
   finally{feedLoading=false;}
 }
