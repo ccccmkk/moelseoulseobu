@@ -5,6 +5,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 const MAX_BYTES = 9 * 1024 * 1024 * 1024;
+const LAW_INFLIGHT = new Map(); // 동일 쿼리 동시 요청 중복 제거
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -214,13 +215,16 @@ export default {
         const cacheKey = `law3_${OC}_${target}_${q.slice(0,30)}`;
         if (!nocache) {
           const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
-          if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 1800) {
+          if (cached && (Math.floor(Date.now() / 1000) - (cached.cached_at || 0)) < 21600) { // 6시간 캐시
             try {
               const parsed = JSON.parse(cached.data);
-              // 빈 결과는 캐시 무효화
               if (parsed.laws?.length || parsed.precs?.length || parsed.expcs?.length) return json(parsed);
             } catch (e) {}
           }
+        }
+        // 동일 쿼리 동시 요청 중복 제거 (singleflight)
+        if (LAW_INFLIGHT.has(cacheKey)) {
+          try { return json(await LAW_INFLIGHT.get(cacheKey)); } catch(e) {}
         }
         const fmtDate = d => d && String(d).length === 8 ? `${String(d).slice(0,4)}.${String(d).slice(4,6)}.${String(d).slice(6,8)}` : (d || '');
         const enc = encodeURIComponent(q);
@@ -230,13 +234,15 @@ export default {
           'Referer': 'https://www.law.go.kr/',
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
-        const lawFetch = (target, params) =>
-          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${target}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS }, 9000);
+        const lawFetch = (t, params) =>
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${t}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS }, 9000);
         const tasks = [];
-        // law 타겟 사용 (eflaw보다 안정적, 동시 요청 시 실패율 낮음)
         if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('law',  'display=10&sort=efYd')]);
         if (target === 'all' || target === 'prec')  tasks.push(['prec', lawFetch('prec', 'display=10&sort=date')]);
         if (target === 'all' || target === 'expc')  tasks.push(['expc', lawFetch('expc', 'display=10')]);
+
+        // 결과 Promise를 Map에 저장 → 동시 요청은 이 Promise를 공유
+        const workPromise = (async () => {
         const settled = await Promise.allSettled(tasks.map(([, f]) => f));
         let laws = [], precs = [], expcs = [], apiDebug = [];
         for (let i = 0; i < tasks.length; i++) {
@@ -279,9 +285,13 @@ export default {
           }
         }
         const result = { laws, precs, expcs, query: q, oc: OC, debug: apiDebug };
+          return result;
+        })();
+        LAW_INFLIGHT.set(cacheKey, workPromise);
+        workPromise.finally(() => LAW_INFLIGHT.delete(cacheKey));
+        const result = await workPromise;
         const now = Math.floor(Date.now() / 1000);
-        // 결과가 있을 때만 캐시 저장
-        if (laws.length || precs.length || expcs.length) {
+        if (result.laws?.length || result.precs?.length || result.expcs?.length) {
           await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
             .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
         }
