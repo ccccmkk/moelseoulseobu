@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="STEP"/>
 <meta name="theme-color" content="#37c272"/>
+<link rel="manifest" href="/manifest.json"/>
 <title>STEP</title>
 <style>
 html,body{overscroll-behavior-y:none}
@@ -625,7 +626,40 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="padding:0 0 12px">
       <button class="more-logout-btn" id="logoutBtn">로그아웃</button>
     </div>
+    <div id="pwaInstallWrap" style="display:none;padding:0 0 12px">
+      <button class="more-logout-btn" id="pwaInstallBtn" style="color:var(--green);border-color:var(--green);display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v13M8 11l4 4 4-4M3 18h18v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z"/></svg>
+        홈화면에 추가
+      </button>
+    </div>
     <div style="text-align:center;padding:8px 0 4px;font-size:11px;color:var(--text-hint)">STEP v1.2.0</div>
+
+    <!-- iOS 홈화면 추가 안내 모달 -->
+    <div class="modal-overlay center" id="iosInstallModal">
+      <div class="modal" style="border-radius:var(--radius);max-height:none">
+        <div class="modal-header"><span class="modal-title">홈화면에 추가하기</span><button class="modal-x" onclick="$('iosInstallModal').classList.remove('open')">×</button></div>
+        <div class="modal-body" style="padding:20px 20px 24px">
+          <div style="font-size:14px;line-height:1.9;color:var(--text)">
+            Safari에서 아래 순서로 추가하세요.<br><br>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+              <span>하단 <strong>공유 버튼</strong> 탭 <span style="font-size:18px">⎙</span></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+              <span><strong>홈 화면에 추가</strong> 선택</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
+              <span>오른쪽 상단 <strong>추가</strong> 탭</span>
+            </div>
+            <div style="margin-top:16px;padding:12px;background:var(--green-light);border-radius:var(--radius-sm);font-size:12px;color:var(--text-sub)">
+              ※ Safari 브라우저에서만 가능합니다. Chrome 앱에서는 지원되지 않습니다.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 하단 네비 -->
@@ -2910,6 +2944,56 @@ $('logoutBtn').onclick=async function(){
   $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };
+
+// ── PWA 홈화면 추가 ──
+(function(){
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  let deferredPrompt = null;
+
+  if(isStandalone) return; // 이미 설치됨
+
+  if(isAndroid){
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const wrap = $('pwaInstallWrap');
+      if(wrap) wrap.style.display = '';
+    });
+    window.addEventListener('appinstalled', () => {
+      const wrap = $('pwaInstallWrap');
+      if(wrap) wrap.style.display = 'none';
+      deferredPrompt = null;
+    });
+  }
+
+  if(isIOS){
+    const wrap = $('pwaInstallWrap');
+    if(wrap) wrap.style.display = '';
+  }
+
+  const btn = $('pwaInstallBtn');
+  if(!btn) return;
+  btn.onclick = async () => {
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if(outcome === 'accepted'){
+        const wrap = $('pwaInstallWrap');
+        if(wrap) wrap.style.display = 'none';
+      }
+      deferredPrompt = null;
+    } else if(isIOS){
+      $('iosInstallModal').classList.add('open');
+    }
+  };
+
+  // 서비스워커 등록
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  }
+})();
 </script>
 </body>
 </html>
