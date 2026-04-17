@@ -1123,6 +1123,18 @@ button,a,[role="button"]{touch-action:manipulation}
           <div style="font-size:12px;color:#2e7d32;margin-bottom:8px">서버에서 10분마다 자동 실행 중</div>
           <button class="btn-sm" onclick="agentHealthReply()" id="agentReplyBtn" style="width:100%;justify-content:center">지금 즉시 실행</button>
         </div>
+        <!-- Gemini 폴백 토글 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600">Gemini 폴백</div>
+            <div style="font-size:11px;color:var(--text-hint);margin-top:2px" id="geminiToggleLabel">불러오는 중...</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:44px;height:26px;cursor:pointer;flex-shrink:0">
+            <input type="checkbox" id="geminiToggle" onchange="toggleGeminiFallback(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+            <span id="geminiToggleTrack" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.2s"></span>
+            <span id="geminiToggleThumb" style="position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+          </label>
+        </div>
         <!-- Claude 토글 -->
         <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#fff;border:1px solid var(--border);border-radius:10px">
           <div>
@@ -1142,9 +1154,11 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
         <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">무료</span></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">MOEL AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주</span></div>
+        <div id="moelStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:#5c6bc0;background:#e8eaf6;padding:2px 8px;border-radius:10px">폴백1</span></div>
         <div id="geminiStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백</span></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백2</span></div>
         <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
 
@@ -2548,19 +2562,32 @@ async function submitAddRest(){
 async function loadClaudeSetting(){
   try{
     const s=await fetch(`${API}/api/settings`).then(r=>r.json());
-    const on=s.claude_enabled!=='false';
-    const cb=$('claudeToggle'),track=$('claudeToggleTrack'),thumb=$('claudeToggleThumb'),lbl=$('claudeToggleLabel');
-    cb.checked=on;
-    track.style.background=on?'var(--green)':'#ccc';
-    thumb.style.left=on?'19px':'3px';
-    lbl.textContent=on?'켜짐 (Gemini 실패 시 Claude 자동 사용)':'꺼짐 (Gemini만 사용)';
+    const applyToggle=(id,on,onLabel,offLabel)=>{
+      const cb=$(id+'Toggle'),track=$(id+'ToggleTrack'),thumb=$(id+'ToggleThumb'),lbl=$(id+'ToggleLabel');
+      if(!cb)return;
+      cb.checked=on;
+      track.style.background=on?'var(--green)':'#ccc';
+      thumb.style.left=on?'19px':'3px';
+      lbl.textContent=on?onLabel:offLabel;
+    };
+    applyToggle('gemini', s.gemini_fallback_enabled!=='false',
+      'MOEL 실패 시 Gemini 자동 사용', '꺼짐 (MOEL만 사용)');
+    applyToggle('claude', s.claude_enabled!=='false',
+      'Gemini 실패 시 Claude 자동 사용', '꺼짐 (Gemini까지만 사용)');
   }catch(e){}
+}
+async function toggleGeminiFallback(on){
+  const track=$('geminiToggleTrack'),thumb=$('geminiToggleThumb'),lbl=$('geminiToggleLabel');
+  track.style.background=on?'var(--green)':'#ccc';
+  thumb.style.left=on?'19px':'3px';
+  lbl.textContent=on?'MOEL 실패 시 Gemini 자동 사용':'꺼짐 (MOEL만 사용)';
+  await fetch(`${API}/api/settings/gemini_fallback_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
 }
 async function toggleClaude(on){
   const track=$('claudeToggleTrack'),thumb=$('claudeToggleThumb'),lbl=$('claudeToggleLabel');
   track.style.background=on?'var(--green)':'#ccc';
   thumb.style.left=on?'19px':'3px';
-  lbl.textContent=on?'켜짐 (Gemini 실패 시 Claude 자동 사용)':'꺼짐 (Gemini만 사용)';
+  lbl.textContent=on?'Gemini 실패 시 Claude 자동 사용':'꺼짐 (Gemini까지만 사용)';
   await fetch(`${API}/api/settings/claude_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
 }
 
@@ -2638,17 +2665,25 @@ async function openAdminModal(){
       <div class="storage-bar-wrap"><div class="storage-bar" style="width:${pct}%"></div></div>
       <div style="font-size:11px;color:var(--text-hint);margin-top:4px">${pct}% 사용 중</div>`;
   }).catch(()=>{$('storageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
-  // Gemini API 사용량
+  // MOEL AI 사용량
+  fetch(`${API}/api/moel-usage`).then(r=>r.json()).then(d=>{
+    const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
+    $('moelStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">비용</span><span class="admin-stat-val" style="color:#2e7d32">무료</span></div>`;
+  }).catch(()=>{$('moelStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
+  // Gemini API 사용량 (폴백1)
   fetch(`${API}/api/gemini-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
     $('geminiStats').innerHTML=`
-      <div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">댓글자동답변 + 법률AI 질문 포함</div>
       <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">비용</span><span class="admin-stat-val" style="color:#2e7d32">무료</span></div>`;
   }).catch(()=>{$('geminiStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
-  // Claude API 사용량
+  // Claude API 사용량 (폴백2)
   fetch(`${API}/api/claude-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
     const costUSD=((tin/1000000)*0.80+(tout/1000000)*4).toFixed(4);

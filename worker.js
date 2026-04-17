@@ -19,6 +19,108 @@ function fetchTimeout(url, options = {}, ms = 9000) {
   return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(tid));
 }
 
+// MOEL → Gemini → Claude 순서로 시도하는 통합 AI 헬퍼
+async function callAI(systemPrompt, userMessage, env, opts = {}) {
+  const { type = 'general', maxTokens = 8192 } = opts;
+  const _now = () => Math.floor(Date.now() / 1000);
+  const _date = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+
+  // 1. MOEL LLMAPI (주)
+  if (env.MOEL_LLM_TOKEN) {
+    try {
+      const mRes = await fetchTimeout('https://ai.moel.go.kr/gpt/api/llm', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.MOEL_LLM_TOKEN}`,
+          'Content-Type': 'application/json',
+          ...(env.MOEL_ORG_CODE ? { 'OrgCode': env.MOEL_ORG_CODE } : {}),
+        },
+        body: JSON.stringify({
+          model: '빠른 모델 플러스',
+          messages: [
+            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+            { role: 'user', content: userMessage },
+          ],
+          stream: false,
+          temperature: 1, top_p: 1, top_k: 0,
+          repetition_penalty: 1, max_model_len: 131072,
+        }),
+      }, 25000);
+      if (mRes.ok) {
+        const d = await mRes.json();
+        const text = d?.choices?.[0]?.message?.content || '';
+        if (text) {
+          const tokIn = d?.usage?.prompt_tokens || 0;
+          const tokOut = d?.usage?.completion_tokens || 0;
+          env.DB.prepare('INSERT INTO moel_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+            .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
+          return { text, model: 'moel', tokensIn: tokIn, tokensOut: tokOut };
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Gemini 폴백 (관리자가 허용한 경우)
+  const geminiSetting = await env.DB.prepare("SELECT value FROM settings WHERE key='gemini_fallback_enabled'").first();
+  const geminiAllowed = !geminiSetting || geminiSetting.value !== 'false';
+  if (geminiAllowed && env.GEMINI_API_KEY) {
+    try {
+      const gResp = await fetchTimeout(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
+        {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + userMessage }] }],
+            generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
+          }),
+        }, 20000
+      );
+      if (gResp.ok) {
+        const gData = await gResp.json();
+        const text = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (text) {
+          const tokIn = gData.usageMetadata?.promptTokenCount || 0;
+          const tokOut = gData.usageMetadata?.candidatesTokenCount || 0;
+          env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+            .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
+          env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+            .bind(_date(), type, tokIn, tokOut).run();
+          return { text, model: 'gemini', tokensIn: tokIn, tokensOut: tokOut };
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Claude 폴백 (관리자가 허용한 경우)
+  const claudeSetting = await env.DB.prepare("SELECT value FROM settings WHERE key='claude_enabled'").first();
+  const claudeAllowed = !claudeSetting || claudeSetting.value !== 'false';
+  if (claudeAllowed && env.ANTHROPIC_API_KEY) {
+    try {
+      const aiResp = await fetchTimeout('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: Math.min(maxTokens, 8096),
+          ...(systemPrompt ? { system: systemPrompt } : {}),
+          messages: [{ role: 'user', content: userMessage }],
+        }),
+      }, 20000);
+      const aiData = await aiResp.json();
+      const text = aiData.content?.[0]?.text || '';
+      if (text) {
+        const tokIn = aiData.usage?.input_tokens || 0;
+        const tokOut = aiData.usage?.output_tokens || 0;
+        env.DB.prepare('INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+          .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
+        return { text, model: 'claude', tokensIn: tokIn, tokensOut: tokOut };
+      }
+    } catch (e) {}
+  }
+
+  return null;
+}
+
 // 마일리지 적립
 async function addMileageDB(env, userId, delta) {
   if (!userId || !delta) return;
@@ -82,6 +184,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS restaurant_reviews (id TEXT PRIMARY KEY, restaurant_id TEXT, author TEXT, content TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS restaurant_votes (restaurant_id TEXT, user_id TEXT, vote INTEGER, PRIMARY KEY(restaurant_id, user_id))`,
     `CREATE TABLE IF NOT EXISTS login_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, ip TEXT, user_agent TEXT, result TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS moel_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -441,7 +544,6 @@ export default {
 
       // ── 법률 AI 질문 ──
       if (p === '/api/law-ask' && m === 'POST') {
-        if (!env.GEMINI_API_KEY) return json({ error: 'AI 서비스를 사용할 수 없습니다.' }, 503);
         const b = await request.json();
         const question = (b.question || '').trim().slice(0, 500);
         const precContext = (b.precContext || '').trim().slice(0, 4000);
@@ -452,8 +554,7 @@ export default {
         const ASK_HEADERS = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json, text/plain, */*',
-          'Referer': 'https://www.law.go.kr/',
-          'Accept-Language': 'ko-KR,ko;q=0.9'
+          'Referer': 'https://www.law.go.kr/', 'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
           fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=eflaw&type=JSON&query=${enc}&nw=3&display=5&sort=efYd`, { headers: ASK_HEADERS }, 9000),
@@ -494,30 +595,11 @@ export default {
           } catch (e) {}
         }
         const precSection = precContext ? `【판례·해석례 본문 (직접 제공)】\n${precContext}\n\n` : '';
-        const prompt = `당신은 대한민국 노동법 전문가입니다. 아래 자료를 참고하여 질문에 답변하세요.\n\n${precSection}${context || ''}${!precSection&&!context?'(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n':''}질문: ${question}\n\n답변 시 유의사항:\n- ${precContext?'제공된 판례·해석례 내용을 중심으로 쉽게 풀어서 설명하세요':'관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조)'}\n- 법률 용어는 일반인이 이해하기 쉽게 풀어 설명하세요\n- 마크다운 없이 일반 텍스트로 작성하세요\n- 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요`;
-        const gResp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 8192 } }) }
-        );
-        const gData = await gResp.json();
-        const answer = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (!answer) {
-          const geminiErr = gData?.error?.message || gData?.candidates?.[0]?.finishReason || JSON.stringify(gData).slice(0,200);
-          return json({ error: `AI 응답 생성 실패: ${geminiErr}` }, 500);
-        }
-        // 토큰 사용량 기록
-        const tokIn = gData?.usageMetadata?.promptTokenCount || 0;
-        const tokOut = gData?.usageMetadata?.candidatesTokenCount || 0;
-        if (tokIn || tokOut) {
-          const _now = Math.floor(Date.now()/1000);
-          const _date = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
-          env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-            .bind(tokIn, tokOut, _now, tokIn, tokOut, _now).run();
-          env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
-            .bind(_date, 'qa', tokIn, tokOut).run();
-        }
-        return json({ answer, sources, model: 'Gemini 2.5 Flash' });
+        const sysPrompt = '당신은 대한민국 노동법 전문가입니다. 법률 용어를 일반인이 이해하기 쉽게 풀어 설명하고, 마크다운 없이 일반 텍스트로 작성하세요. 마지막에 "더 정확한 내용은 전문 노무사·변호사와 상담을 권합니다." 문구를 추가하세요.';
+        const userMsg = `아래 자료를 참고하여 질문에 답변하세요.\n\n${precSection}${context || ''}${!precSection&&!context?'(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n':''}질문: ${question}\n\n${precContext?'제공된 판례·해석례 내용을 중심으로 쉽게 풀어서 설명하세요.':'관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조).'}`;
+        const aiResult = await callAI(sysPrompt, userMsg, env, { type: 'qa', maxTokens: 8192 });
+        if (!aiResult) return json({ error: 'AI 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' }, 503);
+        return json({ answer: aiResult.text, sources, model: aiResult.model });
       }
 
       // ── 글 목록 (커서 기반 페이지네이션) ──
@@ -1056,6 +1138,10 @@ export default {
         ).bind(tokens_in, tokens_out, Math.floor(Date.now()/1000), tokens_in, tokens_out, Math.floor(Date.now()/1000)).run();
         return json({ ok: true });
       }
+      if (p === '/api/moel-usage' && m === 'GET') {
+        const row = await env.DB.prepare('SELECT * FROM moel_usage WHERE id=1').first();
+        return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+      }
 
       // ── 프레즌스 ──
       if (p === '/api/presence' && m === 'POST') {
@@ -1178,38 +1264,22 @@ export default {
           else { xmlText = await kdcaResp.text(); }
         } catch(e) { kdcaFailed = true; kdcaErrorMsg = e.message; }
 
-        // KDCA 실패 시 Gemini로 직접 건강 정보 글 생성
+        // KDCA 실패 시 AI로 직접 건강 정보 글 생성
         if (kdcaFailed || !xmlText) {
-          if (!env.GEMINI_API_KEY) return json({ error: `KDCA API 호출 실패(${kdcaErrorMsg}), Gemini API키 미설정` }, 502);
-          try {
-            const fallbackPrompt = `서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글을 작성하세요.\n주제: "${chosen.name}"\n\n요구사항:\n- 직장인에게 실용적인 건강 팁 위주\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤\n- 마크다운 없이 일반 텍스트로`;
-            const gResp = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-              { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fallbackPrompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
-            );
-            const gData = await gResp.json();
-            const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!gText) return json({ error: `KDCA 실패(${kdcaErrorMsg}), Gemini 폴백 응답 없음` }, 502);
-            const _fbNow = Math.floor(Date.now()/1000);
-            const _fbDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
-            const _fbIn = gData.usageMetadata?.promptTokenCount || 0;
-            const _fbOut = gData.usageMetadata?.candidatesTokenCount || 0;
-            if (_fbIn || _fbOut) {
-              env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-                .bind(_fbIn, _fbOut, _fbNow, _fbIn, _fbOut, _fbNow).run();
-              env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
-                .bind(_fbDate, 'health_fallback', _fbIn, _fbOut).run();
-            }
-            const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${gText}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
-            const blocks = [{ type: 'text', content }];
-            const postId = 'post_' + Date.now();
-            await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
-              .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
-            await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
-              .bind(postId, '건강', '건강').run();
-            return json({ ok: true, id: postId, title: chosen.name, via: 'gemini_fallback' });
-          } catch(e) { return json({ error: `KDCA 실패(${kdcaErrorMsg}), Gemini 폴백 오류: ${e.message}` }, 502); }
+          const fbResult = await callAI(
+            '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
+            `주제: "${chosen.name}"\n\n요구사항:\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤`,
+            env, { type: 'health_fallback', maxTokens: 1000 }
+          );
+          if (!fbResult) return json({ error: `KDCA API 호출 실패(${kdcaErrorMsg}), AI 폴백도 실패` }, 502);
+          const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${fbResult.text}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
+          const blocks = [{ type: 'text', content }];
+          const postId = 'post_' + Date.now();
+          await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
+            .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
+          await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
+            .bind(postId, '건강', '건강').run();
+          return json({ ok: true, id: postId, title: chosen.name, via: `${fbResult.model}_fallback` });
         }
 
         // XML에서 CDATA 추출 헬퍼
@@ -1282,101 +1352,21 @@ export default {
         ).bind(AGENT_ID, AGENT_ID).first();
         const targetComment = targetRow || null;
         if (!targetComment) return json({ error: '답변할 댓글이 없습니다' });
-        // Gemini(무료) 우선 → 한도초과 시 Claude Haiku 폴백
-        const SYSTEM_PROMPT = '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.';
         const FOOTER = '\n\n더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
-        let replyContent = null;
-        let apiUsed = false;
-        let apiError = null;
-        let usedModel = null;
-
-        // 1단계: Gemini 무료 API 시도
-        if (env.GEMINI_API_KEY) {
-          try {
-            const gResp = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n직원 질문: ' + targetComment.content }] }],
-                  generationConfig: { maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
-                }),
-              }
-            );
-            if (gResp.status === 429) {
-              // 분당 한도 초과 → Claude로 폴백
-              apiError = 'Gemini 한도초과(429), Claude로 폴백';
-            } else {
-              const gData = await gResp.json();
-              const gText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (gText) {
-                replyContent = gText + FOOTER;
-                apiUsed = true;
-                usedModel = 'gemini';
-                const gIn = gData.usageMetadata?.promptTokenCount || 0;
-                const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
-                const _rNow = Math.floor(Date.now()/1000);
-                const _rDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
-                await env.DB.prepare(
-                  'INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
-                ).bind(gIn, gOut, _rNow, gIn, gOut, _rNow).run();
-                env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
-                  .bind(_rDate, 'reply', gIn, gOut).run();
-              } else {
-                apiError = 'Gemini 응답 없음: ' + JSON.stringify(gData).slice(0, 100);
-              }
-            }
-          } catch(e) { apiError = 'Gemini 오류: ' + e.message; }
-        }
-
-        // 2단계: Gemini 실패/한도초과/미설정 시 Claude Haiku 폴백 (관리자가 켠 경우에만, 디버그 모드에서는 비활성화)
-        const claudeSetting = await env.DB.prepare("SELECT value FROM settings WHERE key='claude_enabled'").first();
-        const claudeEnabled = !claudeSetting || claudeSetting.value !== 'false';
-        if (!replyContent && claudeEnabled && !isDebugMode) {
-          if (!env.ANTHROPIC_API_KEY) {
-            apiError = (apiError ? apiError + ' | ' : '') + 'ANTHROPIC_API_KEY 미설정';
-          } else {
-            try {
-              const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': env.ANTHROPIC_API_KEY,
-                  'anthropic-version': '2023-06-01',
-                },
-                body: JSON.stringify({
-                  model: 'claude-haiku-4-5-20251001',
-                  max_tokens: 300,
-                  system: SYSTEM_PROMPT,
-                  messages: [{ role: 'user', content: targetComment.content }],
-                }),
-              });
-              const aiData = await aiResp.json();
-              const aiText = aiData.content?.[0]?.text;
-              if (aiText) {
-                replyContent = aiText + FOOTER;
-                apiUsed = true;
-                usedModel = 'claude';
-              } else {
-                apiError = (apiError ? apiError + ' | ' : '') + (aiData.error?.message || JSON.stringify(aiData).slice(0, 100));
-              }
-              if (aiData.usage) {
-                await env.DB.prepare(
-                  'INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?'
-                ).bind(aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000), aiData.usage.input_tokens||0, aiData.usage.output_tokens||0, Math.floor(Date.now()/1000)).run();
-              }
-            } catch(e) { apiError = (apiError ? apiError + ' | ' : '') + 'Claude 오류: ' + e.message; }
-          }
-        }
-
-        if (!replyContent) {
-          replyContent = '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
-        }
+        const replyAI = !isDebugMode
+          ? await callAI(
+              '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.',
+              targetComment.content,
+              env, { type: 'reply', maxTokens: 500 }
+            )
+          : null;
+        const replyContent = replyAI
+          ? replyAI.text + FOOTER
+          : '관련하여 더 궁금한 점은 질병관리청(☎1339) 또는 보건복지부 콜센터(☎129)에서 전문 상담을 받으실 수 있습니다.';
         const replyId = 'rep_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(replyId, targetComment.id, AGENT_ID, replyContent, Math.floor(Date.now() / 1000)).run();
-        return json({ ok: true, comment_id: targetComment.id, api_used: apiUsed, used_model: usedModel, api_error: apiError });
+        return json({ ok: true, comment_id: targetComment.id, api_used: !!replyAI, used_model: replyAI?.model || null });
       }
 
       // ── 설정 조회/변경 ──
