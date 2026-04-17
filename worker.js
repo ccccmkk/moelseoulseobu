@@ -1,4 +1,4 @@
-// v2.1.2
+// v2.1.3
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
@@ -10,6 +10,12 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status, headers: { ...CORS, 'Content-Type': 'application/json' }
   });
+}
+
+function fetchTimeout(url, options = {}, ms = 9000) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(tid));
 }
 
 // 마일리지 적립
@@ -225,7 +231,7 @@ export default {
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const lawFetch = (target, params) =>
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${target}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS });
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=${target}&type=JSON&query=${enc}&${params}`, { headers: LAW_HEADERS }, 9000);
         const tasks = [];
         // law 타겟 사용 (eflaw보다 안정적, 동시 요청 시 실패율 낮음)
         if (target === 'all' || target === 'law')  tasks.push(['law',  lawFetch('law',  'display=10&sort=efYd')]);
@@ -388,7 +394,7 @@ export default {
         const debug = [];
         for (const apiUrl of attempts) {
           try {
-            const res = await fetch(apiUrl, { headers: xhdr });
+            const res = await fetchTimeout(apiUrl, { headers: xhdr }, 12000);
             // 대형 법령 XML 타임아웃 방지: 500KB 이상이면 앞부분만 사용
             const MAX_XML = 1500 * 1024;
             let raw;
@@ -440,9 +446,9 @@ export default {
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=eflaw&type=JSON&query=${enc}&nw=3&display=5&sort=efYd`, { headers: ASK_HEADERS }),
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`, { headers: ASK_HEADERS }),
-          fetch(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`, { headers: ASK_HEADERS })
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=eflaw&type=JSON&query=${enc}&nw=3&display=5&sort=efYd`, { headers: ASK_HEADERS }, 9000),
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=prec&type=JSON&query=${enc}&display=5&sort=date`, { headers: ASK_HEADERS }, 9000),
+          fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=expc&type=JSON&query=${enc}&display=3`, { headers: ASK_HEADERS }, 9000)
         ]);
         let sources = [], context = '';
         if (lawRes.status === 'fulfilled' && lawRes.value.ok) {
