@@ -1300,38 +1300,32 @@ export default {
           const cn = extractCD(ci, 'CNTNTSCL_CN');
           if (nm && cn && cn.length > 10) sections.push({ title: nm, content: cn });
         }
-        if (!sections.length) return json({ error: `"${topic}" 건강 정보 내용이 없습니다 (cntntsSn=${chosen.sn})` }, 404);
+        // 섹션이 없으면 AI로 직접 생성 (폴백)
+        if (!sections.length) {
+          const fbResult = await callAI(
+            '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
+            `주제: "${chosen.name}"\n\n요구사항:\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤`,
+            env, { type: 'health_fallback', maxTokens: 1000 }
+          );
+          if (!fbResult) return json({ error: `KDCA 섹션 없음, AI 폴백도 실패 (cntntsSn=${chosen.sn})` }, 502);
+          const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${fbResult.text}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
+          const blocks = [{ type: 'text', content }];
+          const postId = 'post_' + Date.now();
+          await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
+            .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
+          await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
+            .bind(postId, '건강', '건강').run();
+          return json({ ok: true, id: postId, title: chosen.name, via: `${fbResult.model}_fallback` });
+        }
 
-        // Gemini로 친근한 게시글 요약 생성
-        let postBody = '';
+        // AI로 친근한 게시글 요약 생성 (MOEL→Gemini→Claude 폴백)
         const rawText = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n').slice(0, 3000);
-        if (env.GEMINI_API_KEY) {
-          try {
-            const prompt = `다음은 국가건강정보포털의 "${topic}" 건강 정보입니다.\n직장인 동료들에게 알려주는 짧은 건강 팁 형식으로, 핵심 내용을 4~6문장으로 정리해주세요.\n- 친근하고 실용적인 톤으로 작성\n- 마크다운 없이 일반 텍스트로\n- 예방법이나 주의사항 위주로\n\n원문:\n${rawText}`;
-            const gResp = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-              { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } } }) }
-            );
-            const gData = await gResp.json();
-            const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (gText) {
-              postBody = gText.trim();
-              const gIn = gData.usageMetadata?.promptTokenCount || 0;
-              const gOut = gData.usageMetadata?.candidatesTokenCount || 0;
-              const _hNow = Math.floor(Date.now()/1000);
-              const _hDate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10);
-              await env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
-                .bind(gIn, gOut, _hNow, gIn, gOut, _hNow).run();
-              env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
-                .bind(_hDate, 'health', gIn, gOut).run();
-            }
-          } catch(e) {}
-        }
-        // AI 요약 실패 시 원문 첫 2섹션으로 대체
-        if (!postBody) {
-          postBody = sections.slice(0, 2).map(s => `▪ ${s.title}\n${s.content.slice(0, 300)}`).join('\n\n');
-        }
+        const aiResult = await callAI(
+          '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
+          `다음은 국가건강정보포털의 "${topic}" 건강 정보입니다.\n직장인 동료들에게 알려주는 짧은 건강 팁 형식으로, 핵심 내용을 4~6문장으로 정리해주세요.\n- 친근하고 실용적인 톤\n- 마크다운 없이 일반 텍스트\n- 예방법이나 주의사항 위주\n\n원문:\n${rawText}`,
+          env, { type: 'health', maxTokens: 1000 }
+        );
+        let postBody = aiResult?.text || sections.slice(0, 2).map(s => `▪ ${s.title}\n${s.content.slice(0, 300)}`).join('\n\n');
         const content = `🏥 오늘의 건강 정보: ${topic}\n\n${postBody}\n\n─\n📋 출처: 국가건강정보포털 (질병관리청)\n더 궁금한 점은 ☎1339로 문의하세요.`;
         const blocks = [{ type: 'text', content }];
         const postId = 'post_' + Date.now();
