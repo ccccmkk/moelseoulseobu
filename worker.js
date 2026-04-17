@@ -1,4 +1,4 @@
-// v2.1.3
+// v2.1.4
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
