@@ -96,7 +96,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .act-btn.liked{color:#ff4d6d}.act-btn.liked svg{fill:#ff4d6d;stroke:#ff4d6d}
 /* 라이트박스 */
 #lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:1000;align-items:center;justify-content:center}
-#lightbox.open{display:flex}
+#lightbox.open{display:flex;animation:overlayIn .18s ease forwards}
+#lightbox.open #lightboxImg{animation:modalFadeIn .2s ease forwards}
 #lightboxImg{max-width:100%;max-height:100dvh;object-fit:contain}
 .lb-close{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001}
 /* 모달 공통 */
@@ -331,7 +332,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .badge-top{background:#fff3e0;color:#e65100}
 /* ── 업로드 진행 오버레이 ── */
 #uploadOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center}
-#uploadOverlay.open{display:flex}
+#uploadOverlay.open{display:flex;animation:overlayIn .18s ease forwards}
+#uploadOverlay.open .upload-box{animation:modalFadeIn .2s ease forwards}
 .upload-box{background:#fff;border-radius:var(--radius);padding:28px 32px;min-width:200px;text-align:center}
 .upload-label{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
 .upload-bar-wrap{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
@@ -639,6 +641,29 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div style="text-align:center;padding:8px 0 4px;font-size:11px;color:var(--text-hint)">STEP v1.2.0</div>
 
+    <!-- Android 홈화면 추가 안내 모달 -->
+    <div class="modal-overlay center" id="androidInstallModal">
+      <div class="modal" style="border-radius:var(--radius);max-height:none">
+        <div class="modal-header"><span class="modal-title">홈화면에 추가하기</span><button class="modal-close" onclick="$('androidInstallModal').classList.remove('open')">×</button></div>
+        <div class="modal-body" style="padding:20px 20px 24px">
+          <div style="font-size:14px;line-height:1.9;color:var(--text)">
+            Chrome 브라우저에서 아래 순서로 추가하세요.<br><br>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+              <span>주소창 오른쪽 <strong>⋮ 메뉴</strong> 탭</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+              <span><strong>홈 화면에 추가</strong> 선택</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
+              <span><strong>추가</strong> 버튼 탭</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- iOS 홈화면 추가 안내 모달 -->
     <div class="modal-overlay center" id="iosInstallModal">
       <div class="modal" style="border-radius:var(--radius);max-height:none">
@@ -2957,25 +2982,28 @@ $('logoutBtn').onclick=async function(){
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   let deferredPrompt = null;
 
-  if(isStandalone) return; // 이미 설치됨
+  // 서비스워커 등록
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  }
 
+  if(isStandalone) return; // 이미 설치됨
+  if(!isIOS && !isAndroid) return; // 모바일만 표시
+
+  // 버튼 항상 표시
+  const wrap = $('pwaInstallWrap');
+  if(wrap) wrap.style.display = '';
+
+  // Android: 네이티브 설치 프롬프트 대기
   if(isAndroid){
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       deferredPrompt = e;
-      const wrap = $('pwaInstallWrap');
-      if(wrap) wrap.style.display = '';
     });
     window.addEventListener('appinstalled', () => {
-      const wrap = $('pwaInstallWrap');
       if(wrap) wrap.style.display = 'none';
       deferredPrompt = null;
     });
-  }
-
-  if(isIOS){
-    const wrap = $('pwaInstallWrap');
-    if(wrap) wrap.style.display = '';
   }
 
   const btn = $('pwaInstallBtn');
@@ -2984,20 +3012,14 @@ $('logoutBtn').onclick=async function(){
     if(deferredPrompt){
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if(outcome === 'accepted'){
-        const wrap = $('pwaInstallWrap');
-        if(wrap) wrap.style.display = 'none';
-      }
+      if(outcome === 'accepted' && wrap) wrap.style.display = 'none';
       deferredPrompt = null;
     } else if(isIOS){
       $('iosInstallModal').classList.add('open');
+    } else {
+      $('androidInstallModal').classList.add('open');
     }
   };
-
-  // 서비스워커 등록
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  }
 })();
 </script>
 </body>
