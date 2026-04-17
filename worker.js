@@ -1259,7 +1259,7 @@ export default {
         let kdcaFailed = false;
         let kdcaErrorMsg = '';
         try {
-          const kdcaResp = await fetch(`https://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`);
+          const kdcaResp = await fetchTimeout(`https://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`, {}, 8000);
           if (!kdcaResp.ok) { kdcaFailed = true; kdcaErrorMsg = `HTTP ${kdcaResp.status}`; }
           else { xmlText = await kdcaResp.text(); }
         } catch(e) { kdcaFailed = true; kdcaErrorMsg = e.message; }
