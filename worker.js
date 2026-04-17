@@ -1175,8 +1175,7 @@ export default {
       // ── 건강봇 에이전트 ──
       const AGENT_ID = '000000099';
       if (p === '/api/agent/health/post' && m === 'POST') {
-        // 국가건강정보포털 공공 API (질병관리청 KDCA)
-        const KDCA_TOKEN = '19cf9b774122';
+        // KDCA API는 행정망 전용이라 외부에서 접근 불가 → AI로 직접 생성
         const KDCA_CONTENTS = [
           // 감염·호흡기
           { sn: 5423, name: '감기' }, { sn: 5232, name: '인플루엔자(독감)' }, { sn: 5249, name: '폐렴' },
@@ -1254,86 +1253,21 @@ export default {
         const candidates = available.length ? available : KDCA_CONTENTS;
         const chosen = candidates[Math.floor(Math.random() * candidates.length)];
 
-        // KDCA API 호출 (XML) — 실패 시 Gemini 직접 생성으로 폴백
-        let xmlText = '';
-        let kdcaFailed = false;
-        let kdcaErrorMsg = '';
-        try {
-          const kdcaResp = await fetchTimeout(`https://api.kdca.go.kr/api/provide/healthInfo?TOKEN=${KDCA_TOKEN}&cntntsSn=${chosen.sn}`, {}, 8000);
-          if (!kdcaResp.ok) { kdcaFailed = true; kdcaErrorMsg = `HTTP ${kdcaResp.status}`; }
-          else { xmlText = await kdcaResp.text(); }
-        } catch(e) { kdcaFailed = true; kdcaErrorMsg = e.message; }
-
-        // KDCA 실패 시 AI로 직접 건강 정보 글 생성
-        if (kdcaFailed || !xmlText) {
-          const fbResult = await callAI(
-            '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
-            `주제: "${chosen.name}"\n\n요구사항:\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤`,
-            env, { type: 'health_fallback', maxTokens: 1000 }
-          );
-          if (!fbResult) return json({ error: `KDCA API 호출 실패(${kdcaErrorMsg}), AI 폴백도 실패` }, 502);
-          const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${fbResult.text}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
-          const blocks = [{ type: 'text', content }];
-          const postId = 'post_' + Date.now();
-          await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
-            .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
-          await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
-            .bind(postId, '건강', '건강').run();
-          return json({ ok: true, id: postId, title: chosen.name, via: `${fbResult.model}_fallback` });
-        }
-
-        // XML에서 CDATA 추출 헬퍼
-        const extractCD = (xml, tag) => {
-          const re = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i');
-          const mt = re.exec(xml); return mt ? mt[1].trim() : '';
-        };
-        // 에러 코드 확인
-        const code = extractCD(xmlText, 'CODE');
-        if (code && code !== 'S001') return json({ error: `KDCA API 오류 코드: ${code}` }, 502);
-
-        const topic = extractCD(xmlText, 'CNTNTSSN') || chosen.name;
-        // 섹션 파싱 (최대 4개)
-        const sections = [];
-        const ciBlocks = xmlText.match(/<cntntsCI>([\s\S]*?)<\/cntntsCI>/g) || [];
-        for (const ci of ciBlocks.slice(0, 4)) {
-          const nm = extractCD(ci, 'CNTNTS_CL_NM');
-          const cn = extractCD(ci, 'CNTNTSCL_CN');
-          if (nm && cn && cn.length > 10) sections.push({ title: nm, content: cn });
-        }
-        // 섹션이 없으면 AI로 직접 생성 (폴백)
-        if (!sections.length) {
-          const fbResult = await callAI(
-            '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
-            `주제: "${chosen.name}"\n\n요구사항:\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤`,
-            env, { type: 'health_fallback', maxTokens: 1000 }
-          );
-          if (!fbResult) return json({ error: `KDCA 섹션 없음, AI 폴백도 실패 (cntntsSn=${chosen.sn})` }, 502);
-          const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${fbResult.text}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
-          const blocks = [{ type: 'text', content }];
-          const postId = 'post_' + Date.now();
-          await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
-            .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
-          await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
-            .bind(postId, '건강', '건강').run();
-          return json({ ok: true, id: postId, title: chosen.name, via: `${fbResult.model}_fallback` });
-        }
-
-        // AI로 친근한 게시글 요약 생성 (MOEL→Gemini→Claude 폴백)
-        const rawText = sections.map(s => `[${s.title}]\n${s.content}`).join('\n\n').slice(0, 3000);
+        // AI로 건강 정보 게시글 직접 생성 (Gemini→Claude 폴백)
         const aiResult = await callAI(
           '서울서부고용노동지청 내부 커뮤니티에 올릴 건강 정보 게시글 작성 봇입니다. 직장인에게 실용적인 건강 팁 위주로, 마크다운 없이 일반 텍스트로 작성하세요.',
-          `다음은 국가건강정보포털의 "${topic}" 건강 정보입니다.\n직장인 동료들에게 알려주는 짧은 건강 팁 형식으로, 핵심 내용을 4~6문장으로 정리해주세요.\n- 친근하고 실용적인 톤\n- 마크다운 없이 일반 텍스트\n- 예방법이나 주의사항 위주\n\n원문:\n${rawText}`,
+          `주제: "${chosen.name}"\n\n요구사항:\n- 원인·증상·예방법/관리법 포함\n- 4~6문장, 300자 이내\n- 친근하고 읽기 쉬운 톤`,
           env, { type: 'health', maxTokens: 1000 }
         );
-        let postBody = aiResult?.text || sections.slice(0, 2).map(s => `▪ ${s.title}\n${s.content.slice(0, 300)}`).join('\n\n');
-        const content = `🏥 오늘의 건강 정보: ${topic}\n\n${postBody}\n\n─\n📋 출처: 국가건강정보포털 (질병관리청)\n더 궁금한 점은 ☎1339로 문의하세요.`;
+        if (!aiResult) return json({ error: 'AI 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' }, 502);
+        const content = `🏥 오늘의 건강 정보: ${chosen.name}\n\n${aiResult.text}\n\n─\n📋 더 궁금한 점은 국가건강정보포털(☎1339)에 문의하세요.`;
         const blocks = [{ type: 'text', content }];
         const postId = 'post_' + Date.now();
         await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at) VALUES(?,?,?,?)')
           .bind(postId, AGENT_ID, JSON.stringify(blocks), Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
           .bind(postId, '건강', '건강').run();
-        return json({ ok: true, id: postId, title: topic });
+        return json({ ok: true, id: postId, title: chosen.name, via: aiResult.model });
       }
       if (p === '/api/agent/health/reply' && m === 'POST') {
         const replyBody = await request.json().catch(() => ({}));
