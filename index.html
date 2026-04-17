@@ -484,8 +484,7 @@ button,a,[role="button"]{touch-action:manipulation}
           <button onclick="lawSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
         </div>
         <div style="display:flex;gap:6px">
-          <button id="lt-all"  class="sub-tab active" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('all')">전체</button>
-          <button id="lt-law"  class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('law')">법령</button>
+          <button id="lt-law"  class="sub-tab active" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('law')">법령</button>
           <button id="lt-prec" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('prec')">판례</button>
           <button id="lt-expc" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('expc')">해석례</button>
         </div>
@@ -1373,10 +1372,10 @@ function switchNewsCat(cat){
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
   newsCache=null;loadNews();
 }
-let lawTarget='all';
+let lawTarget='law';
 function switchLawTarget(t){
   lawTarget=t;
-  ['all','law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
+  ['law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
   lawSearch();
 }
 async function loadLaw(){
