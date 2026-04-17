@@ -101,11 +101,31 @@ async function initDB(env) {
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000099','user','user'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000099','건강봇','__agent__','active',0),
   ]);
+  // 인덱스 (쿼리 속도 최적화)
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created_at ASC)',
+    'CREATE INDEX IF NOT EXISTS idx_replies_comment ON comment_replies(comment_id, created_at ASC)',
+    'CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id)',
+    'CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id)',
+    'CREATE INDEX IF NOT EXISTS idx_comment_likes_user ON comment_likes(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)',
+    'CREATE INDEX IF NOT EXISTS idx_login_logs_created ON login_logs(created_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_login_logs_user ON login_logs(user_id, result, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_chat_created ON chat_messages(created_at ASC)',
+    'CREATE INDEX IF NOT EXISTS idx_nominations_contest ON nominations(contest_id)',
+    'CREATE INDEX IF NOT EXISTS idx_contest_votes_contest ON contest_votes(contest_id)',
+    'CREATE INDEX IF NOT EXISTS idx_post_keywords ON post_keywords(post_id)',
+    'CREATE INDEX IF NOT EXISTS idx_presence_user ON user_presence(user_id)',
+  ];
+  await env.DB.batch(indexes.map(s => env.DB.prepare(s)));
   _dbReady = true;
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
@@ -508,7 +528,7 @@ export default {
           await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
             .bind(id, b.keyword, b.keyword).run();
         }
-        await addMileageDB(env, b.author, 2);
+        ctx.waitUntil(addMileageDB(env, b.author, 2));
         return json({ id });
       }
 
@@ -557,8 +577,8 @@ export default {
         } else {
           await env.DB.prepare('INSERT INTO likes(post_id,user_id) VALUES(?,?)').bind(postId, user_id).run();
           await env.DB.prepare('UPDATE posts SET like_count=like_count+1 WHERE id=?').bind(postId).run();
-          const post = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(postId).first();
-          if (post && post.author !== user_id) await addMileageDB(env, post.author, 0.5);
+          ctx.waitUntil(env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(postId).first()
+            .then(post => { if (post && post.author !== user_id) return addMileageDB(env, post.author, 0.5); }));
           return json({ liked: true });
         }
       }
@@ -567,18 +587,12 @@ export default {
       if (p.match(/^\/api\/posts\/[^/]+\/comments$/) && m === 'GET') {
         const postId = p.split('/')[3];
         const userId = url.searchParams.get('user_id');
-        const rows = await env.DB.prepare(
-          'SELECT c.*, COALESCE(cl.cnt,0) as like_count FROM comments c LEFT JOIN (SELECT comment_id, COUNT(*) as cnt FROM comment_likes GROUP BY comment_id) cl ON c.id=cl.comment_id WHERE c.post_id=? ORDER BY c.created_at ASC'
-        ).bind(postId).all();
-        let likedSet = new Set();
-        if (userId) {
-          const liked = await env.DB.prepare('SELECT comment_id FROM comment_likes WHERE user_id=?').bind(userId).all();
-          likedSet = new Set(liked.results.map(r => r.comment_id));
-        }
-        // 대댓글 일괄 조회
-        const allReplies = await env.DB.prepare(
-          'SELECT * FROM comment_replies WHERE comment_id IN (SELECT id FROM comments WHERE post_id=?) ORDER BY created_at ASC'
-        ).bind(postId).all();
+        const [rows, likedRows, allReplies] = await Promise.all([
+          env.DB.prepare('SELECT c.*, COALESCE(cl.cnt,0) as like_count FROM comments c LEFT JOIN (SELECT comment_id, COUNT(*) as cnt FROM comment_likes GROUP BY comment_id) cl ON c.id=cl.comment_id WHERE c.post_id=? ORDER BY c.created_at ASC').bind(postId).all(),
+          userId ? env.DB.prepare('SELECT comment_id FROM comment_likes WHERE user_id=?').bind(userId).all() : Promise.resolve({ results: [] }),
+          env.DB.prepare('SELECT * FROM comment_replies WHERE comment_id IN (SELECT id FROM comments WHERE post_id=?) ORDER BY created_at ASC').bind(postId).all(),
+        ]);
+        const likedSet = new Set(likedRows.results.map(r => r.comment_id));
         const repliesByComment = {};
         for (const r of allReplies.results) {
           if (!repliesByComment[r.comment_id]) repliesByComment[r.comment_id] = [];
@@ -600,7 +614,7 @@ export default {
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO comments(id,post_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(id, postId, b.author, b.content, now).run();
-        await addMileageDB(env, b.author, 1);
+        ctx.waitUntil(addMileageDB(env, b.author, 1));
         return json({ id, post_id: postId, author: b.author, content: b.content, created_at: now });
       }
 
@@ -629,7 +643,7 @@ export default {
           await env.DB.prepare('DELETE FROM comment_likes WHERE comment_id=? AND user_id=?').bind(commentId, user_id).run();
         } else {
           await env.DB.prepare('INSERT INTO comment_likes(comment_id,user_id) VALUES(?,?)').bind(commentId, user_id).run();
-          if (comment_author && comment_author !== user_id) await addMileageDB(env, comment_author, 0.5);
+          if (comment_author && comment_author !== user_id) ctx.waitUntil(addMileageDB(env, comment_author, 0.5));
         }
         const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM comment_likes WHERE comment_id=?').bind(commentId).first();
         return json({ liked: !existing, count: cnt?.c || 0 });
@@ -650,7 +664,7 @@ export default {
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(id, commentId, author, content, now).run();
-        await addMileageDB(env, author, 1);
+        ctx.waitUntil(addMileageDB(env, author, 1));
         return json({ id, comment_id: commentId, author, content, created_at: now });
       }
 
@@ -895,33 +909,35 @@ export default {
         if (user.status === 'pending') { await logResult(id, 'pending'); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
         const token = crypto.randomUUID();
         await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, now).run();
-        // 오래된 세션 정리 (최근 5개만 유지)
-        await env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run();
-        await logResult(id, 'ok');
+        ctx.waitUntil(Promise.all([
+          env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run(),
+          logResult(id, 'ok'),
+        ]));
         return json({ ok: true, id: user.id, name: user.name || user.id, token, must_change_password: user.password === '1234' });
       }
       if (p === '/api/verify-session' && m === 'POST') {
         const { token } = await request.json();
         if (!token) return json({ error: 'no token' }, 401);
-        const sess = await env.DB.prepare('SELECT * FROM sessions WHERE token=?').bind(token).first();
-        if (!sess) return json({ error: 'invalid' }, 401);
-        // 1시간(3600초) 초과 세션 만료
-        if (Math.floor(Date.now() / 1000) - (sess.created_at || 0) > 3600) {
-          await env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(token).run();
+        // sessions + users 단일 JOIN 쿼리
+        const row = await env.DB.prepare(
+          'SELECT s.created_at as sess_created, u.id, u.name, u.status, u.password FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=?'
+        ).bind(token).first();
+        if (!row) return json({ error: 'invalid' }, 401);
+        const now = Math.floor(Date.now() / 1000);
+        if (now - (row.sess_created || 0) > 3600) {
+          ctx.waitUntil(env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(token).run());
           return json({ error: 'expired' }, 401);
         }
-        const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(sess.user_id).first();
-        if (!user || user.status !== 'active') return json({ error: 'user not found' }, 401);
-        // 접속이력 기록 (하루 1회 throttle)
-        const now = Math.floor(Date.now() / 1000);
+        if (row.status !== 'active') return json({ error: 'user not found' }, 401);
+        // 접속이력 기록 (하루 1회 throttle, 응답 블로킹 없음)
         const todayStart = now - (now % 86400);
-        const recentLog = await env.DB.prepare('SELECT id FROM login_logs WHERE user_id=? AND result=? AND created_at>=?').bind(user.id, 'session', todayStart).first();
-        if (!recentLog) {
-          const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
-          const ua = request.headers.get('User-Agent') || '';
-          env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(user.id, ip, ua, 'session', now).run();
-        }
-        return json({ ok: true, id: user.id, name: user.name || user.id, must_change_password: user.password === '1234' });
+        const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+        const ua = request.headers.get('User-Agent') || '';
+        ctx.waitUntil(
+          env.DB.prepare('SELECT id FROM login_logs WHERE user_id=? AND result=? AND created_at>=?').bind(row.id, 'session', todayStart).first()
+            .then(recentLog => { if (!recentLog) return env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(row.id, ip, ua, 'session', now).run(); })
+        );
+        return json({ ok: true, id: row.id, name: row.name || row.id, must_change_password: row.password === '1234' });
       }
       if (p === '/api/sessions' && m === 'DELETE') {
         const { token } = await request.json();
@@ -933,12 +949,10 @@ export default {
       if (p === '/api/notifications' && m === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return json([]);
-        const comments = await env.DB.prepare(
-          'SELECT "comment" as type, c.author, substr(c.content,1,60) as excerpt, c.post_id as ref_id, c.created_at FROM comments c JOIN posts p ON c.post_id=p.id WHERE p.author=? AND c.author!=? ORDER BY c.created_at DESC LIMIT 10'
-        ).bind(userId, userId).all();
-        const replies = await env.DB.prepare(
-          'SELECT "reply" as type, r.author, substr(r.content,1,60) as excerpt, r.comment_id as ref_id, r.created_at FROM comment_replies r JOIN comments c ON r.comment_id=c.id WHERE c.author=? AND r.author!=? ORDER BY r.created_at DESC LIMIT 10'
-        ).bind(userId, userId).all();
+        const [comments, replies] = await Promise.all([
+          env.DB.prepare('SELECT "comment" as type, c.author, substr(c.content,1,60) as excerpt, c.post_id as ref_id, c.created_at FROM comments c JOIN posts p ON c.post_id=p.id WHERE p.author=? AND c.author!=? ORDER BY c.created_at DESC LIMIT 10').bind(userId, userId).all(),
+          env.DB.prepare('SELECT "reply" as type, r.author, substr(r.content,1,60) as excerpt, r.comment_id as ref_id, r.created_at FROM comment_replies r JOIN comments c ON r.comment_id=c.id WHERE c.author=? AND r.author!=? ORDER BY r.created_at DESC LIMIT 10').bind(userId, userId).all(),
+        ]);
         const items = [...comments.results, ...replies.results].sort((a,b)=>(b.created_at||0)-(a.created_at||0)).slice(0,20);
         return json(items);
       }
@@ -956,12 +970,10 @@ export default {
       }
       if (p.match(/^\/api\/profile\/[^/]+\/activity$/) && m === 'GET') {
         const userId = decodeURIComponent(p.split('/')[3]);
-        const recentPosts = await env.DB.prepare(
-          'SELECT id, blocks, created_at, like_count, mode FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 5'
-        ).bind(userId).all();
-        const recentComments = await env.DB.prepare(
-          'SELECT id, content, created_at, post_id FROM comments WHERE author=? ORDER BY created_at DESC LIMIT 5'
-        ).bind(userId).all();
+        const [recentPosts, recentComments] = await Promise.all([
+          env.DB.prepare('SELECT id, blocks, created_at, like_count, mode FROM posts WHERE author=? ORDER BY created_at DESC LIMIT 5').bind(userId).all(),
+          env.DB.prepare('SELECT id, content, created_at, post_id FROM comments WHERE author=? ORDER BY created_at DESC LIMIT 5').bind(userId).all(),
+        ]);
         return json({
           posts: recentPosts.results.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })),
           comments: recentComments.results,
@@ -969,10 +981,12 @@ export default {
       }
       if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'GET') {
         const userId = decodeURIComponent(p.split('/')[3]);
-        const profile = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first();
-        const postCount = await env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE author=?').bind(userId).first();
-        const commentCount = await env.DB.prepare('SELECT COUNT(*) as c FROM comments WHERE author=?').bind(userId).first();
-        const mileage = await env.DB.prepare('SELECT points FROM user_mileage WHERE user_id=?').bind(userId).first();
+        const [profile, postCount, commentCount, mileage] = await Promise.all([
+          env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first(),
+          env.DB.prepare('SELECT COUNT(*) as c FROM posts WHERE author=?').bind(userId).first(),
+          env.DB.prepare('SELECT COUNT(*) as c FROM comments WHERE author=?').bind(userId).first(),
+          env.DB.prepare('SELECT points FROM user_mileage WHERE user_id=?').bind(userId).first(),
+        ]);
         return json({
           user_id: userId,
           avatar_url: profile?.avatar_url || null,
@@ -1001,9 +1015,11 @@ export default {
 
       // ── Gemini API 사용량 ──
       if (p === '/api/gemini-usage' && m === 'GET') {
-        const total = await env.DB.prepare('SELECT * FROM gemini_usage WHERE id=1').first();
-        const daily = await env.DB.prepare('SELECT date, type, tokens_in, tokens_out, calls FROM gemini_usage_daily ORDER BY date DESC, type ASC LIMIT 90').all();
-        const byType = await env.DB.prepare('SELECT type, SUM(tokens_in) as tokens_in, SUM(tokens_out) as tokens_out, SUM(calls) as calls FROM gemini_usage_daily GROUP BY type ORDER BY type ASC').all();
+        const [total, daily, byType] = await Promise.all([
+          env.DB.prepare('SELECT * FROM gemini_usage WHERE id=1').first(),
+          env.DB.prepare('SELECT date, type, tokens_in, tokens_out, calls FROM gemini_usage_daily ORDER BY date DESC, type ASC LIMIT 90').all(),
+          env.DB.prepare('SELECT type, SUM(tokens_in) as tokens_in, SUM(tokens_out) as tokens_out, SUM(calls) as calls FROM gemini_usage_daily GROUP BY type ORDER BY type ASC').all(),
+        ]);
         return json({
           total: total || { tokens_in: 0, tokens_out: 0, calls: 0 },
           daily: daily.results || [],
