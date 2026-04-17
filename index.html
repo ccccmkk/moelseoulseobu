@@ -101,8 +101,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .lb-close{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001}
 /* 모달 공통 */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center}
-.modal-overlay.open{display:flex}
+.modal-overlay.open{display:flex;animation:overlayIn .18s ease forwards}
+@keyframes overlayIn{from{background:rgba(0,0,0,0)}to{background:rgba(0,0,0,.5)}}
+.modal-overlay.open .modal{animation:modalSlideUp .22s cubic-bezier(.22,.61,.36,1) forwards}
+@keyframes modalSlideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-overlay.center{align-items:center;padding:1rem}
+.modal-overlay.center.open .modal{animation:modalFadeIn .18s ease forwards}
+@keyframes modalFadeIn{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
 .modal{background:#fff;border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:600px;max-height:90dvh;display:flex;flex-direction:column}
 .modal-overlay.center .modal{border-radius:var(--radius);max-height:88dvh}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
