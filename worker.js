@@ -42,8 +42,7 @@ async function callAI(systemPrompt, userMessage, env, opts = {}) {
             { role: 'user', content: userMessage },
           ],
           stream: false,
-          temperature: 1, top_p: 1, top_k: 0,
-          repetition_penalty: 1, max_model_len: 131072,
+          max_tokens: maxTokens,
         }),
       }, 25000);
       if (mRes.ok) {
@@ -1141,6 +1140,28 @@ export default {
       if (p === '/api/moel-usage' && m === 'GET') {
         const row = await env.DB.prepare('SELECT * FROM moel_usage WHERE id=1').first();
         return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+      }
+      if (p === '/api/test-moel' && m === 'GET') {
+        if (!env.MOEL_LLM_TOKEN) return json({ error: 'MOEL_LLM_TOKEN 미설정' }, 400);
+        try {
+          const mRes = await fetchTimeout('https://ai.moel.go.kr/gpt/api/llm', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.MOEL_LLM_TOKEN}`,
+              'Content-Type': 'application/json',
+              ...(env.MOEL_ORG_CODE ? { 'OrgCode': env.MOEL_ORG_CODE } : {}),
+            },
+            body: JSON.stringify({
+              model: '빠른 모델 플러스',
+              messages: [{ role: 'user', content: '안녕' }],
+              stream: false, max_tokens: 50,
+            }),
+          }, 25000);
+          const rawText = await mRes.text();
+          return json({ status: mRes.status, ok: mRes.ok, body: rawText.slice(0, 500) });
+        } catch (e) {
+          return json({ error: e.message });
+        }
       }
 
       // ── 프레즌스 ──
