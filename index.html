@@ -480,7 +480,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <!-- 검색 -->
       <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
         <div style="display:flex;gap:8px;margin-bottom:10px">
-          <input id="lawSearchInput" type="text" value="근로" placeholder="법령·판례 검색..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawSearch()">
+          <input id="lawSearchInput" type="text" placeholder="법령·판례 검색..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawSearch()">
           <button onclick="lawSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
         </div>
         <div style="display:flex;gap:6px">
@@ -1365,7 +1365,11 @@ function switchLawTarget(t){
   ['all','law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
   lawSearch();
 }
-async function loadLaw(){ lawSearch(); }
+async function loadLaw(){
+  const box=$('lawSearchResult');
+  if(!box||box.innerHTML.trim())return; // 이미 내용 있으면 재검색 안 함
+  box.innerHTML='<div style="padding:32px 16px;text-align:center;color:var(--text-hint);font-size:14px">검색어를 입력하고 검색 버튼을 누르세요</div>';
+}
 function lawSkeleton(){
   const item='<div class="law-skel-item"><div class="skel-line w80"></div><div class="skel-line w50"></div></div>';
   return`<div class="law-skeleton">${item}${item}${item}</div>`;
@@ -1378,7 +1382,8 @@ function expandLawSection(btn,cls){
   btn.style.display='none';
 }
 async function lawSearch(){
-  const q=($('lawSearchInput').value||'근로').trim();
+  const q=($('lawSearchInput').value||'').trim();
+  if(!q)return;
   const box=$('lawSearchResult');
   box.innerHTML=lawSkeleton();
   _lawCache=[];
