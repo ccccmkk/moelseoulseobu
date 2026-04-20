@@ -407,6 +407,22 @@ button,a,[role="button"]{touch-action:manipulation}
 .law-ask-tag{display:inline-flex;align-items:center;gap:4px;background:var(--green-light);color:var(--green-dark);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;margin-bottom:6px;cursor:pointer}
 .law-ask-tag-del{background:none;border:none;color:var(--green-dark);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;opacity:.7}
 .law-ask-tag-del:hover{opacity:1}
+/* OX 퀴즈 */
+#quizOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:800;align-items:center;justify-content:center;padding:20px}
+#quizOverlay.open{display:flex;animation:overlayIn .18s ease forwards}
+.quiz-card{background:#fff;border-radius:20px;width:100%;max-width:380px;padding:28px 22px 22px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)}
+.quiz-timer{width:68px;height:68px;position:relative;margin:0 auto 18px}
+.quiz-timer svg{transform:rotate(-90deg);display:block}
+.quiz-timer-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:var(--green)}
+.quiz-question{font-size:17px;font-weight:700;line-height:1.55;margin-bottom:22px;color:var(--text);word-break:keep-all}
+.quiz-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.quiz-btn{height:82px;border:3px solid var(--border);border-radius:16px;font-size:38px;cursor:pointer;background:#fff;transition:.15s;line-height:1}
+.quiz-btn:hover:not(:disabled){border-color:var(--green);background:var(--green-light);transform:scale(1.04)}
+.quiz-btn.picked{border-color:var(--green);background:var(--green-light)}
+.quiz-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.quiz-stats-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:14px 0 6px;background:#eee}
+.quiz-stats-bar .qs-o{background:var(--green);transition:width .5s}
+.quiz-stats-bar .qs-x{background:#e53935;transition:width .5s}
 /* 법령 모바일 HTML 래퍼 */
 .law-html-wrap{padding:0 14px 16px;font-size:14px;line-height:1.8;color:var(--text);word-break:keep-all}
 .law-html-wrap table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
@@ -453,11 +469,12 @@ button,a,[role="button"]{touch-action:manipulation}
 
 <!-- ════ 앱 ════ -->
 <div id="appPage" class="page">
-  <div class="appbar" onclick="location.reload()" style="cursor:pointer">
-    <div>
+  <div class="appbar">
+    <div onclick="location.reload()" style="cursor:pointer;flex:1">
       <div class="appbar-title">STEP</div>
       <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">Seobu Together Empathy Platform</div>
     </div>
+    <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
   </div>
 
   <!-- 피드 탭 -->
@@ -1060,6 +1077,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="adm-tab" id="admTab-logs" onclick="switchAdmTab('logs')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">접속이력</button>
       <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
       <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
+      <button class="adm-tab" id="admTab-quiz" onclick="switchAdmTab('quiz')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
     </div>
     <div class="modal-body" style="padding:0">
 
@@ -1157,6 +1175,32 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="agentMsg" style="font-size:12px;margin-top:10px;min-height:16px;color:var(--green-dark)"></div>
       </div>
 
+      <!-- ── 퀴즈 탭 ── -->
+      <div id="admPane-quiz" class="adm-pane" style="display:none;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">OX 퀴즈 만들기</div>
+        <div style="margin-bottom:10px">
+          <textarea id="quizQuestionInput" placeholder="퀴즈 문제를 입력하세요" rows="2" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.5"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsOLabel">
+            <input type="radio" name="quizAnswer" value="O" style="accent-color:var(--green);width:16px;height:16px"> ⭕ O
+          </label>
+          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsXLabel">
+            <input type="radio" name="quizAnswer" value="X" style="accent-color:var(--green);width:16px;height:16px"> ❌ X
+          </label>
+        </div>
+        <button class="btn-sm primary" onclick="adminCreateQuiz()" style="width:100%;justify-content:center;padding:10px 0">퀴즈 생성</button>
+        <div id="adminQuizMsg" style="font-size:12px;margin-top:6px;min-height:14px;color:var(--green-dark)"></div>
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">현재 퀴즈 상태</div>
+        <div id="adminQuizStatus" style="background:#f5f5f5;border-radius:10px;padding:14px;font-size:13px;color:var(--text-hint)">불러오는 중...</div>
+        <div id="adminQuizControls" style="display:none;margin-top:10px;flex-direction:column;gap:8px">
+          <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center">▶ 시작 (5초 카운트다운)</button>
+          <button id="adminQuizRevealBtn" class="btn-sm" onclick="adminQuizAction('reveal')" style="justify-content:center">🏆 결과 공개</button>
+          <button id="adminQuizCloseBtn" class="btn-sm danger" onclick="adminQuizAction('close')" style="justify-content:center">✖ 퀴즈 종료</button>
+        </div>
+      </div>
+
       <!-- ── 통계 탭 ── -->
       <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
@@ -1203,6 +1247,49 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="upload-pct" id="uploadPct">0%</div>
   </div>
 </div>
+<!-- ════ OX 퀴즈 ════ -->
+<div id="quizOverlay">
+  <div class="quiz-card">
+    <!-- 대기 -->
+    <div id="quizStateWaiting">
+      <div style="font-size:44px;margin-bottom:12px">🎉</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">퀴즈 준비 중!</div>
+      <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px">잠시 후 문제가 출제됩니다</div>
+      <div class="ptr-spinner" style="margin:0 auto;width:24px;height:24px;display:block"></div>
+    </div>
+    <!-- 진행 중 -->
+    <div id="quizStateActive" style="display:none">
+      <div class="quiz-timer">
+        <svg viewBox="0 0 68 68" width="68" height="68">
+          <circle cx="34" cy="34" r="29" fill="none" stroke="#e8e8e8" stroke-width="7"/>
+          <circle id="quizTimerCircle" cx="34" cy="34" r="29" fill="none" stroke="#37c272" stroke-width="7" stroke-dasharray="182.2" stroke-dashoffset="0" stroke-linecap="round"/>
+        </svg>
+        <div class="quiz-timer-num" id="quizTimerNum">5</div>
+      </div>
+      <div class="quiz-question" id="quizQuestion"></div>
+      <div class="quiz-btns">
+        <button class="quiz-btn" id="quizBtnO" onclick="submitQuizAnswer('O')">⭕</button>
+        <button class="quiz-btn" id="quizBtnX" onclick="submitQuizAnswer('X')">❌</button>
+      </div>
+      <div id="quizAnswerMsg" style="font-size:13px;color:var(--text-hint);min-height:18px"></div>
+    </div>
+    <!-- 결과 공개 -->
+    <div id="quizStateRevealed" style="display:none">
+      <div id="quizResultBadge" style="font-size:44px;margin-bottom:10px"></div>
+      <div class="quiz-question" id="quizRevealQuestion"></div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">정답: <span id="quizCorrectAnswer" style="color:var(--green)"></span></div>
+      <div id="quizUserResultMsg" style="font-size:13px;margin-bottom:14px;color:var(--text-sub)"></div>
+      <div class="quiz-stats-bar"><div class="qs-o" id="quizStatO" style="width:50%"></div><div class="qs-x" id="quizStatX" style="width:50%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-hint)">
+        <span>⭕ <span id="quizStatOCnt">0</span>명</span>
+        <span><span id="quizStatTotal">0</span>명 참여</span>
+        <span>❌ <span id="quizStatXCnt">0</span>명</span>
+      </div>
+      <button onclick="closeQuizModal()" style="margin-top:16px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
 const EVT_TYPE_COLOR={결혼:'#e91e8c',출산:'#2196f3',생일:'#ff9800',상:'#607d8b',승진:'#4caf50',기타:'#9e9e9e'};
@@ -2624,7 +2711,7 @@ async function toggleClaude(on){
 
 // ── 관리자 탭 전환 ──
 function switchAdmTab(tab){
-  ['users','logs','agent','stats'].forEach(t=>{
+  ['users','logs','agent','stats','quiz'].forEach(t=>{
     const btn=$('admTab-'+t),pane=$('admPane-'+t);
     if(!btn||!pane)return;
     const isActive=t===tab;
@@ -2633,6 +2720,7 @@ function switchAdmTab(tab){
     pane.style.display=isActive?'':'none';
   });
   if(tab==='logs') loadLoginLogs();
+  if(tab==='quiz') loadAdminQuizStatus();
 }
 
 // ── 접속 이력 ──
@@ -2978,7 +3066,7 @@ function onLoginSuccess(d){
   localStorage.setItem('session_token',d.token);
   // 이전 방식 삭제
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);
+  showPage('appPage');$('fab').className='fab show';renderFeed();initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -3050,6 +3138,196 @@ $('logoutBtn').onclick=async function(){
   $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
   showPage('loginPage');
 };
+
+// ── OX 퀴즈 ──
+let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=null,quizModalOpen=false;
+const QUIZ_DURATION=5000;
+
+function openQuizModal(){
+  $('quizOverlay').classList.add('open');
+  quizModalOpen=true;
+  clearTimeout(quizPollTid);
+  quizPollStep();
+}
+function closeQuizModal(){
+  $('quizOverlay').classList.remove('open');
+  quizModalOpen=false;
+  clearTimeout(quizPollTid);
+  clearInterval(quizCountdownTid);
+}
+
+async function quizPollStep(){
+  try {
+    const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+    handleQuizState(d);
+  } catch(e){}
+  if(quizModalOpen) quizPollTid=setTimeout(quizPollStep,1500);
+}
+
+function handleQuizState(d){
+  const s=d.session;
+  if(!s||s.status==='closed'){
+    if(quizModalOpen&&currentUserRole!=='admin') closeQuizModal();
+    $('quizEventBtn').style.display='none';
+    return;
+  }
+  $('quizEventBtn').style.display='';
+  if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')){
+    $('quizOverlay').classList.add('open');
+    quizModalOpen=true;
+  }
+  if(s.status==='waiting'){
+    showQuizState('Waiting');
+    quizCurrentId=s.id;
+  } else if(s.status==='active'){
+    if(quizCurrentId!==s.id){
+      quizCurrentId=s.id; quizUserAnswer=null;
+      resetQuizBtns();
+    }
+    showQuizState('Active');
+    $('quizQuestion').textContent=s.question;
+    startQuizCountdown(s.started_at);
+  } else if(s.status==='revealed'){
+    clearInterval(quizCountdownTid);
+    showQuizState('Revealed');
+    $('quizRevealQuestion').textContent=s.question;
+    $('quizCorrectAnswer').textContent=s.answer==='O'?'⭕ O':'❌ X';
+    const answered=quizUserAnswer!=null;
+    const correct=quizUserAnswer===s.answer;
+    $('quizResultBadge').textContent=!answered?'😅':correct?'🎉':'😢';
+    $('quizUserResultMsg').textContent=!answered?'참여하지 않으셨네요':correct?'정답! 축하합니다 🎊':'아쉽지만 오답입니다';
+    const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
+    $('quizStatOCnt').textContent=oC;
+    $('quizStatXCnt').textContent=xC;
+    $('quizStatTotal').textContent=total;
+    const oP=total?Math.round(oC/total*100):50;
+    $('quizStatO').style.width=oP+'%';
+    $('quizStatX').style.width=(100-oP)+'%';
+  }
+}
+
+function showQuizState(state){
+  ['Waiting','Active','Revealed'].forEach(s=>{
+    const el=$('quizState'+s);
+    if(el) el.style.display=s===state?'':'none';
+  });
+}
+
+function startQuizCountdown(startedAt){
+  clearInterval(quizCountdownTid);
+  const endMs=startedAt*1000+QUIZ_DURATION;
+  const circ=2*Math.PI*29; // 182.2
+  function tick(){
+    const left=endMs-Date.now();
+    const secs=Math.max(0,Math.ceil(left/1000));
+    $('quizTimerNum').textContent=secs;
+    const prog=Math.max(0,Math.min(1,left/QUIZ_DURATION));
+    $('quizTimerCircle').style.strokeDashoffset=circ*(1-prog);
+    if(left<=0){
+      clearInterval(quizCountdownTid);
+      $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
+      if(!quizUserAnswer) $('quizAnswerMsg').textContent='시간 초과';
+    }
+  }
+  tick();
+  quizCountdownTid=setInterval(tick,60);
+}
+
+function resetQuizBtns(){
+  const o=$('quizBtnO'),x=$('quizBtnX');
+  if(!o||!x) return;
+  o.disabled=false; x.disabled=false;
+  o.className='quiz-btn'; x.className='quiz-btn';
+  $('quizAnswerMsg').textContent='';
+  $('quizTimerNum').textContent='5';
+  $('quizTimerCircle').style.strokeDashoffset='0';
+}
+
+async function submitQuizAnswer(ans){
+  if(quizUserAnswer) return;
+  quizUserAnswer=ans;
+  $('quizBtnO').className='quiz-btn'+(ans==='O'?' picked':'');
+  $('quizBtnX').className='quiz-btn'+(ans==='X'?' picked':'');
+  $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
+  $('quizAnswerMsg').textContent='✅ 답변 제출됨!';
+  try {
+    await fetch(`${API}/api/quiz/${quizCurrentId}/answer?token=${encodeURIComponent(sessionToken)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answer:ans})
+    });
+  } catch(e){}
+}
+
+// 백그라운드 폴링 (로그인 후 3초마다)
+function startQuizBgPoll(){
+  setInterval(async()=>{
+    if(quizModalOpen) return;
+    try {
+      const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+      const s=d.session;
+      if(s&&(s.status==='active'||s.status==='waiting')){
+        $('quizEventBtn').style.display='';
+        openQuizModal();
+      } else if(!s||s.status==='closed'){
+        $('quizEventBtn').style.display='none';
+      }
+    } catch(e){}
+  },3000);
+}
+
+// ── 관리자 퀴즈 컨트롤 ──
+let adminQuizCurrentId=null;
+
+async function loadAdminQuizStatus(){
+  const box=$('adminQuizStatus'), ctrl=$('adminQuizControls');
+  try {
+    const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+    const s=d.session;
+    if(!s||s.status==='closed'){
+      box.innerHTML='<span style="color:var(--text-hint)">진행 중인 퀴즈 없음</span>';
+      ctrl.style.display='none'; adminQuizCurrentId=null; return;
+    }
+    adminQuizCurrentId=s.id;
+    const statusLabel={waiting:'대기 중',active:'진행 중',revealed:'결과 공개'};
+    const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
+    box.innerHTML=`<div style="margin-bottom:6px"><b>${escHtml(s.question)}</b></div>
+      <div style="font-size:12px;color:var(--text-sub)">상태: <b>${statusLabel[s.status]||s.status}</b> · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})</div>`;
+    ctrl.style.display='flex';ctrl.style.flexDirection='column';
+    $('adminQuizStartBtn').style.display=s.status==='waiting'?'':'none';
+    $('adminQuizRevealBtn').style.display=s.status==='active'?'':'none';
+    $('adminQuizCloseBtn').style.display=['active','revealed'].includes(s.status)?'':'none';
+  } catch(e){
+    box.innerHTML='<span style="color:var(--danger)">불러오기 실패</span>';
+  }
+}
+
+async function adminCreateQuiz(){
+  const q=$('quizQuestionInput').value.trim();
+  const ans=document.querySelector('input[name="quizAnswer"]:checked')?.value;
+  const msg=$('adminQuizMsg');
+  if(!q){msg.style.color='var(--danger)';msg.textContent='문제를 입력하세요';return;}
+  if(!ans){msg.style.color='var(--danger)';msg.textContent='정답을 선택하세요';return;}
+  try {
+    const r=await fetch(`${API}/api/quiz?token=${encodeURIComponent(sessionToken)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,answer:ans})
+    });
+    const d=await r.json();
+    if(d.ok){
+      msg.style.color='var(--green-dark)'; msg.textContent='퀴즈 생성 완료!';
+      $('quizQuestionInput').value='';
+      document.querySelectorAll('input[name="quizAnswer"]').forEach(i=>i.checked=false);
+      await loadAdminQuizStatus();
+    } else { msg.style.color='var(--danger)'; msg.textContent=d.error||'오류'; }
+  } catch(e){ msg.style.color='var(--danger)'; msg.textContent='네트워크 오류'; }
+}
+
+async function adminQuizAction(action){
+  if(!adminQuizCurrentId) return;
+  try {
+    const r=await fetch(`${API}/api/quiz/${adminQuizCurrentId}/${action}?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+    const d=await r.json();
+    if(d.ok) await loadAdminQuizStatus();
+  } catch(e){}
+}
 
 // ── PWA 홈화면 추가 ──
 (function(){

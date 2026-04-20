@@ -1,4 +1,4 @@
-// v2.1.4
+// v2.1.5
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
@@ -165,6 +165,8 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS restaurant_votes (restaurant_id TEXT, user_id TEXT, vote INTEGER, PRIMARY KEY(restaurant_id, user_id))`,
     `CREATE TABLE IF NOT EXISTS login_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, ip TEXT, user_agent TEXT, result TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS moel_usage (id INTEGER PRIMARY KEY, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS quiz_sessions (id TEXT PRIMARY KEY, question TEXT NOT NULL, answer TEXT NOT NULL, status TEXT DEFAULT 'waiting', started_at INTEGER, revealed_at INTEGER, created_by TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS quiz_answers (quiz_id TEXT, user_id TEXT, answer TEXT NOT NULL, answered_at INTEGER, PRIMARY KEY(quiz_id, user_id))`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -1388,6 +1390,82 @@ export default {
       if (p === '/api/usage' && m === 'GET') {
         const row = await env.DB.prepare('SELECT bytes FROM usage WHERE id=1').first();
         return json({ bytes: row?.bytes || 0, max: MAX_BYTES });
+      }
+
+      // ── OX 퀴즈 ──
+      if (p === '/api/quiz/current' && m === 'GET') {
+        const session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') ORDER BY created_at DESC LIMIT 1").first();
+        if (!session) return json({ session: null });
+        const stats = await env.DB.prepare("SELECT answer, COUNT(*) as cnt FROM quiz_answers WHERE quiz_id=? GROUP BY answer").bind(session.id).all();
+        const statMap = { O: 0, X: 0, total: 0 };
+        for (const r of (stats.results || [])) { statMap[r.answer] = r.cnt; statMap.total += r.cnt; }
+        const safe = { ...session };
+        if (session.status !== 'revealed') delete safe.answer;
+        return json({ session: safe, stats: statMap });
+      }
+
+      if (p === '/api/quiz' && m === 'POST') {
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const { question, answer } = await request.json();
+        if (!question || !['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
+        await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE status IN ('waiting','active','revealed')").run();
+        const id = `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(id, question, answer, 'waiting', sess.user_id, now).run();
+        return json({ ok: true, id });
+      }
+
+      if (p.match(/^\/api\/quiz\/[^/]+\/start$/) && m === 'POST') {
+        const qid = p.split('/')[3];
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare("UPDATE quiz_sessions SET status='active', started_at=? WHERE id=? AND status='waiting'").bind(now, qid).run();
+        return json({ ok: true, started_at: now });
+      }
+
+      if (p.match(/^\/api\/quiz\/[^/]+\/reveal$/) && m === 'POST') {
+        const qid = p.split('/')[3];
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare("UPDATE quiz_sessions SET status='revealed', revealed_at=? WHERE id=?").bind(now, qid).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/quiz\/[^/]+\/close$/) && m === 'POST') {
+        const qid = p.split('/')[3];
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE id=?").bind(qid).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/quiz\/[^/]+\/answer$/) && m === 'POST') {
+        const qid = p.split('/')[3];
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const { answer } = await request.json();
+        if (!['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
+        const quiz = await env.DB.prepare('SELECT status FROM quiz_sessions WHERE id=?').bind(qid).first();
+        if (!quiz || quiz.status !== 'active') return json({ error: 'not active' }, 400);
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO quiz_answers(quiz_id,user_id,answer,answered_at) VALUES(?,?,?,?) ON CONFLICT(quiz_id,user_id) DO UPDATE SET answer=?,answered_at=?').bind(qid, sess.user_id, answer, now, answer, now).run();
+        return json({ ok: true });
       }
 
       return new Response('Not found', { status: 404, headers: CORS });
