@@ -1381,10 +1381,34 @@ function switchLawTarget(t){
   ['law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
   lawSearch();
 }
+const LAW_DEFAULTS=[
+  {name:'근로기준법',mst:'226223',dept:'고용노동부'},
+  {name:'최저임금법',mst:'226179',dept:'고용노동부'},
+  {name:'남녀고용평등법',mst:'226228',dept:'고용노동부'},
+  {name:'근로자퇴직급여 보장법',mst:'226218',dept:'고용노동부'},
+  {name:'산업안전보건법',mst:'226183',dept:'고용노동부'},
+  {name:'산업재해보상보험법',mst:'226181',dept:'고용노동부'},
+  {name:'고용보험법',mst:'226166',dept:'고용노동부'},
+  {name:'기간제 및 단시간근로자 보호 등에 관한 법률',mst:'226222',dept:'고용노동부'},
+  {name:'파견근로자 보호 등에 관한 법률',mst:'226186',dept:'고용노동부'},
+  {name:'직업안정법',mst:'226191',dept:'고용노동부'},
+  {name:'고용상 연령차별금지 및 고령자고용촉진에 관한 법률',mst:'226164',dept:'고용노동부'},
+  {name:'장애인고용촉진 및 직업재활법',mst:'226220',dept:'고용노동부'},
+];
 async function loadLaw(){
   const box=$('lawSearchResult');
-  if(!box||box.innerHTML.trim())return; // 이미 내용 있으면 재검색 안 함
-  box.innerHTML='<div style="padding:32px 16px;text-align:center;color:var(--text-hint);font-size:14px">검색어를 입력하고 검색 버튼을 누르세요</div>';
+  if(!box||box.innerHTML.trim())return;
+  let html='<div style="padding:10px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📋 주요 노동 법령</div>';
+  html+=LAW_DEFAULTS.map(l=>{
+    const i=_lawIdx({id:'',name:l.name,lawtype:'law',mst:l.mst});
+    return`<div class="law-result-card" onclick="openLawCached(${i})">
+      <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${l.name}</div>
+      <div style="font-size:12px;color:var(--text-hint)">${l.dept}</div>
+      <div style="font-size:11px;color:var(--green-dark);margin-top:5px">본문 조회 →</div>
+    </div>`;
+  }).join('');
+  html+='<div style="padding:10px 16px;font-size:12px;color:var(--text-hint);text-align:center">검색어를 입력하면 더 많은 결과를 볼 수 있습니다</div>';
+  box.innerHTML=html;
 }
 function lawSkeleton(){
   const item='<div class="law-skel-item"><div class="skel-line w80"></div><div class="skel-line w50"></div></div>';
