@@ -434,6 +434,9 @@ button,a,[role="button"]{touch-action:manipulation}
     <form class="lf" id="loginForm" onsubmit="return false">
       <label>온나라 사번 (9자리)</label>
       <input type="text" id="uid" placeholder="123456789" maxlength="9" inputmode="numeric" autocomplete="username"/>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-sub);margin-bottom:12px;margin-top:-6px;cursor:pointer">
+        <input type="checkbox" id="saveIdChk" style="width:14px;height:14px;accent-color:var(--green)"> 사번 저장
+      </label>
       <label>비밀번호</label>
       <input type="password" id="upw" placeholder="비밀번호" autocomplete="current-password"/>
       <div class="lf-err" id="lerr"></div>
@@ -2958,6 +2961,8 @@ async function doLogin(e){
   if(e)e.preventDefault();
   const id=$('uid').value.trim(),pw=$('upw').value.trim();
   if(!id||!pw){$('lerr').textContent='사번과 비밀번호를 입력해주세요.';return;}
+  if($('saveIdChk').checked) localStorage.setItem('saved_id',id);
+  else localStorage.removeItem('saved_id');
   $('loginBtn').disabled=true;$('lerr').textContent='';
   try{
     const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
@@ -2982,6 +2987,8 @@ async function doChangePassword(){
 }
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
 (async()=>{
+  const savedId=localStorage.getItem('saved_id');
+  if(savedId){$('uid').value=savedId;$('saveIdChk').checked=true;$('upw').focus();}
   const token=localStorage.getItem('session_token');
   if(token){
     try{
