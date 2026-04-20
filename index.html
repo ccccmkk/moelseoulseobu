@@ -434,11 +434,16 @@ button,a,[role="button"]{touch-action:manipulation}
     <form class="lf" id="loginForm" onsubmit="return false">
       <label>온나라 사번 (9자리)</label>
       <input type="text" id="uid" placeholder="123456789" maxlength="9" inputmode="numeric" autocomplete="username"/>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-sub);margin-bottom:12px;margin-top:-6px;cursor:pointer">
-        <input type="checkbox" id="saveIdChk" style="width:14px;height:14px;min-height:0;padding:0;border:none;background:none;margin-bottom:0;accent-color:var(--green)"> 사번 저장
-      </label>
       <label>비밀번호</label>
       <input type="password" id="upw" placeholder="비밀번호" autocomplete="current-password"/>
+      <div style="display:flex;gap:16px;margin-bottom:14px;margin-top:-4px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-sub);cursor:pointer">
+          <input type="checkbox" id="saveIdChk" style="width:14px;height:14px;min-height:0;padding:0;border:none;background:none;margin-bottom:0;accent-color:var(--green)"> 사번 저장
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-sub);cursor:pointer">
+          <input type="checkbox" id="autoLoginChk" style="width:14px;height:14px;min-height:0;padding:0;border:none;background:none;margin-bottom:0;accent-color:var(--green)"> 자동 로그인
+        </label>
+      </div>
       <div class="lf-err" id="lerr"></div>
       <button type="submit" class="btn-green" id="loginBtn">로그인</button>
     </form>
@@ -2985,8 +2990,9 @@ async function doLogin(e){
   if(e)e.preventDefault();
   const id=$('uid').value.trim(),pw=$('upw').value.trim();
   if(!id||!pw){$('lerr').textContent='사번과 비밀번호를 입력해주세요.';return;}
-  if($('saveIdChk').checked) localStorage.setItem('saved_id',id);
-  else localStorage.removeItem('saved_id');
+  if($('autoLoginChk').checked){localStorage.setItem('saved_id',id);localStorage.setItem('auto_pw',btoa(pw));localStorage.setItem('auto_login','1');}
+  else if($('saveIdChk').checked){localStorage.setItem('saved_id',id);localStorage.removeItem('auto_pw');localStorage.removeItem('auto_login');}
+  else{localStorage.removeItem('saved_id');localStorage.removeItem('auto_pw');localStorage.removeItem('auto_login');}
   $('loginBtn').disabled=true;$('lerr').textContent='';
   try{
     const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pw})});
@@ -3012,7 +3018,11 @@ async function doChangePassword(){
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
 (async()=>{
   const savedId=localStorage.getItem('saved_id');
-  if(savedId){$('uid').value=savedId;$('saveIdChk').checked=true;$('upw').focus();}
+  const autoLogin=localStorage.getItem('auto_login')==='1';
+  const autoPw=localStorage.getItem('auto_pw');
+  if(savedId){$('uid').value=savedId;$('saveIdChk').checked=true;}
+  if(autoLogin&&autoPw){$('autoLoginChk').checked=true;$('upw').value=atob(autoPw);}
+  else if(savedId){$('upw').focus();}
   const token=localStorage.getItem('session_token');
   if(token){
     try{
@@ -3022,18 +3032,14 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
     }catch(e){}
     localStorage.removeItem('session_token');
   }
-  // 이전 방식 호환
-  const savedId=localStorage.getItem('saved_id'),savedPw=localStorage.getItem('saved_pw');
-  if(savedId&&savedPw){
+  // 자동 로그인
+  if(autoLogin&&savedId&&autoPw){
     try{
-      const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,password:savedPw})});
+      const r=await fetch(`${API}/api/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:savedId,password:atob(autoPw)})});
       const d=await r.json();
       if(d.ok){onLoginSuccess(d);return;}
     }catch(e){}
-    localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
   }
-  const savedId2=localStorage.getItem('saved_id');
-  if(savedId2)$('uid').value=savedId2;
 })();
 $('searchInput').oninput=function(){renderSearch(this.value.trim());};
 $('logoutBtn').onclick=async function(){
