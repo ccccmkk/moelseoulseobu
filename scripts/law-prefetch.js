@@ -118,24 +118,28 @@ async function main() {
           const key = `law3_${OC}_law_${law.name.slice(0,30)}`;
           items.push({ key, data: { laws, precs: [], expcs: [], query: law.name, oc: OC, debug: [] } });
           console.log(`✅ 검색캐시: ${law.name} (${laws.length}건)`);
+
+          // 검색 결과의 실제 MST로 본문 캐시 (상위 2개)
+          for (const found of laws.slice(0, 2)) {
+            const realMst = found.mst;
+            if (!realMst) continue;
+            try {
+              await new Promise(r => setTimeout(r, 300));
+              const cr = await get(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${realMst}&type=XML`, { Accept: 'application/xml,text/xml,*/*' });
+              if (cr.status === 200 && cr.body.length > 200) {
+                const html = xmlToHtml(cr.body);
+                if (html.length > 50) {
+                  items.push({ key: `lawxml1_law_${realMst}`, data: { html, name: found.name, lawtype: 'law' } });
+                  // MST로도 캐시 (id 기반 접근 대비)
+                  if (found.id) items.push({ key: `lawxml1_law_${found.id}`, data: { html, name: found.name, lawtype: 'law' } });
+                  console.log(`  ✅ 본문캐시: ${found.name} (MST:${realMst})`);
+                }
+              }
+            } catch(e) { console.warn(`  ⚠️  본문 실패: ${found.name}`, e.message); }
+          }
         }
       }
     } catch(e) { console.warn(`⚠️  검색 실패: ${law.name}`, e.message); }
-
-    // 2. 본문 캐시 (MST)
-    if (law.mst) {
-      try {
-        const r = await get(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${law.mst}&type=XML`, { Accept: 'application/xml,text/xml,*/*' });
-        if (r.status === 200 && r.body.length > 200) {
-          const html = xmlToHtml(r.body);
-          if (html.length > 50) {
-            const key = `lawxml1_law_${law.mst}`;
-            items.push({ key, data: { html, name: law.name, lawtype: 'law' } });
-            console.log(`✅ 본문캐시: ${law.name}`);
-          }
-        }
-      } catch(e) { console.warn(`⚠️  본문 실패: ${law.name}`, e.message); }
-    }
 
     await new Promise(r => setTimeout(r, 500)); // rate limit 방지
   }
