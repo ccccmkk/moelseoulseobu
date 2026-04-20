@@ -1,0 +1,21 @@
+name: Prefetch Law Data
+
+on:
+  schedule:
+    - cron: '0 18 * * 0'  # 매주 일요일 03:00 KST
+  workflow_dispatch:       # 수동 실행 가능
+
+jobs:
+  prefetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch and cache law data
+        env:
+          LAW_OC: STEP-OPENAPI
+          WORKER_URL: https://band-archive-api.cm99i.workers.dev
+          LAW_CACHE_TOKEN: ${{ secrets.LAW_CACHE_TOKEN }}
+        run: node scripts/law-prefetch.js

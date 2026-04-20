@@ -1118,6 +1118,18 @@ export default {
         ).bind(tokens_in, tokens_out, Math.floor(Date.now()/1000), tokens_in, tokens_out, Math.floor(Date.now()/1000)).run();
         return json({ ok: true });
       }
+      if (p === '/api/admin/law-cache' && m === 'POST') {
+        const tok = request.headers.get('X-Cache-Token');
+        if (!env.LAW_CACHE_TOKEN || tok !== env.LAW_CACHE_TOKEN) return json({ error: 'unauthorized' }, 401);
+        const items = await request.json();
+        if (!Array.isArray(items) || !items.length) return json({ error: 'items[] 필요' }, 400);
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.batch(items.map(({ key, data }) =>
+          env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind(key, JSON.stringify(data), now, JSON.stringify(data), now)
+        ));
+        return json({ ok: true, count: items.length });
+      }
       if (p === '/api/moel-usage' && m === 'GET') {
         const row = await env.DB.prepare('SELECT * FROM moel_usage WHERE id=1').first();
         return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
