@@ -2255,7 +2255,7 @@ async function submitEvent(){
   await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type:$('evtType').value,title,content:$('evtContent').value.trim(),tagged_user})});
   $('eventModal').classList.remove('open');await fetchEvents();renderEvents();
 }
-async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/events/${id}`,{method:'DELETE'});events=events.filter(e=>e.id!==id);renderEvents();}
+async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});events=events.filter(e=>e.id!==id);renderEvents();renderChalEvents();}
 
 // ── 칭찬합니다 탭 전체 렌더 (데이터 로드 후에만 렌더) ──
 async function renderChal(){
@@ -2315,7 +2315,8 @@ function renderChalEvents(){
   if(!events.length){$('chalEventsList').innerHTML='<div class="empty-state" style="padding:1.5rem"><div style="font-size:13px;color:var(--text-hint)">등록된 경조사 소식이 없습니다.</div></div>';return;}
   $('chalEventsList').innerHTML=events.map(e=>{
     const taggedHtml=e.tagged_user?(()=>{const n=escHtml(userName(e.tagged_user)||e.tagged_user);return`<div style="font-size:12px;color:var(--green-dark);font-weight:600;margin-bottom:2px">대상: ${n}</div>`;})():'';
-    return`<div class="event-card" style="margin-bottom:8px"><div style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[e.type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></div><div class="event-info"><span class="event-type-badge">${e.type}</span>${taggedHtml}<div class="event-title" style="font-size:14px">${escHtml(e.title)}</div><div class="event-meta">${relDate(e.created_at)}</div></div></div>`;
+    const canDel=e.author===currentUser||currentUserRole==='admin';
+    return`<div class="event-card" style="margin-bottom:8px"><div style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[e.type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></div><div class="event-info"><span class="event-type-badge">${e.type}</span>${taggedHtml}<div class="event-title" style="font-size:14px">${escHtml(e.title)}</div><div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvent('${e.id}')">×</button>`:''}</div>`;
   }).join('');
 }
 

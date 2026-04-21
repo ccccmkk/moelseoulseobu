@@ -768,6 +768,14 @@ export default {
       }
       if (p.match(/^\/api\/events\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!s) return json({ error: 'unauthorized' }, 401);
+        const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
+        if (ro?.role !== 'admin') {
+          const evt = await env.DB.prepare('SELECT author FROM events WHERE id=?').bind(id).first();
+          if (!evt || evt.author !== s.user_id) return json({ error: 'forbidden' }, 403);
+        }
         await env.DB.prepare('DELETE FROM events WHERE id=?').bind(id).run();
         return json({ ok: true });
       }
