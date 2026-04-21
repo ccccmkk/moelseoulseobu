@@ -37,7 +37,7 @@ async function callAI(systemPrompt, userMessage, env, opts = {}) {
       });
       const text = wRes?.response || '';
       if (text) return { text, model: 'workers-ai' };
-    } catch (e) {}
+    } catch (e) { console.error('[Workers AI]', e.message); }
   }
 
   // 2. Gemini 폴백 (관리자가 허용한 경우)
@@ -1138,6 +1138,20 @@ export default {
         const row = await env.DB.prepare('SELECT * FROM moel_usage WHERE id=1').first();
         return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
       }
+      if (p === '/api/test-ai' && m === 'GET') {
+        const result = { binding: !!env.AI };
+        if (!env.AI) return json({ ...result, error: 'AI 바인딩 없음 (wrangler.toml [ai] binding 확인 또는 재배포 필요)' });
+        try {
+          const wRes = await env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
+            messages: [{ role: 'user', content: '안녕하세요, 한 문장으로 답하세요.' }],
+            max_tokens: 80,
+          });
+          return json({ ...result, ok: true, response: wRes?.response || '', raw: wRes });
+        } catch (e) {
+          return json({ ...result, ok: false, error: e.message, stack: e.stack?.slice(0, 300) });
+        }
+      }
+
       if (p === '/api/test-moel' && m === 'GET') {
         if (!env.MOEL_LLM_TOKEN) return json({ error: 'MOEL_LLM_TOKEN 미설정' }, 400);
         try {
