@@ -3220,7 +3220,7 @@ function handleQuizState(d){
     return;
   }
   $('quizEventBtn').style.display='';
-  if(!quizModalOpen&&s.status==='active'&&currentUserRole!=='admin'){
+  if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')&&currentUserRole!=='admin'){
     $('quizOverlay').classList.add('open');
     quizModalOpen=true;
   }
@@ -3433,7 +3433,7 @@ function startQuizBgPoll(){
     try {
       const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
       const s=d.session;
-      if(s&&s.status==='active'&&currentUserRole!=='admin'){
+      if(s&&(s.status==='active'||s.status==='waiting')&&currentUserRole!=='admin'){
         $('quizEventBtn').style.display='';
         openQuizModal();
       } else if(s&&s.status!=='closed'){
