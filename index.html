@@ -424,6 +424,23 @@ button,a,[role="button"]{touch-action:manipulation}
 .quiz-stats-bar .qs-o{background:var(--green);transition:width .5s}
 .quiz-stats-bar .qs-x{background:#e53935;transition:width .5s}
 @keyframes quizNumPop{0%{transform:scale(1.35);opacity:.6}100%{transform:scale(1);opacity:1}}
+/* 참여자 패널 */
+.quiz-participants{display:flex;gap:8px;margin-top:10px;text-align:left}
+.qp-col{flex:1;border-radius:10px;padding:8px;min-height:44px;transition:opacity .5s,filter .5s}
+.qp-col.qp-o{border:2px solid var(--green);background:#f0fdf4}
+.qp-col.qp-x{border:2px solid #e53935;background:#fff5f5}
+.qp-hd{font-size:12px;font-weight:700;margin-bottom:5px;text-align:center}
+.qp-names{display:flex;flex-wrap:wrap;gap:3px}
+.qp-name{font-size:11px;background:#fff;border-radius:10px;padding:2px 7px;border:1px solid #e8e8e8;animation:namePopIn .22s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;transition:background .3s,color .3s,text-decoration .3s}
+@keyframes namePopIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.qp-col.elim-shake{animation:elimShake .5s ease}
+@keyframes elimShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}35%{transform:translateX(10px)}55%{transform:translateX(-7px)}75%{transform:translateX(5px)}90%{transform:translateX(-3px)}}
+.qp-col.elim-done{opacity:.28;filter:grayscale(1)}
+.qp-name.elim{text-decoration:line-through;color:#bbb;background:#f5f5f5;border-color:#ddd}
+.qp-col.winner-glow{border-color:var(--green);background:#d1fae5;box-shadow:0 0 0 3px rgba(55,194,114,.25)}
+.qp-name.win{background:var(--green);color:#fff;border-color:var(--green)}
+/* 폭죽 캔버스 */
+#quizFireworks{display:none;position:fixed;inset:0;z-index:850;pointer-events:none}
 /* 법령 모바일 HTML 래퍼 */
 .law-html-wrap{padding:0 14px 16px;font-size:14px;line-height:1.8;color:var(--text);word-break:keep-all}
 .law-html-wrap table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
@@ -1248,9 +1265,12 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="upload-pct" id="uploadPct">0%</div>
   </div>
 </div>
+<!-- ════ 폭죽 캔버스 (fullscreen) ════ -->
+<canvas id="quizFireworks"></canvas>
+
 <!-- ════ OX 퀴즈 ════ -->
 <div id="quizOverlay">
-  <div class="quiz-card">
+  <div class="quiz-card" style="max-height:88dvh;overflow-y:auto">
     <!-- 대기 -->
     <div id="quizStateWaiting">
       <div style="font-size:44px;margin-bottom:12px">🎉</div>
@@ -1280,21 +1300,39 @@ button,a,[role="button"]{touch-action:manipulation}
           <button class="quiz-btn" id="quizBtnX" onclick="submitQuizAnswer('X')">❌</button>
         </div>
         <div id="quizAnswerMsg" style="font-size:13px;color:var(--text-hint);min-height:18px"></div>
+        <!-- 제출 후 실시간 참여자 현황 -->
+        <div id="quizParticipantsPanel" style="display:none">
+          <div style="font-size:11px;color:var(--text-hint);margin:8px 0 2px">현재 선택 현황</div>
+          <div class="quiz-participants">
+            <div class="qp-col qp-o">
+              <div class="qp-hd">⭕ <span id="quizActCntO">0</span>명</div>
+              <div class="qp-names" id="quizActNamesO"></div>
+            </div>
+            <div class="qp-col qp-x">
+              <div class="qp-hd">❌ <span id="quizActCntX">0</span>명</div>
+              <div class="qp-names" id="quizActNamesX"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- 결과 공개 -->
     <div id="quizStateRevealed" style="display:none">
-      <div id="quizResultBadge" style="font-size:44px;margin-bottom:10px"></div>
-      <div class="quiz-question" id="quizRevealQuestion"></div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:6px">정답: <span id="quizCorrectAnswer" style="color:var(--green)"></span></div>
-      <div id="quizUserResultMsg" style="font-size:13px;margin-bottom:14px;color:var(--text-sub)"></div>
-      <div class="quiz-stats-bar"><div class="qs-o" id="quizStatO" style="width:50%"></div><div class="qs-x" id="quizStatX" style="width:50%"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-hint)">
-        <span>⭕ <span id="quizStatOCnt">0</span>명</span>
-        <span><span id="quizStatTotal">0</span>명 참여</span>
-        <span>❌ <span id="quizStatXCnt">0</span>명</span>
+      <div id="quizResultBadge" style="font-size:44px;margin-bottom:8px"></div>
+      <div class="quiz-question" id="quizRevealQuestion" style="margin-bottom:8px"></div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">정답: <span id="quizCorrectAnswer" style="color:var(--green)"></span></div>
+      <div id="quizUserResultMsg" style="font-size:13px;margin-bottom:10px;color:var(--text-sub)"></div>
+      <div class="quiz-participants">
+        <div class="qp-col qp-o" id="quizRevColO">
+          <div class="qp-hd">⭕ <span id="quizRevCntO">0</span>명</div>
+          <div class="qp-names" id="quizRevNamesO"></div>
+        </div>
+        <div class="qp-col qp-x" id="quizRevColX">
+          <div class="qp-hd">❌ <span id="quizRevCntX">0</span>명</div>
+          <div class="qp-names" id="quizRevNamesX"></div>
+        </div>
       </div>
-      <button onclick="closeQuizModal()" style="margin-top:16px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
+      <button onclick="closeQuizModal()" style="margin-top:14px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
     </div>
   </div>
 </div>
@@ -3150,6 +3188,7 @@ $('logoutBtn').onclick=async function(){
 
 // ── OX 퀴즈 ──
 let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=null,quizModalOpen=false;
+let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
 const QUIZ_DURATION=5000;
 
 function openQuizModal(){
@@ -3190,13 +3229,18 @@ function handleQuizState(d){
     quizCurrentId=s.id;
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
-      quizCurrentId=s.id; quizUserAnswer=null;
+      quizCurrentId=s.id; quizUserAnswer=null; quizRevealDone=false;
+      quizKnownO=new Set(); quizKnownX=new Set();
+      $('quizActNamesO').innerHTML=''; $('quizActNamesX').innerHTML='';
+      $('quizParticipantsPanel').style.display='none';
       resetQuizBtns();
     }
     showQuizState('Active');
     $('quizQuestion').textContent=s.question;
     startQuizCountdown(s.started_at);
-  } else if(s.status==='revealed'){
+    updateActiveParticipants(d.answers||[]);
+  } else if(s.status==='revealed'&&!quizRevealDone){
+    quizRevealDone=true;
     clearInterval(quizCountdownTid);
     showQuizState('Revealed');
     $('quizRevealQuestion').textContent=s.question;
@@ -3205,13 +3249,7 @@ function handleQuizState(d){
     const correct=quizUserAnswer===s.answer;
     $('quizResultBadge').textContent=!answered?'😅':correct?'🎉':'😢';
     $('quizUserResultMsg').textContent=!answered?'참여하지 않으셨네요':correct?'정답! 축하합니다 🎊':'아쉽지만 오답입니다';
-    const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
-    $('quizStatOCnt').textContent=oC;
-    $('quizStatXCnt').textContent=xC;
-    $('quizStatTotal').textContent=total;
-    const oP=total?Math.round(oC/total*100):50;
-    $('quizStatO').style.width=oP+'%';
-    $('quizStatX').style.width=(100-oP)+'%';
+    populateRevealParticipants(d.answers||[], s.answer);
   }
 }
 
@@ -3222,21 +3260,117 @@ function showQuizState(state){
   });
 }
 
+// 제출 후 실시간 참여자 현황 (active 중)
+function updateActiveParticipants(answers){
+  const showPanel = quizUserAnswer!=null;
+  if(!showPanel) return;
+  $('quizParticipantsPanel').style.display='';
+  let oC=0,xC=0;
+  for(const a of answers){
+    const nm=a.name||'?';
+    if(a.answer==='O'){oC++;if(!quizKnownO.has(nm)){quizKnownO.add(nm);appendBadge('quizActNamesO',nm);}}
+    else{xC++;if(!quizKnownX.has(nm)){quizKnownX.add(nm);appendBadge('quizActNamesX',nm);}}
+  }
+  $('quizActCntO').textContent=oC;
+  $('quizActCntX').textContent=xC;
+}
+
+function appendBadge(parentId, name){
+  const el=document.createElement('span');
+  el.className='qp-name'; el.textContent=name;
+  $(parentId).appendChild(el);
+}
+
+// 결과 공개 참여자 + 탈락/폭죽 애니메이션
+function populateRevealParticipants(answers, correctAnswer){
+  const nO=$('quizRevNamesO'),nX=$('quizRevNamesX');
+  nO.innerHTML=''; nX.innerHTML='';
+  let oC=0,xC=0;
+  for(const a of answers){
+    const el=document.createElement('span');
+    el.className='qp-name'; el.textContent=a.name||'?';
+    if(a.answer==='O'){oC++;nO.appendChild(el);}
+    else{xC++;nX.appendChild(el);}
+  }
+  $('quizRevCntO').textContent=oC;
+  $('quizRevCntX').textContent=xC;
+
+  const wrongId=correctAnswer==='O'?'quizRevColX':'quizRevColO';
+  const rightId=correctAnswer==='O'?'quizRevColO':'quizRevColX';
+
+  // 틀린쪽: 흔들림 → 취소선 → 페이드
+  setTimeout(()=>{
+    const wCol=$(wrongId);
+    wCol.classList.add('elim-shake');
+    wCol.querySelectorAll('.qp-name').forEach(el=>el.classList.add('elim'));
+    setTimeout(()=>wCol.classList.add('elim-done'),520);
+  }, 500);
+
+  // 맞은쪽: 배지 초록 → 폭죽
+  setTimeout(()=>{
+    const rCol=$(rightId);
+    rCol.classList.add('winner-glow');
+    rCol.querySelectorAll('.qp-name').forEach(el=>el.classList.add('win'));
+    launchFireworks(4500);
+  }, 1200);
+}
+
+// 폭죽 (전체화면 캔버스)
+function launchFireworks(duration=4500){
+  const canvas=$('quizFireworks');
+  canvas.style.display='block';
+  canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+  const ctx=canvas.getContext('2d');
+  const particles=[];
+  const COLORS=['#37c272','#FFD700','#FF69B4','#00CFFF','#FF6B6B','#9B59B6','#F39C12','#fff'];
+
+  function burst(x,y,n=65){
+    for(let i=0;i<n;i++){
+      const angle=Math.random()*Math.PI*2;
+      const spd=Math.random()*6+2;
+      particles.push({x,y,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd-3,
+        life:1,decay:Math.random()*.018+.009,
+        color:COLORS[Math.floor(Math.random()*COLORS.length)],
+        size:Math.random()*5+2,gravity:.13});
+    }
+  }
+
+  // 첫 연발 폭죽
+  const pts=[[.2,.25],[.5,.15],[.8,.25],[.35,.45],[.65,.45],[.5,.6]];
+  pts.forEach(([xr,yr],i)=>setTimeout(()=>burst(xr*canvas.width,yr*canvas.height),i*220));
+  // 이후 랜덤 폭죽
+  const intv=setInterval(()=>burst(Math.random()*canvas.width,Math.random()*canvas.height*.65),380);
+
+  let raf;
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=p.gravity; p.life-=p.decay;
+      if(p.life<=0){particles.splice(i,1);continue;}
+      ctx.globalAlpha=p.life;
+      ctx.fillStyle=p.color;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    raf=requestAnimationFrame(animate);
+  }
+  animate();
+  setTimeout(()=>{clearInterval(intv);cancelAnimationFrame(raf);particles.length=0;ctx.clearRect(0,0,canvas.width,canvas.height);canvas.style.display='none';},duration);
+}
+
 function startQuizCountdown(startedAt){
   clearInterval(quizCountdownTid);
-  const PRE=3000; // 3초 사전 카운트다운 (모든 클라이언트 동기화용)
+  const PRE=3000;
   const startMs=startedAt*1000;
-  const quizStartMs=startMs+PRE;
-  const quizEndMs=quizStartMs+QUIZ_DURATION;
-  const circ=2*Math.PI*29; // 182.2
+  const quizEndMs=startMs+PRE+QUIZ_DURATION;
+  const circ=2*Math.PI*29;
   let lastPreSec=-1;
 
   function tick(){
     const now=Date.now();
     const elapsed=now-startMs;
-
     if(elapsed<PRE){
-      // Phase 1: 3초 사전 카운트다운
       $('quizPreCountdown').style.display='';
       $('quizQuizPhase').style.display='none';
       const secs=Math.ceil((PRE-elapsed)/1000);
@@ -3244,10 +3378,9 @@ function startQuizCountdown(startedAt){
         lastPreSec=secs;
         $('quizPreNum').textContent=secs;
         $('quizPreNum').style.animation='none';
-        requestAnimationFrame(()=>{ $('quizPreNum').style.animation='quizNumPop .35s ease-out'; });
+        requestAnimationFrame(()=>{$('quizPreNum').style.animation='quizNumPop .35s ease-out';});
       }
     } else {
-      // Phase 2: 5초 퀴즈 타이머
       $('quizPreCountdown').style.display='none';
       $('quizQuizPhase').style.display='';
       const left=quizEndMs-now;
@@ -3305,7 +3438,7 @@ function startQuizBgPoll(){
         openQuizModal();
       } else if(s&&s.status!=='closed'){
         $('quizEventBtn').style.display='';
-      } else if(!s||s.status==='closed'){
+      } else {
         $('quizEventBtn').style.display='none';
       }
     } catch(e){}

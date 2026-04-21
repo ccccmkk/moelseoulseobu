@@ -1415,7 +1415,9 @@ export default {
         for (const r of (stats.results || [])) { statMap[r.answer] = r.cnt; statMap.total += r.cnt; }
         const safe = { ...session };
         if (session.status !== 'revealed') delete safe.answer;
-        return json({ session: safe, stats: statMap });
+        const ansRows = await env.DB.prepare('SELECT qa.answer, u.name FROM quiz_answers qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?').bind(session.id).all();
+        const answers = (ansRows.results || []).map(r => ({ name: r.name || '?', answer: r.answer }));
+        return json({ session: safe, stats: statMap, answers });
       }
 
       if (p === '/api/quiz' && m === 'POST') {
