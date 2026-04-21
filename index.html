@@ -1237,6 +1237,7 @@ button,a,[role="button"]{touch-action:manipulation}
           <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center">▶ 시작</button>
           <button id="adminQuizRevealBtn" class="btn-sm" onclick="adminQuizAction('reveal')" style="justify-content:center">🏆 결과 공개</button>
           <button id="adminQuizFinishSeriesBtn" class="btn-sm danger" onclick="adminFinishSeries()" style="justify-content:center;display:none">🏁 시리즈 종료</button>
+          <button id="adminQuizCloseSeriesBtn" class="btn-sm" onclick="adminCloseSeriesFully()" style="justify-content:center;display:none;background:#546e7a;color:#fff">🔒 퀴즈 완전 종료</button>
           <button id="adminQuizCloseBtn" class="btn-sm danger" onclick="adminQuizAction('close')" style="justify-content:center">✖ 퀴즈 종료</button>
         </div>
       </div>
@@ -3609,6 +3610,7 @@ async function loadAdminQuizStatus(){
       $('adminQuizStartBtn').style.display=s?.status==='waiting'?'':'none';
       $('adminQuizRevealBtn').style.display=s?.status==='active'?'':'none';
       $('adminQuizFinishSeriesBtn').style.display=s?.status!=='active'?'':'none';
+      $('adminQuizCloseSeriesBtn').style.display='none';
       $('adminQuizCloseBtn').style.display='none';
       adminQuizCurrentId=s?.id||null;
       $('adminQuizModeBar').style.display='none';
@@ -3618,13 +3620,18 @@ async function loadAdminQuizStatus(){
 
     // ── 스테이지전 종료 ──
     if(ser&&ser.finished){
-      adminSeriesId=null;
+      adminSeriesId=ser.id;
       box.innerHTML=`<div style="color:var(--green-dark);font-weight:600">✅ 스테이지전 완료</div>
         <div style="font-size:12px;color:var(--text-sub);margin-top:4px">최종 생존자 ${survivors.length}명: ${escHtml(survivors.map(sv=>sv.name||'?').join(', '))||'없음'}</div>`;
-      ctrl.style.display='none';
-      $('adminQuizModeBar').style.display='flex';
-      $('adminSeriesSetup').style.display=adminQuizMode==='series'?'':'none';
-      $('adminQuizInputArea').style.display='';
+      ctrl.style.display='flex'; ctrl.style.flexDirection='column';
+      $('adminQuizStartBtn').style.display='none';
+      $('adminQuizRevealBtn').style.display='none';
+      $('adminQuizFinishSeriesBtn').style.display='none';
+      $('adminQuizCloseSeriesBtn').style.display='';
+      $('adminQuizCloseBtn').style.display='none';
+      $('adminQuizModeBar').style.display='none';
+      $('adminSeriesSetup').style.display='none';
+      $('adminQuizInputArea').style.display='none';
       $('adminStageLabel').style.display='none';
       return;
     }
@@ -3636,6 +3643,7 @@ async function loadAdminQuizStatus(){
     $('adminSeriesSetup').style.display=adminQuizMode==='series'?'':'none';
     $('adminQuizInputArea').style.display='';
     $('adminQuizFinishSeriesBtn').style.display='none';
+    $('adminQuizCloseSeriesBtn').style.display='none';
 
     if(!s||s.status==='closed'){
       box.innerHTML='<span style="color:var(--text-hint)">진행 중인 퀴즈 없음</span>';
@@ -3713,6 +3721,16 @@ async function adminFinishSeries(){
     const r=await fetch(`${API}/api/quiz/series/${adminSeriesId}/finish?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
     const d=await r.json();
     if(d.ok) await loadAdminQuizStatus();
+  } catch(e){}
+}
+
+async function adminCloseSeriesFully(){
+  if(!adminSeriesId) return;
+  if(!confirm('퀴즈를 완전 종료합니다. 수상자 기록은 유지되며 화면에서는 사라집니다. 계속할까요?')) return;
+  try {
+    const r=await fetch(`${API}/api/quiz/series/${adminSeriesId}/close?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+    const d=await r.json();
+    if(d.ok){ adminSeriesId=null; await loadAdminQuizStatus(); }
   } catch(e){}
 }
 

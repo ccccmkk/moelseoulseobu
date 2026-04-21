@@ -1485,6 +1485,14 @@ export default {
         return json({ ok: true });
       }
 
+      // 스테이지전 완전 종료 (기록 유지, 화면에서 제거)
+      if (p.match(/^\/api\/quiz\/series\/[^/]+\/close$/) && m === 'POST') {
+        const sid = p.split('/')[4];
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        await env.DB.prepare("UPDATE quiz_series SET status='closed' WHERE id=?").bind(sid).run();
+        return json({ ok: true });
+      }
+
       // 퀴즈 문제 생성
       if (p === '/api/quiz' && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
