@@ -1308,12 +1308,13 @@ button,a,[role="button"]{touch-action:manipulation}
       <div style="font-size:17px;font-weight:700;margin-bottom:8px">퀴즈 준비 중!</div>
       <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px">잠시 후 문제가 출제됩니다</div>
       <div class="ptr-spinner" style="margin:0 auto;width:24px;height:24px;display:block"></div>
+      <div id="quizWaitingSurvivors" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
     </div>
     <!-- 진행 중 -->
     <div id="quizStateActive" style="display:none">
       <!-- Phase 1: 3초 사전 카운트다운 -->
       <div id="quizPreCountdown" style="padding:16px 0">
-        <div id="quizPreNum" style="font-size:88px;font-weight:900;color:var(--green);line-height:1;transition:transform .1s">3</div>
+        <div id="quizPreNum" style="font-size:88px;font-weight:900;color:var(--green);line-height:1;transition:transform .1s">5</div>
         <div style="font-size:13px;color:var(--text-hint);margin-top:12px">잠시 후 시작됩니다</div>
       </div>
       <!-- Phase 2: 퀴즈 진행 -->
@@ -3282,7 +3283,7 @@ function handleQuizState(d){
   // Series tracking
   if(ser){
     quizSeriesId=ser.id;
-    quizIsEliminated=survivors.length>0&&!survivors.some(sv=>sv.user_id===currentUser);
+    quizIsEliminated=survivors.length>0&&!survivors.some(sv=>String(sv.user_id)===String(currentUser));
   } else {
     quizSeriesId=null;
     quizIsEliminated=false;
@@ -3330,6 +3331,7 @@ function handleQuizState(d){
 
   if(s.status==='waiting'){
     quizCurrentId=s.id;
+    updateWaitingSurvivors(survivors);
     showQuizState(quizIsEliminated&&currentUserRole!=='admin'?'Eliminated':'Waiting');
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
@@ -3367,6 +3369,17 @@ function showQuizState(state){
     const el=$('quizState'+s);
     if(el) el.style.display=s===state?'':'none';
   });
+}
+
+function updateWaitingSurvivors(survivors){
+  const el=$('quizWaitingSurvivors');
+  if(!el) return;
+  if(!quizSeriesId||survivors.length===0){el.style.display='none';return;}
+  el.style.display='';
+  el.innerHTML=`<div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">생존자 ${survivors.length}명</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+    ${survivors.map(sv=>`<span style="font-size:11px;background:var(--green-light);color:var(--green-dark);border-radius:12px;padding:3px 9px;border:1px solid var(--green);font-weight:600">${escHtml(sv.name||'?')}</span>`).join('')}
+    </div>`;
 }
 
 // 제출 후 실시간 참여자 현황 (active 중)
@@ -3465,7 +3478,7 @@ function launchFireworks(duration=4500){
 
 function startQuizCountdown(startedAt){
   clearInterval(quizCountdownTid);
-  const PRE=3000;
+  const PRE=5000;
   const startMs=startedAt*1000;
   const quizEndMs=startMs+PRE+QUIZ_DURATION;
   const circ=2*Math.PI*29;
@@ -3510,7 +3523,7 @@ function resetQuizBtns(){
   o.className='quiz-btn'; x.className='quiz-btn';
   $('quizAnswerMsg').textContent='';
   $('quizAnswerMsg').style.color='var(--text-hint)';
-  $('quizPreNum').textContent='3';
+  $('quizPreNum').textContent='5';
   $('quizPreCountdown').style.display='';
   $('quizQuizPhase').style.display='none';
   $('quizTimerNum').textContent='5';
