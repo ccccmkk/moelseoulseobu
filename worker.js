@@ -618,6 +618,22 @@ export default {
         return json({ id });
       }
 
+      // ── 글 검색 (전체 DB) ──
+      if (p === '/api/posts/search' && m === 'GET') {
+        const q = (url.searchParams.get('q') || '').trim();
+        if (!q) return json({ posts: [] });
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '30'), 50);
+        const like = `%${q}%`;
+        const rows = await env.DB.prepare(
+          `SELECT p.id, p.author, p.blocks, p.created_at, p.like_count, p.mode, pk.keyword
+           FROM posts p
+           LEFT JOIN post_keywords pk ON p.id=pk.post_id
+           WHERE p.author LIKE ? OR pk.keyword LIKE ? OR p.blocks LIKE ?
+           ORDER BY p.created_at DESC LIMIT ?`
+        ).bind(like, like, like, limit).all();
+        return json({ posts: (rows.results || []).map(r => ({ ...r, blocks: JSON.parse(r.blocks) })) });
+      }
+
       // ── 글 수정 ──
       if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'PUT') {
         const id = p.split('/')[3];
