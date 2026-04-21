@@ -410,7 +410,7 @@ button,a,[role="button"]{touch-action:manipulation}
 /* OX 퀴즈 */
 #quizOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:800;align-items:center;justify-content:center;padding:20px}
 #quizOverlay.open{display:flex;animation:overlayIn .18s ease forwards}
-.quiz-card{background:#fff;border-radius:20px;width:100%;max-width:380px;padding:28px 22px 22px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)}
+.quiz-card{background:#fff;border-radius:20px;width:100%;max-width:380px;padding:28px 22px 22px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3);position:relative}
 .quiz-timer{width:68px;height:68px;position:relative;margin:0 auto 18px}
 .quiz-timer svg{transform:rotate(-90deg);display:block}
 .quiz-timer-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:var(--green)}
@@ -1195,26 +1195,48 @@ button,a,[role="button"]{touch-action:manipulation}
 
       <!-- ── 퀴즈 탭 ── -->
       <div id="admPane-quiz" class="adm-pane" style="display:none;padding:16px">
-        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">OX 퀴즈 만들기</div>
-        <div style="margin-bottom:10px">
-          <textarea id="quizQuestionInput" placeholder="퀴즈 문제를 입력하세요" rows="2" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.5"></textarea>
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">OX 퀴즈</div>
+        <!-- 모드 선택 -->
+        <div id="adminQuizModeBar" style="display:flex;gap:8px;margin-bottom:14px">
+          <button id="quizModeBtn-single" class="btn-sm primary" onclick="setAdminQuizMode('single')" style="flex:1;justify-content:center;padding:8px 0">단일</button>
+          <button id="quizModeBtn-series" class="btn-sm" onclick="setAdminQuizMode('series')" style="flex:1;justify-content:center;padding:8px 0">🎮 스테이지전</button>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsOLabel">
-            <input type="radio" name="quizAnswer" value="O" style="accent-color:var(--green);width:16px;height:16px"> ⭕ O
-          </label>
-          <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsXLabel">
-            <input type="radio" name="quizAnswer" value="X" style="accent-color:var(--green);width:16px;height:16px"> ❌ X
-          </label>
+        <!-- 스테이지전 설정 -->
+        <div id="adminSeriesSetup" style="display:none;margin-bottom:14px;background:#f5f5f5;border-radius:10px;padding:12px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-sub)">라운드 수 선택</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button class="btn-sm" onclick="setSeriesRounds(3)" id="seriesRnd-3" style="flex:1;justify-content:center">3</button>
+            <button class="btn-sm" onclick="setSeriesRounds(5)" id="seriesRnd-5" style="flex:1;justify-content:center">5</button>
+            <button class="btn-sm" onclick="setSeriesRounds(7)" id="seriesRnd-7" style="flex:1;justify-content:center">7</button>
+            <button class="btn-sm" onclick="setSeriesRounds(10)" id="seriesRnd-10" style="flex:1;justify-content:center">10</button>
+          </div>
+          <button class="btn-sm primary" onclick="adminCreateSeries()" style="width:100%;justify-content:center;padding:8px 0">🎮 시리즈 시작</button>
+          <div id="adminSeriesMsg" style="font-size:12px;margin-top:6px;min-height:14px;color:var(--green-dark)"></div>
         </div>
-        <button class="btn-sm primary" onclick="adminCreateQuiz()" style="width:100%;justify-content:center;padding:10px 0">퀴즈 생성</button>
-        <div id="adminQuizMsg" style="font-size:12px;margin-top:6px;min-height:14px;color:var(--green-dark)"></div>
+        <!-- 퀴즈 입력 영역 -->
+        <div id="adminQuizInputArea">
+          <div id="adminStageLabel" style="display:none;font-size:12px;font-weight:600;color:var(--green-dark);margin-bottom:8px;background:var(--green-light);border-radius:6px;padding:4px 10px"></div>
+          <div style="margin-bottom:10px">
+            <textarea id="quizQuestionInput" placeholder="퀴즈 문제를 입력하세요" rows="2" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.5"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsOLabel">
+              <input type="radio" name="quizAnswer" value="O" style="accent-color:var(--green);width:16px;height:16px"> ⭕ O
+            </label>
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;font-size:18px;font-weight:700;transition:.15s" id="quizAnsXLabel">
+              <input type="radio" name="quizAnswer" value="X" style="accent-color:var(--green);width:16px;height:16px"> ❌ X
+            </label>
+          </div>
+          <button id="adminQuizCreateBtn" class="btn-sm primary" onclick="adminCreateQuiz()" style="width:100%;justify-content:center;padding:10px 0">퀴즈 생성</button>
+          <div id="adminQuizMsg" style="font-size:12px;margin-top:6px;min-height:14px;color:var(--green-dark)"></div>
+        </div>
         <hr style="margin:18px 0;border:none;border-top:1px solid var(--border)">
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">현재 퀴즈 상태</div>
         <div id="adminQuizStatus" style="background:#f5f5f5;border-radius:10px;padding:14px;font-size:13px;color:var(--text-hint)">불러오는 중...</div>
         <div id="adminQuizControls" style="display:none;margin-top:10px;flex-direction:column;gap:8px">
-          <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center">▶ 시작 (5초 카운트다운)</button>
+          <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center">▶ 시작</button>
           <button id="adminQuizRevealBtn" class="btn-sm" onclick="adminQuizAction('reveal')" style="justify-content:center">🏆 결과 공개</button>
+          <button id="adminQuizFinishSeriesBtn" class="btn-sm danger" onclick="adminFinishSeries()" style="justify-content:center;display:none">🏁 시리즈 종료</button>
           <button id="adminQuizCloseBtn" class="btn-sm danger" onclick="adminQuizAction('close')" style="justify-content:center">✖ 퀴즈 종료</button>
         </div>
       </div>
@@ -1271,6 +1293,15 @@ button,a,[role="button"]{touch-action:manipulation}
 <!-- ════ OX 퀴즈 ════ -->
 <div id="quizOverlay">
   <div class="quiz-card" style="max-height:88dvh;overflow-y:auto">
+    <!-- 관리자 닫기 -->
+    <button id="quizModalCloseBtn" onclick="closeQuizModal()" style="display:none;position:absolute;top:8px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-hint);line-height:1;z-index:5">×</button>
+    <!-- 스테이지 인디케이터 (시리즈 모드) -->
+    <div id="quizStageBar" style="display:none;background:var(--green-light);border-radius:8px;padding:6px 12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span id="quizStageLabel" style="font-size:13px;font-weight:700;color:var(--green-dark)">1라운드 / 5라운드</span>
+        <span id="quizSurvivorCount" style="font-size:12px;color:var(--text-sub)"></span>
+      </div>
+    </div>
     <!-- 대기 -->
     <div id="quizStateWaiting">
       <div style="font-size:44px;margin-bottom:12px">🎉</div>
@@ -1333,6 +1364,19 @@ button,a,[role="button"]{touch-action:manipulation}
         </div>
       </div>
       <button onclick="closeQuizModal()" style="margin-top:14px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
+    </div>
+    <!-- 탈락 -->
+    <div id="quizStateEliminated" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:56px;margin-bottom:12px">💀</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:8px;color:#e53935">탈락</div>
+      <div style="font-size:13px;color:var(--text-hint)">다음 라운드를 관전 중입니다</div>
+    </div>
+    <!-- 스테이지전 종료 - 최종 생존자 -->
+    <div id="quizStateFinished" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:52px;margin-bottom:12px">🏆</div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:16px">최종 생존자</div>
+      <div id="quizSurvivorList" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:20px"></div>
+      <button onclick="closeQuizModal()" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
     </div>
   </div>
 </div>
@@ -3189,11 +3233,15 @@ $('logoutBtn').onclick=async function(){
 // ── OX 퀴즈 ──
 let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=null,quizModalOpen=false;
 let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
+let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false;
+let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
 const QUIZ_DURATION=5000;
 
 function openQuizModal(){
   $('quizOverlay').classList.add('open');
   quizModalOpen=true;
+  const cb=$('quizModalCloseBtn');
+  if(cb) cb.style.display=currentUserRole==='admin'?'':'none';
   clearTimeout(quizPollTid);
   quizPollStep();
 }
@@ -3214,19 +3262,75 @@ async function quizPollStep(){
 
 function handleQuizState(d){
   const s=d.session;
+  const ser=d.series;
+  const survivors=d.survivors||[];
+
+  // Stage bar
+  const bar=$('quizStageBar');
+  if(bar){
+    if(ser&&(s||ser.finished)){
+      bar.style.display='';
+      $('quizStageLabel').textContent=ser.finished
+        ?`완료 (${ser.total_stages}라운드)`
+        :`${s.stage_num}라운드 / ${ser.total_stages}라운드`;
+      $('quizSurvivorCount').textContent=survivors.length>0?`생존자 ${survivors.length}명`:'';
+    } else {
+      bar.style.display='none';
+    }
+  }
+
+  // Series tracking
+  if(ser){
+    quizSeriesId=ser.id;
+    quizIsEliminated=survivors.length>0&&!survivors.some(sv=>sv.user_id===currentUser);
+  } else {
+    quizSeriesId=null;
+    quizIsEliminated=false;
+    quizSeriesFinishedShown=false;
+  }
+
+  // Series finished → final screen
+  if(ser&&ser.finished){
+    $('quizEventBtn').style.display='';
+    if(!quizSeriesFinishedShown){
+      quizSeriesFinishedShown=true;
+      showQuizState('Finished');
+      const list=$('quizSurvivorList');
+      if(list){
+        list.innerHTML='';
+        survivors.forEach(sv=>{
+          const el=document.createElement('div');
+          el.style.cssText='background:var(--green);color:#fff;border-radius:20px;padding:6px 14px;font-size:14px;font-weight:600';
+          el.textContent=sv.name||'?';
+          list.appendChild(el);
+        });
+      }
+      if(!quizModalOpen) openQuizModal();
+      launchFireworks(6000);
+    }
+    return;
+  }
+  quizSeriesFinishedShown=false;
+
+  // No active session
   if(!s||s.status==='closed'){
+    if(ser){
+      // Series active but no stage created yet
+      $('quizEventBtn').style.display='';
+      return;
+    }
     if(quizModalOpen&&currentUserRole!=='admin') closeQuizModal();
     $('quizEventBtn').style.display='none';
     return;
   }
   $('quizEventBtn').style.display='';
   if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')&&currentUserRole!=='admin'){
-    $('quizOverlay').classList.add('open');
-    quizModalOpen=true;
+    openQuizModal();
   }
+
   if(s.status==='waiting'){
-    showQuizState('Waiting');
     quizCurrentId=s.id;
+    showQuizState(quizIsEliminated&&currentUserRole!=='admin'?'Eliminated':'Waiting');
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
       quizCurrentId=s.id; quizUserAnswer=null; quizRevealDone=false;
@@ -3237,6 +3341,11 @@ function handleQuizState(d){
     }
     showQuizState('Active');
     $('quizQuestion').textContent=s.question;
+    if(quizIsEliminated&&currentUserRole!=='admin'&&!quizUserAnswer){
+      $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
+      $('quizAnswerMsg').textContent='💀 탈락 - 관전 중';
+      $('quizAnswerMsg').style.color='#e53935';
+    }
     startQuizCountdown(s.started_at);
     updateActiveParticipants(d.answers||[]);
   } else if(s.status==='revealed'&&!quizRevealDone){
@@ -3254,7 +3363,7 @@ function handleQuizState(d){
 }
 
 function showQuizState(state){
-  ['Waiting','Active','Revealed'].forEach(s=>{
+  ['Waiting','Active','Revealed','Eliminated','Finished'].forEach(s=>{
     const el=$('quizState'+s);
     if(el) el.style.display=s===state?'':'none';
   });
@@ -3262,8 +3371,7 @@ function showQuizState(state){
 
 // 제출 후 실시간 참여자 현황 (active 중)
 function updateActiveParticipants(answers){
-  const showPanel = quizUserAnswer!=null;
-  if(!showPanel) return;
+  if(quizUserAnswer==null) return;
   $('quizParticipantsPanel').style.display='';
   let oC=0,xC=0;
   for(const a of answers){
@@ -3298,7 +3406,6 @@ function populateRevealParticipants(answers, correctAnswer){
   const wrongId=correctAnswer==='O'?'quizRevColX':'quizRevColO';
   const rightId=correctAnswer==='O'?'quizRevColO':'quizRevColX';
 
-  // 틀린쪽: 흔들림 → 취소선 → 페이드
   setTimeout(()=>{
     const wCol=$(wrongId);
     wCol.classList.add('elim-shake');
@@ -3306,7 +3413,6 @@ function populateRevealParticipants(answers, correctAnswer){
     setTimeout(()=>wCol.classList.add('elim-done'),520);
   }, 500);
 
-  // 맞은쪽: 배지 초록 → 폭죽
   setTimeout(()=>{
     const rCol=$(rightId);
     rCol.classList.add('winner-glow');
@@ -3335,10 +3441,8 @@ function launchFireworks(duration=4500){
     }
   }
 
-  // 첫 연발 폭죽
   const pts=[[.2,.25],[.5,.15],[.8,.25],[.35,.45],[.65,.45],[.5,.6]];
   pts.forEach(([xr,yr],i)=>setTimeout(()=>burst(xr*canvas.width,yr*canvas.height),i*220));
-  // 이후 랜덤 폭죽
   const intv=setInterval(()=>burst(Math.random()*canvas.width,Math.random()*canvas.height*.65),380);
 
   let raf;
@@ -3405,6 +3509,7 @@ function resetQuizBtns(){
   o.disabled=false; x.disabled=false;
   o.className='quiz-btn'; x.className='quiz-btn';
   $('quizAnswerMsg').textContent='';
+  $('quizAnswerMsg').style.color='var(--text-hint)';
   $('quizPreNum').textContent='3';
   $('quizPreCountdown').style.display='';
   $('quizQuizPhase').style.display='none';
@@ -3413,12 +3518,13 @@ function resetQuizBtns(){
 }
 
 async function submitQuizAnswer(ans){
-  if(quizUserAnswer) return;
+  if(quizUserAnswer||quizIsEliminated) return;
   quizUserAnswer=ans;
   $('quizBtnO').className='quiz-btn'+(ans==='O'?' picked':'');
   $('quizBtnX').className='quiz-btn'+(ans==='X'?' picked':'');
   $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
   $('quizAnswerMsg').textContent='✅ 답변 제출됨!';
+  $('quizAnswerMsg').style.color='var(--text-hint)';
   try {
     await fetch(`${API}/api/quiz/${quizCurrentId}/answer?token=${encodeURIComponent(sessionToken)}`,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answer:ans})
@@ -3432,12 +3538,17 @@ function startQuizBgPoll(){
     if(quizModalOpen) return;
     try {
       const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
-      const s=d.session;
-      if(s&&(s.status==='active'||s.status==='waiting')&&currentUserRole!=='admin'){
+      const s=d.session, ser=d.series;
+      const hasActivity=ser||(s&&s.status!=='closed');
+      if(hasActivity){
         $('quizEventBtn').style.display='';
-        openQuizModal();
-      } else if(s&&s.status!=='closed'){
-        $('quizEventBtn').style.display='';
+        if(currentUserRole!=='admin'){
+          if(ser&&ser.finished&&!quizSeriesFinishedShown){
+            openQuizModal();
+          } else if(!ser?.finished&&s&&(s.status==='active'||s.status==='waiting')){
+            openQuizModal();
+          }
+        }
       } else {
         $('quizEventBtn').style.display='none';
       }
@@ -3446,23 +3557,75 @@ function startQuizBgPoll(){
 }
 
 // ── 관리자 퀴즈 컨트롤 ──
-let adminQuizCurrentId=null;
-
 async function loadAdminQuizStatus(){
   const box=$('adminQuizStatus'), ctrl=$('adminQuizControls');
   try {
     const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
-    const s=d.session;
+    const s=d.session, ser=d.series, survivors=d.survivors||[];
+    const statusLabel={waiting:'대기 중',active:'진행 중',revealed:'결과 공개'};
+
+    // ── 스테이지전 진행 중 ──
+    if(ser&&!ser.finished){
+      adminSeriesId=ser.id;
+      const stage=s?.stage_num||0;
+      const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
+      box.innerHTML=`<div style="margin-bottom:6px">
+        <span style="font-weight:700;color:var(--green-dark)">🎮 스테이지전</span>
+        <span style="font-size:12px;color:var(--text-sub);margin-left:6px">${stage?stage+'/'+ser.total_stages+'라운드':'준비 중'} · 생존자 ${survivors.length}명</span>
+      </div>${s
+        ?`<div style="margin-bottom:4px"><b>${escHtml(s.question)}</b></div>
+          <div style="font-size:12px;color:var(--text-sub)">상태: <b>${statusLabel[s.status]||s.status}</b> · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})</div>`
+        :'<div style="font-size:12px;color:var(--text-hint)">첫 라운드 퀴즈를 생성해주세요</div>'}`;
+
+      const needInput=!s||s.status==='revealed';
+      $('adminQuizInputArea').style.display=needInput?'':'none';
+      if(needInput){
+        const nextStage=(s?.stage_num||0)+1;
+        adminSeriesNextStage=nextStage;
+        $('adminStageLabel').style.display='';
+        $('adminStageLabel').textContent=`🎯 ${nextStage}라운드 문제`;
+      }
+      ctrl.style.display='flex'; ctrl.style.flexDirection='column';
+      $('adminQuizStartBtn').style.display=s?.status==='waiting'?'':'none';
+      $('adminQuizRevealBtn').style.display=s?.status==='active'?'':'none';
+      $('adminQuizFinishSeriesBtn').style.display=!s||s.status==='revealed'?'':'none';
+      $('adminQuizCloseBtn').style.display='none';
+      adminQuizCurrentId=s?.id||null;
+      $('adminQuizModeBar').style.display='none';
+      $('adminSeriesSetup').style.display='none';
+      return;
+    }
+
+    // ── 스테이지전 종료 ──
+    if(ser&&ser.finished){
+      adminSeriesId=null;
+      box.innerHTML=`<div style="color:var(--green-dark);font-weight:600">✅ 스테이지전 완료</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:4px">최종 생존자 ${survivors.length}명: ${escHtml(survivors.map(sv=>sv.name||'?').join(', '))||'없음'}</div>`;
+      ctrl.style.display='none';
+      $('adminQuizModeBar').style.display='flex';
+      $('adminSeriesSetup').style.display=adminQuizMode==='series'?'':'none';
+      $('adminQuizInputArea').style.display='';
+      $('adminStageLabel').style.display='none';
+      return;
+    }
+
+    // ── 단일 모드 ──
+    adminSeriesId=null; adminSeriesNextStage=1;
+    $('adminStageLabel').style.display='none';
+    $('adminQuizModeBar').style.display='flex';
+    $('adminSeriesSetup').style.display=adminQuizMode==='series'?'':'none';
+    $('adminQuizInputArea').style.display='';
+    $('adminQuizFinishSeriesBtn').style.display='none';
+
     if(!s||s.status==='closed'){
       box.innerHTML='<span style="color:var(--text-hint)">진행 중인 퀴즈 없음</span>';
       ctrl.style.display='none'; adminQuizCurrentId=null; return;
     }
     adminQuizCurrentId=s.id;
-    const statusLabel={waiting:'대기 중',active:'진행 중',revealed:'결과 공개'};
     const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
     box.innerHTML=`<div style="margin-bottom:6px"><b>${escHtml(s.question)}</b></div>
       <div style="font-size:12px;color:var(--text-sub)">상태: <b>${statusLabel[s.status]||s.status}</b> · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})</div>`;
-    ctrl.style.display='flex';ctrl.style.flexDirection='column';
+    ctrl.style.display='flex'; ctrl.style.flexDirection='column';
     $('adminQuizStartBtn').style.display=s.status==='waiting'?'':'none';
     $('adminQuizRevealBtn').style.display=s.status==='active'?'':'none';
     $('adminQuizCloseBtn').style.display=['active','revealed'].includes(s.status)?'':'none';
@@ -3471,15 +3634,48 @@ async function loadAdminQuizStatus(){
   }
 }
 
+function setAdminQuizMode(mode){
+  adminQuizMode=mode;
+  $('quizModeBtn-single').className='btn-sm'+(mode==='single'?' primary':'');
+  $('quizModeBtn-series').className='btn-sm'+(mode==='series'?' primary':'');
+  $('adminSeriesSetup').style.display=mode==='series'?'':'none';
+}
+
+function setSeriesRounds(n){
+  adminSeriesRounds=n;
+  [3,5,7,10].forEach(r=>{
+    const btn=$('seriesRnd-'+r);
+    if(btn) btn.className='btn-sm'+(r===n?' primary':'');
+  });
+}
+
+async function adminCreateSeries(){
+  const msg=$('adminSeriesMsg');
+  try {
+    const r=await fetch(`${API}/api/quiz/series?token=${encodeURIComponent(sessionToken)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({total_stages:adminSeriesRounds})
+    });
+    const d=await r.json();
+    if(d.ok){
+      adminSeriesId=d.series_id; adminSeriesNextStage=1;
+      msg.style.color='var(--green-dark)'; msg.textContent=`${adminSeriesRounds}라운드 시리즈 시작!`;
+      await loadAdminQuizStatus();
+    } else { msg.style.color='var(--danger)'; msg.textContent=d.error||'오류'; }
+  } catch(e){ msg.style.color='var(--danger)'; msg.textContent='네트워크 오류'; }
+}
+
 async function adminCreateQuiz(){
   const q=$('quizQuestionInput').value.trim();
   const ans=document.querySelector('input[name="quizAnswer"]:checked')?.value;
   const msg=$('adminQuizMsg');
   if(!q){msg.style.color='var(--danger)';msg.textContent='문제를 입력하세요';return;}
   if(!ans){msg.style.color='var(--danger)';msg.textContent='정답을 선택하세요';return;}
+  const body={question:q,answer:ans};
+  if(adminSeriesId){body.series_id=adminSeriesId;body.stage_num=adminSeriesNextStage;}
   try {
     const r=await fetch(`${API}/api/quiz?token=${encodeURIComponent(sessionToken)}`,{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,answer:ans})
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
     });
     const d=await r.json();
     if(d.ok){
@@ -3489,6 +3685,15 @@ async function adminCreateQuiz(){
       await loadAdminQuizStatus();
     } else { msg.style.color='var(--danger)'; msg.textContent=d.error||'오류'; }
   } catch(e){ msg.style.color='var(--danger)'; msg.textContent='네트워크 오류'; }
+}
+
+async function adminFinishSeries(){
+  if(!adminSeriesId) return;
+  try {
+    const r=await fetch(`${API}/api/quiz/series/${adminSeriesId}/finish?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+    const d=await r.json();
+    if(d.ok) await loadAdminQuizStatus();
+  } catch(e){}
 }
 
 async function adminQuizAction(action){
