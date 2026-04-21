@@ -423,6 +423,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .quiz-stats-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:14px 0 6px;background:#eee}
 .quiz-stats-bar .qs-o{background:var(--green);transition:width .5s}
 .quiz-stats-bar .qs-x{background:#e53935;transition:width .5s}
+@keyframes quizNumPop{0%{transform:scale(1.35);opacity:.6}100%{transform:scale(1);opacity:1}}
 /* 법령 모바일 HTML 래퍼 */
 .law-html-wrap{padding:0 14px 16px;font-size:14px;line-height:1.8;color:var(--text);word-break:keep-all}
 .law-html-wrap table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
@@ -1259,19 +1260,27 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <!-- 진행 중 -->
     <div id="quizStateActive" style="display:none">
-      <div class="quiz-timer">
-        <svg viewBox="0 0 68 68" width="68" height="68">
-          <circle cx="34" cy="34" r="29" fill="none" stroke="#e8e8e8" stroke-width="7"/>
-          <circle id="quizTimerCircle" cx="34" cy="34" r="29" fill="none" stroke="#37c272" stroke-width="7" stroke-dasharray="182.2" stroke-dashoffset="0" stroke-linecap="round"/>
-        </svg>
-        <div class="quiz-timer-num" id="quizTimerNum">5</div>
+      <!-- Phase 1: 3초 사전 카운트다운 -->
+      <div id="quizPreCountdown" style="padding:16px 0">
+        <div id="quizPreNum" style="font-size:88px;font-weight:900;color:var(--green);line-height:1;transition:transform .1s">3</div>
+        <div style="font-size:13px;color:var(--text-hint);margin-top:12px">잠시 후 시작됩니다</div>
       </div>
-      <div class="quiz-question" id="quizQuestion"></div>
-      <div class="quiz-btns">
-        <button class="quiz-btn" id="quizBtnO" onclick="submitQuizAnswer('O')">⭕</button>
-        <button class="quiz-btn" id="quizBtnX" onclick="submitQuizAnswer('X')">❌</button>
+      <!-- Phase 2: 퀴즈 진행 -->
+      <div id="quizQuizPhase" style="display:none">
+        <div class="quiz-timer">
+          <svg viewBox="0 0 68 68" width="68" height="68">
+            <circle cx="34" cy="34" r="29" fill="none" stroke="#e8e8e8" stroke-width="7"/>
+            <circle id="quizTimerCircle" cx="34" cy="34" r="29" fill="none" stroke="#37c272" stroke-width="7" stroke-dasharray="182.2" stroke-dashoffset="0" stroke-linecap="round"/>
+          </svg>
+          <div class="quiz-timer-num" id="quizTimerNum">5</div>
+        </div>
+        <div class="quiz-question" id="quizQuestion"></div>
+        <div class="quiz-btns">
+          <button class="quiz-btn" id="quizBtnO" onclick="submitQuizAnswer('O')">⭕</button>
+          <button class="quiz-btn" id="quizBtnX" onclick="submitQuizAnswer('X')">❌</button>
+        </div>
+        <div id="quizAnswerMsg" style="font-size:13px;color:var(--text-hint);min-height:18px"></div>
       </div>
-      <div id="quizAnswerMsg" style="font-size:13px;color:var(--text-hint);min-height:18px"></div>
     </div>
     <!-- 결과 공개 -->
     <div id="quizStateRevealed" style="display:none">
@@ -3215,18 +3224,42 @@ function showQuizState(state){
 
 function startQuizCountdown(startedAt){
   clearInterval(quizCountdownTid);
-  const endMs=startedAt*1000+QUIZ_DURATION;
+  const PRE=3000; // 3초 사전 카운트다운 (모든 클라이언트 동기화용)
+  const startMs=startedAt*1000;
+  const quizStartMs=startMs+PRE;
+  const quizEndMs=quizStartMs+QUIZ_DURATION;
   const circ=2*Math.PI*29; // 182.2
+  let lastPreSec=-1;
+
   function tick(){
-    const left=endMs-Date.now();
-    const secs=Math.max(0,Math.ceil(left/1000));
-    $('quizTimerNum').textContent=secs;
-    const prog=Math.max(0,Math.min(1,left/QUIZ_DURATION));
-    $('quizTimerCircle').style.strokeDashoffset=circ*(1-prog);
-    if(left<=0){
-      clearInterval(quizCountdownTid);
-      $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
-      if(!quizUserAnswer) $('quizAnswerMsg').textContent='시간 초과';
+    const now=Date.now();
+    const elapsed=now-startMs;
+
+    if(elapsed<PRE){
+      // Phase 1: 3초 사전 카운트다운
+      $('quizPreCountdown').style.display='';
+      $('quizQuizPhase').style.display='none';
+      const secs=Math.ceil((PRE-elapsed)/1000);
+      if(secs!==lastPreSec){
+        lastPreSec=secs;
+        $('quizPreNum').textContent=secs;
+        $('quizPreNum').style.animation='none';
+        requestAnimationFrame(()=>{ $('quizPreNum').style.animation='quizNumPop .35s ease-out'; });
+      }
+    } else {
+      // Phase 2: 5초 퀴즈 타이머
+      $('quizPreCountdown').style.display='none';
+      $('quizQuizPhase').style.display='';
+      const left=quizEndMs-now;
+      const secs=Math.max(0,Math.ceil(left/1000));
+      $('quizTimerNum').textContent=secs;
+      const prog=Math.max(0,Math.min(1,left/QUIZ_DURATION));
+      $('quizTimerCircle').style.strokeDashoffset=circ*(1-prog);
+      if(left<=0){
+        clearInterval(quizCountdownTid);
+        $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
+        if(!quizUserAnswer) $('quizAnswerMsg').textContent='시간 초과';
+      }
     }
   }
   tick();
@@ -3239,6 +3272,9 @@ function resetQuizBtns(){
   o.disabled=false; x.disabled=false;
   o.className='quiz-btn'; x.className='quiz-btn';
   $('quizAnswerMsg').textContent='';
+  $('quizPreNum').textContent='3';
+  $('quizPreCountdown').style.display='';
+  $('quizQuizPhase').style.display='none';
   $('quizTimerNum').textContent='5';
   $('quizTimerCircle').style.strokeDashoffset='0';
 }
