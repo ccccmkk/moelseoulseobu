@@ -3590,7 +3590,8 @@ async function loadAdminQuizStatus(){
           <div style="font-size:12px;color:var(--text-sub)">상태: <b>${statusLabel[s.status]||s.status}</b> · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})</div>`
         :'<div style="font-size:12px;color:var(--text-hint)">첫 라운드 퀴즈를 생성해주세요</div>'}`;
 
-      const needInput=!s||s.status==='revealed';
+      const allStagesDone=s?.stage_num>=ser.total_stages&&s?.status==='revealed';
+      const needInput=(!s||s.status==='revealed')&&!allStagesDone;
       $('adminQuizInputArea').style.display=needInput?'':'none';
       if(needInput){
         const nextStage=(s?.stage_num||0)+1;
@@ -3601,7 +3602,7 @@ async function loadAdminQuizStatus(){
       ctrl.style.display='flex'; ctrl.style.flexDirection='column';
       $('adminQuizStartBtn').style.display=s?.status==='waiting'?'':'none';
       $('adminQuizRevealBtn').style.display=s?.status==='active'?'':'none';
-      $('adminQuizFinishSeriesBtn').style.display=!s||s.status==='revealed'?'':'none';
+      $('adminQuizFinishSeriesBtn').style.display=s?.status!=='active'?'':'none';
       $('adminQuizCloseBtn').style.display='none';
       adminQuizCurrentId=s?.id||null;
       $('adminQuizModeBar').style.display='none';
@@ -3671,7 +3672,7 @@ async function adminCreateSeries(){
     });
     const d=await r.json();
     if(d.ok){
-      adminSeriesId=d.series_id; adminSeriesNextStage=1;
+      adminSeriesId=d.series_id||d.id; adminSeriesNextStage=1;
       msg.style.color='var(--green-dark)'; msg.textContent=`${adminSeriesRounds}라운드 시리즈 시작!`;
       await loadAdminQuizStatus();
     } else { msg.style.color='var(--danger)'; msg.textContent=d.error||'오류'; }

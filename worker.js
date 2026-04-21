@@ -1428,8 +1428,8 @@ export default {
           const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed'").bind(series.id).first();
           const revCount = revRow?.cnt || 0;
           if (revCount > 0) {
-            const survRows = await env.DB.prepare(`SELECT u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(series.id, revCount).all();
-            survivors = (survRows.results || []).map(r => r.name);
+            const survRows = await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(series.id, revCount).all();
+            survivors = (survRows.results || []).map(r => ({ user_id: r.user_id, name: r.name }));
           }
         } else {
           session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first();
@@ -1444,7 +1444,7 @@ export default {
           if (session.status !== 'revealed') delete safe.answer;
           session = safe;
         }
-        return json({ session, series: series || null, stats, answers, survivors });
+        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors });
       }
 
       // 스테이지전 생성
@@ -1457,7 +1457,7 @@ export default {
         const id = `series_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO quiz_series(id,total_stages,current_stage,status,created_by,created_at) VALUES(?,?,0,?,?,?)').bind(id, total_stages, 'active', adm.user_id, now).run();
-        return json({ ok: true, id, total_stages });
+        return json({ ok: true, series_id: id, total_stages });
       }
 
       // 스테이지전 종료
@@ -1477,9 +1477,13 @@ export default {
         const now = Math.floor(Date.now() / 1000);
         const id = `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         if (series_id) {
+          const serRow = await env.DB.prepare('SELECT total_stages FROM quiz_series WHERE id=? AND status=\'active\'').bind(series_id).first();
+          if (!serRow) return json({ error: '시리즈를 찾을 수 없습니다' }, 400);
+          const sNum = stage_num || 1;
+          if (sNum > serRow.total_stages) return json({ error: `최대 ${serRow.total_stages}라운드까지 가능합니다` }, 400);
           await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE series_id=? AND status='waiting'").bind(series_id).run();
-          await env.DB.prepare("UPDATE quiz_series SET current_stage=? WHERE id=?").bind(stage_num || 1, series_id).run();
-          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num) VALUES(?,?,?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now, series_id, stage_num || 1).run();
+          await env.DB.prepare("UPDATE quiz_series SET current_stage=? WHERE id=?").bind(sNum, series_id).run();
+          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num) VALUES(?,?,?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now, series_id, sNum).run();
         } else {
           await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE status IN ('waiting','active','revealed')").run();
           await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE status='active'").run();
