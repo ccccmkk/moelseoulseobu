@@ -61,14 +61,14 @@ async function callAI(systemPrompt, userMessage, env, opts = {}) {
         if (text) {
           const tokIn = gData.usageMetadata?.promptTokenCount || 0;
           const tokOut = gData.usageMetadata?.candidatesTokenCount || 0;
-          env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+          await env.DB.prepare('INSERT INTO gemini_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
             .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
-          env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
+          await env.DB.prepare('INSERT INTO gemini_usage_daily(date,type,tokens_in,tokens_out,calls) VALUES(?,?,?,?,1) ON CONFLICT(date,type) DO UPDATE SET tokens_in=tokens_in+excluded.tokens_in,tokens_out=tokens_out+excluded.tokens_out,calls=calls+1')
             .bind(_date(), type, tokIn, tokOut).run();
           return { text, model: 'gemini', tokensIn: tokIn, tokensOut: tokOut };
         }
       }
-    } catch (e) {}
+    } catch (e) { console.error('[Gemini]', e.message); }
   }
 
   // 3. Claude 폴백 (관리자가 허용한 경우)
@@ -91,11 +91,11 @@ async function callAI(systemPrompt, userMessage, env, opts = {}) {
       if (text) {
         const tokIn = aiData.usage?.input_tokens || 0;
         const tokOut = aiData.usage?.output_tokens || 0;
-        env.DB.prepare('INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
+        await env.DB.prepare('INSERT INTO claude_usage(id,tokens_in,tokens_out,calls,updated_at) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET tokens_in=tokens_in+?,tokens_out=tokens_out+?,calls=calls+1,updated_at=?')
           .bind(tokIn, tokOut, _now(), tokIn, tokOut, _now()).run();
         return { text, model: 'claude', tokensIn: tokIn, tokensOut: tokOut };
       }
-    } catch (e) {}
+    } catch (e) { console.error('[Claude]', e.message); }
   }
 
   return null;
@@ -1316,7 +1316,7 @@ export default {
         const replyAI = !isDebugMode
           ? await callAI(
               '당신은 서울서부고용노동지청 내부 커뮤니티의 건강 정보 봇입니다. 직원의 댓글에 공신력 있는 건강 정보를 바탕으로 친절하고 실용적으로 2~3문장 내외로 답변하세요. 인사말 없이 바로 내용으로 시작하세요.',
-              targetComment.content,
+              (targetComment.content || '').slice(0, 1000),
               env, { type: 'reply', maxTokens: 500 }
             )
           : null;
