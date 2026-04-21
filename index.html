@@ -1364,7 +1364,7 @@ button,a,[role="button"]{touch-action:manipulation}
           <div class="qp-names" id="quizRevNamesX"></div>
         </div>
       </div>
-      <button onclick="closeQuizModal()" style="margin-top:14px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
+      <button id="quizRevealCloseBtn" onclick="closeQuizModal()" style="margin-top:14px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;width:100%">닫기</button>
     </div>
     <!-- 탈락 -->
     <div id="quizStateEliminated" style="display:none;text-align:center;padding:20px 0">
@@ -3234,7 +3234,7 @@ $('logoutBtn').onclick=async function(){
 // ── OX 퀴즈 ──
 let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=null,quizModalOpen=false;
 let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
-let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false;
+let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false,quizLastPreSec=-1;
 let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
 const QUIZ_DURATION=5000;
 
@@ -3330,15 +3330,19 @@ function handleQuizState(d){
   }
 
   if(s.status==='waiting'){
-    quizCurrentId=s.id;
     updateWaitingSurvivors(survivors);
     showQuizState(quizIsEliminated&&currentUserRole!=='admin'?'Eliminated':'Waiting');
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
       quizCurrentId=s.id; quizUserAnswer=null; quizRevealDone=false;
+      quizLastPreSec=-1;
       quizKnownO=new Set(); quizKnownX=new Set();
       $('quizActNamesO').innerHTML=''; $('quizActNamesX').innerHTML='';
       $('quizParticipantsPanel').style.display='none';
+      const rO=$('quizRevColO'),rX=$('quizRevColX');
+      if(rO) rO.className='qp-col qp-o';
+      if(rX) rX.className='qp-col qp-x';
+      $('quizRevNamesO').innerHTML=''; $('quizRevNamesX').innerHTML='';
       resetQuizBtns();
     }
     showQuizState('Active');
@@ -3354,6 +3358,8 @@ function handleQuizState(d){
     quizRevealDone=true;
     clearInterval(quizCountdownTid);
     showQuizState('Revealed');
+    const rcb=$('quizRevealCloseBtn');
+    if(rcb) rcb.style.display=!quizSeriesId||currentUserRole==='admin'?'':'none';
     $('quizRevealQuestion').textContent=s.question;
     $('quizCorrectAnswer').textContent=s.answer==='O'?'⭕ O':'❌ X';
     const answered=quizUserAnswer!=null;
@@ -3482,7 +3488,6 @@ function startQuizCountdown(startedAt){
   const startMs=startedAt*1000;
   const quizEndMs=startMs+PRE+QUIZ_DURATION;
   const circ=2*Math.PI*29;
-  let lastPreSec=-1;
 
   function tick(){
     const now=Date.now();
@@ -3491,8 +3496,8 @@ function startQuizCountdown(startedAt){
       $('quizPreCountdown').style.display='';
       $('quizQuizPhase').style.display='none';
       const secs=Math.ceil((PRE-elapsed)/1000);
-      if(secs!==lastPreSec){
-        lastPreSec=secs;
+      if(secs!==quizLastPreSec){
+        quizLastPreSec=secs;
         $('quizPreNum').textContent=secs;
         $('quizPreNum').style.animation='none';
         requestAnimationFrame(()=>{$('quizPreNum').style.animation='quizNumPop .35s ease-out';});
