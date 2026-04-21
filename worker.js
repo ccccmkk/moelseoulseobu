@@ -924,14 +924,22 @@ export default {
           upw: (u.password || '1234').trim(), udept: (u.dept || '').trim()
         })).filter(u => u.uid && /^\d{9}$/.test(u.uid) && u.uname);
         if (!valid.length) return json({ ok: true, created: 0, skipped: list.length });
-        const placeholders = valid.map(() => '?').join(',');
-        const existing = await env.DB.prepare(`SELECT id FROM users WHERE id IN (${placeholders})`).bind(...valid.map(u => u.uid)).all();
-        const existingSet = new Set((existing.results || []).map(r => r.id));
+        // D1 파라미터 100개 제한 → 99개씩 청크
+        const CHUNK = 99;
+        const existingSet = new Set();
+        for (let i = 0; i < valid.length; i += CHUNK) {
+          const chunk = valid.slice(i, i + CHUNK);
+          const ph = chunk.map(() => '?').join(',');
+          const rows = await env.DB.prepare(`SELECT id FROM users WHERE id IN (${ph})`).bind(...chunk.map(u => u.uid)).all();
+          (rows.results || []).forEach(r => existingSet.add(r.id));
+        }
         const toInsert = valid.filter(u => !existingSet.has(u.uid));
-        if (toInsert.length) {
+        // batch도 50명(=100 statements)씩 나눠 처리
+        for (let i = 0; i < toInsert.length; i += 50) {
+          const chunk = toInsert.slice(i, i + 50);
           await env.DB.batch([
-            ...toInsert.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
-            ...toInsert.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
+            ...chunk.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
+            ...chunk.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
           ]);
         }
         return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
