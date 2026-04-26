@@ -450,6 +450,23 @@ button,a,[role="button"]{touch-action:manipulation}
 .law-jo-click{cursor:pointer;padding:12px 4px;border-bottom:1px solid var(--border);transition:background .15s;display:block;-webkit-tap-highlight-color:rgba(55,194,114,.15)}
 .law-jo-click:active{background:var(--green-light)}
 .law-jo-ask-hint{display:inline-block;font-size:11px;color:var(--green-dark);font-weight:600;margin-left:6px;opacity:.8}
+/* 사진 투표 */
+.photo-contest-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;cursor:pointer}
+.photo-contest-card:active{opacity:.85}
+.pc-status{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px;white-space:nowrap}
+.pc-status.open{background:#e8faf0;color:var(--green-dark)}
+.pc-status.closed{background:#f5f5f5;color:#888}
+.pc-status.draft{background:#fff8e1;color:#f57c00}
+.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.photo-entry{border:2px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .15s;position:relative;background:#fff}
+.photo-entry.can-vote{cursor:pointer}.photo-entry.can-vote:active{opacity:.85}
+.photo-entry.voted{border-color:var(--green)}
+.photo-entry img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.photo-entry-info{padding:8px}
+.photo-vote-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px}
+.photo-rank-1{border-color:#f9a825;border-width:3px}
+.photo-upload-area{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:var(--text-hint);font-size:13px;transition:.15s}
+.photo-upload-area:active{border-color:var(--green);color:var(--green)}
 </style>
 </head>
 <body>
@@ -642,6 +659,15 @@ button,a,[role="button"]{touch-action:manipulation}
     <div id="chalEventsList"></div>
   </div>
 
+  <!-- 이벤트 탭 -->
+  <div id="tabEvent" class="tab-page">
+    <div class="section-hd">
+      <span class="section-title">사진 투표</span>
+      <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
+    </div>
+    <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
+  </div>
+
   <!-- 더보기 탭 -->
   <div id="tabMore" class="tab-page">
     <div class="more-user-card">
@@ -747,6 +773,9 @@ button,a,[role="button"]{touch-action:manipulation}
     </button>
     <button class="nav-btn" id="nav-search" onclick="switchTab('Search')">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>검색
+    </button>
+    <button class="nav-btn" id="nav-event" onclick="switchTab('Event')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>이벤트
     </button>
     <button class="nav-btn" id="nav-more" onclick="switchTab('More')">
       <span class="nav-noti-dot" id="navMoreNotiBadge"></span>
@@ -1096,6 +1125,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
       <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
       <button class="adm-tab" id="admTab-quiz" onclick="switchAdmTab('quiz')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
+      <button class="adm-tab" id="admTab-event" onclick="switchAdmTab('event')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">이벤트</button>
     </div>
     <div class="modal-body" style="padding:0">
 
@@ -1255,6 +1285,13 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
 
+      <!-- ── 이벤트 탭 ── -->
+      <div id="admPane-event" class="adm-pane" style="display:none;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">사진 투표 행사 관리</div>
+        <button class="btn-sm primary" onclick="openCreatePhotoContest()" style="width:100%;justify-content:center;margin-bottom:14px">+ 새 행사 만들기</button>
+        <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1384,6 +1421,62 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 </div>
 
+<!-- ════ 사진 투표 상세 모달 ════ -->
+<div class="modal-overlay" id="photoContestModal">
+  <div class="modal" style="max-width:640px;max-height:92vh;display:flex;flex-direction:column;padding:0">
+    <div class="modal-header" style="flex-shrink:0">
+      <div>
+        <div class="modal-title" id="photoContestModalTitle" style="margin-bottom:4px"></div>
+        <span id="photoContestModalStatus" class="pc-status"></span>
+      </div>
+      <button class="modal-close" onclick="closePhotoContestModal()">×</button>
+    </div>
+    <div id="photoContestAdminBar" style="display:none;padding:8px 16px;border-bottom:1px solid var(--border);background:#fafafa;flex-shrink:0;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm primary" id="pcOpenBtn" onclick="setPhotoContestStatus('open')" style="justify-content:center">▶ 공개</button>
+      <button class="btn-sm danger" id="pcCloseBtn" onclick="setPhotoContestStatus('closed')" style="justify-content:center">🔒 마감</button>
+      <button class="btn-sm" onclick="setPhotoContestStatus('draft')" style="justify-content:center;background:#f5f5f5">초안으로</button>
+    </div>
+    <div id="photoUploadArea" style="display:none;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div id="photoUploadDrop" class="photo-upload-area" onclick="$('photoFileInput').click()">
+        <div style="font-size:28px;margin-bottom:4px">📷</div>
+        <div style="font-weight:600;font-size:13px">탭해서 내 사진 올리기</div>
+      </div>
+      <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="onPhotoFileSelected(this)">
+      <div id="photoUploadPreview" style="display:none">
+        <img id="photoPreviewImg" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:8px">
+        <input type="text" id="photoCaption" placeholder="사진 설명 (선택)" style="width:100%;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;margin-bottom:8px">
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" onclick="cancelPhotoUpload()" style="flex:1;justify-content:center">취소</button>
+          <button class="btn-sm primary" id="photoSubmitBtn" onclick="submitEventPhoto()" style="flex:2;justify-content:center">사진 등록</button>
+        </div>
+      </div>
+      <div id="photoUploadMsg" style="font-size:12px;min-height:14px;color:var(--danger);text-align:center;margin-top:4px"></div>
+    </div>
+    <div id="photoContestGrid" style="padding:14px;overflow-y:auto;flex:1">
+      <div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>
+    </div>
+    <div id="photoVoteMsg" style="padding:8px 16px;font-size:13px;text-align:center;min-height:38px;border-top:1px solid var(--border);flex-shrink:0"></div>
+  </div>
+</div>
+
+<!-- 행사 만들기 모달 -->
+<div class="modal-overlay center" id="createPhotoContestModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title">행사 만들기</span>
+      <button class="modal-close" onclick="$('createPhotoContestModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body">
+      <label style="font-size:12px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px">행사 제목 *</label>
+      <input type="text" id="pcTitle" placeholder="예: 워크숍 사진 투표" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px">설명 (선택)</label>
+      <textarea id="pcDesc" rows="2" placeholder="행사에 대한 간단한 설명" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;margin-bottom:12px"></textarea>
+      <div id="pcCreateMsg" style="font-size:12px;min-height:14px;color:var(--danger);margin-bottom:8px"></div>
+      <button class="btn-green" onclick="submitCreatePhotoContest()">행사 만들기</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
 const EVT_TYPE_COLOR={결혼:'#e91e8c',출산:'#2196f3',생일:'#ff9800',상:'#607d8b',승진:'#4caf50',기타:'#9e9e9e'};
@@ -1412,6 +1505,7 @@ let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
 let newsCache=null,newsLastFetch=0;
+let photoContests=[],currentPhotoContestId=null,photoUploadFile=null;
 
 function $(id){return document.getElementById(id)}
 function initials(n){return(n||'?').charAt(0)}
@@ -1488,6 +1582,7 @@ function switchTab(tab){
   if(tab==='News')loadNews();
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
   if(tab==='Chal'){renderChal().catch(()=>{});}
+  if(tab==='Event')loadPhotoContests();
   if(tab==='More'){
     updateAvatarEl($('moreUserAvatar'),currentUser);
     $('moreUserName').textContent=userNames[currentUser]||currentUser;
@@ -2231,6 +2326,211 @@ async function renderSearch(q){
   }catch(e){if(_searchPending===q)container.innerHTML='<div style="padding:2rem;text-align:center;color:var(--danger);font-size:13px">검색 실패</div>';}
 }
 
+// ── 사진 투표 행사 ──
+async function loadPhotoContests(){
+  try{
+    const t=sessionToken?`?token=${encodeURIComponent(sessionToken)}`:'';
+    const d=await fetch(`${API}/api/photo-contests${t}`).then(r=>r.json());
+    photoContests=Array.isArray(d)?d:[];
+    renderPhotoContestList();
+  }catch(e){}
+}
+function renderPhotoContestList(){
+  const c=$('photoContestList'); if(!c) return;
+  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=currentUserRole==='admin'?'':'none';
+  if(!photoContests.length){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';return;}
+  const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+  c.innerHTML=photoContests.map(pc=>`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
+      <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
+    </div>
+    ${pc.description?`<div style="font-size:13px;color:var(--text-sub);margin-top:4px">${escHtml(pc.description)}</div>`:''}
+    <div style="font-size:12px;color:var(--text-hint);margin-top:8px">📷 ${pc.entry_count}장 &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
+  </div>`).join('');
+}
+async function openPhotoContest(id){
+  currentPhotoContestId=id;
+  $('photoContestGrid').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
+  $('photoVoteMsg').textContent='';
+  cancelPhotoUpload();
+  $('photoContestModal').classList.add('open');
+  await refreshPhotoContestDetail();
+}
+function closePhotoContestModal(){
+  $('photoContestModal').classList.remove('open');
+  currentPhotoContestId=null;
+}
+async function refreshPhotoContestDetail(){
+  const id=currentPhotoContestId; if(!id) return;
+  try{
+    const t=sessionToken?`&token=${encodeURIComponent(sessionToken)}`:'';
+    const d=await fetch(`${API}/api/photo-contests/${id}/entries?_=${Date.now()}${t}`).then(r=>r.json());
+    const {contest,entries,my_vote}=d;
+    if(!contest) return;
+    const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+    $('photoContestModalTitle').textContent=contest.title;
+    const stEl=$('photoContestModalStatus');
+    stEl.textContent=stLabel[contest.status]||contest.status;
+    stEl.className=`pc-status ${contest.status}`;
+    // 관리자 바
+    const adminBar=$('photoContestAdminBar');
+    if(currentUserRole==='admin'){
+      adminBar.style.display='flex';
+      $('pcOpenBtn').style.display=contest.status!=='open'?'':'none';
+      $('pcCloseBtn').style.display=contest.status==='open'?'':'none';
+    } else { adminBar.style.display='none'; }
+    // 업로드 영역
+    $('photoUploadArea').style.display=contest.status==='open'?'':'none';
+    // 사진 그리드
+    if(!entries.length){
+      $('photoContestGrid').innerHTML='<div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>';
+    } else {
+      const sorted=contest.status==='closed'?[...entries].sort((a,b)=>b.vote_count-a.vote_count):entries;
+      $('photoContestGrid').innerHTML='<div class="photo-grid">'+sorted.map((e,i)=>{
+        const isOwn=e.uploader===currentUser;
+        const isVoted=my_vote===e.id;
+        const canVote=contest.status==='open'&&!isOwn&&my_vote===null;
+        const rank1=contest.status==='closed'&&i===0&&e.vote_count>0;
+        const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
+          ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer">삭제</button>`:'';
+        return`<div class="photo-entry${isVoted?' voted':''}${rank1?' photo-rank-1':''}${canVote?' can-vote':''}" onclick="${canVote?`voteForPhoto('${e.id}')`:''}" >
+          <div style="position:relative">
+            <img src="${escHtml(e.img_url)}" alt="" loading="lazy">
+            <span class="photo-vote-badge">${e.vote_count}표</span>
+            ${rank1?'<span style="position:absolute;top:6px;left:6px;font-size:20px">🏆</span>':''}
+          </div>
+          <div class="photo-entry-info">
+            <div style="font-size:12px;font-weight:600">${escHtml(e.uploader_name||e.uploader)}</div>
+            ${e.caption?`<div style="font-size:12px;color:var(--text-sub);margin-top:2px">${escHtml(e.caption)}</div>`:''}
+            ${isOwn?'<div style="font-size:11px;color:var(--text-hint);margin-top:2px">내 사진</div>':''}
+            ${isVoted?'<div style="font-size:11px;color:var(--green-dark);font-weight:600;margin-top:2px">✓ 투표함</div>':''}
+            ${canVote?'<div style="font-size:11px;color:var(--green);margin-top:2px">탭해서 투표</div>':''}
+          </div>
+          ${delBtn}
+        </div>`;
+      }).join('')+'</div>';
+    }
+    const vm=$('photoVoteMsg');
+    if(contest.status==='open'&&my_vote){vm.textContent='✓ 투표 완료 · 다른 사진 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
+    else if(contest.status==='open'){vm.textContent='마음에 드는 사진을 탭해서 투표하세요 (본인 사진 제외)';vm.style.color='var(--text-hint)';}
+    else if(contest.status==='closed'){vm.textContent='투표가 마감되었습니다';vm.style.color='var(--text-hint)';}
+    else {vm.textContent='';}
+  }catch(e){}
+}
+async function voteForPhoto(photoId){
+  if(!sessionToken){alert('로그인이 필요합니다');return;}
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/vote?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:photoId})});
+    const d=await r.json();
+    if(d.ok){await refreshPhotoContestDetail();await loadPhotoContests();}
+    else{const vm=$('photoVoteMsg');vm.textContent=d.error||'투표 실패';vm.style.color='var(--danger)';}
+  }catch(e){}
+}
+async function deleteEventPhoto(evt,eid){
+  evt.stopPropagation();
+  if(!confirm('이 사진을 삭제할까요?'))return;
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/entries/${eid}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){await refreshPhotoContestDetail();await loadPhotoContests();}
+    else alert(d.error||'삭제 실패');
+  }catch(e){}
+}
+async function setPhotoContestStatus(status){
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/status?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    const d=await r.json();
+    if(d.ok){await refreshPhotoContestDetail();await loadPhotoContests();renderAdmPhotoContests();}
+    else alert(d.error||'변경 실패');
+  }catch(e){}
+}
+function onPhotoFileSelected(input){
+  const file=input.files[0]; if(!file) return;
+  photoUploadFile=file;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    $('photoPreviewImg').src=e.target.result;
+    $('photoUploadDrop').style.display='none';
+    $('photoUploadPreview').style.display='';
+  };
+  reader.readAsDataURL(file);
+}
+function cancelPhotoUpload(){
+  photoUploadFile=null;
+  const fi=$('photoFileInput'); if(fi) fi.value='';
+  const cap=$('photoCaption'); if(cap) cap.value='';
+  const msg=$('photoUploadMsg'); if(msg) msg.textContent='';
+  const drop=$('photoUploadDrop'); if(drop) drop.style.display='';
+  const prev=$('photoUploadPreview'); if(prev) prev.style.display='none';
+}
+async function submitEventPhoto(){
+  if(!photoUploadFile){alert('사진을 선택하세요');return;}
+  const btn=$('photoSubmitBtn');btn.disabled=true;btn.textContent='업로드 중...';
+  $('photoUploadMsg').textContent='';
+  try{
+    const fd=new FormData();fd.append('file',photoUploadFile);
+    const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+    if(!up.url){$('photoUploadMsg').textContent=up.error||'업로드 실패';return;}
+    const caption=$('photoCaption').value.trim();
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/entries?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({img_url:up.url,caption})});
+    const d=await r.json();
+    if(d.ok){cancelPhotoUpload();await refreshPhotoContestDetail();await loadPhotoContests();}
+    else $('photoUploadMsg').textContent=d.error||'등록 실패';
+  }catch(e){$('photoUploadMsg').textContent='오류: '+e.message;}
+  finally{btn.disabled=false;btn.textContent='사진 등록';}
+}
+function openCreatePhotoContest(){
+  $('pcTitle').value='';$('pcDesc').value='';$('pcCreateMsg').textContent='';
+  $('createPhotoContestModal').classList.add('open');
+}
+async function submitCreatePhotoContest(){
+  const title=$('pcTitle').value.trim();
+  if(!title){$('pcCreateMsg').textContent='제목을 입력하세요';return;}
+  try{
+    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim()})});
+    const d=await r.json();
+    if(d.ok){$('createPhotoContestModal').classList.remove('open');await loadPhotoContests();renderAdmPhotoContests();}
+    else $('pcCreateMsg').textContent=d.error||'오류';
+  }catch(e){$('pcCreateMsg').textContent='네트워크 오류';}
+}
+async function renderAdmPhotoContests(){
+  const c=$('admPhotoContestList'); if(!c) return;
+  try{
+    const d=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`).then(r=>r.json());
+    const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+    if(!Array.isArray(d)||!d.length){c.innerHTML='<div style="font-size:13px;color:var(--text-hint)">등록된 행사 없음</div>';return;}
+    c.innerHTML=d.map(pc=>`<div style="background:#f9f9f9;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:14px;font-weight:600">${escHtml(pc.title)}</span>
+        <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">📷 ${pc.entry_count}장 · 🗳️ ${pc.vote_count}표</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${pc.status!=='open'?`<button class="btn-sm primary" onclick="admPcStatus('${pc.id}','open')" style="font-size:11px;padding:4px 10px">▶ 공개</button>`:''}
+        ${pc.status==='open'?`<button class="btn-sm danger" onclick="admPcStatus('${pc.id}','closed')" style="font-size:11px;padding:4px 10px">🔒 마감</button>`:''}
+        ${pc.status==='open'?`<button class="btn-sm" onclick="admPcStatus('${pc.id}','draft')" style="font-size:11px;padding:4px 10px;background:#f5f5f5">초안</button>`:''}
+        <button class="btn-sm danger" onclick="admDeletePc('${pc.id}')" style="font-size:11px;padding:4px 10px">삭제</button>
+      </div>
+    </div>`).join('');
+  }catch(e){c.innerHTML='<div style="font-size:13px;color:var(--danger)">불러오기 실패</div>';}
+}
+async function admPcStatus(id,status){
+  try{
+    await fetch(`${API}/api/photo-contests/${id}/status?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    await renderAdmPhotoContests();await loadPhotoContests();
+  }catch(e){}
+}
+async function admDeletePc(id){
+  if(!confirm('행사와 모든 사진, 투표를 삭제합니다. 계속할까요?'))return;
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){await renderAdmPhotoContests();await loadPhotoContests();}
+    else alert(d.error||'삭제 실패');
+  }catch(e){}
+}
+
 // ── 서부소식 ──
 function renderEvents(){
   const c=$('eventsList');
@@ -2808,7 +3108,7 @@ async function toggleClaude(on){
 
 // ── 관리자 탭 전환 ──
 function switchAdmTab(tab){
-  ['users','logs','agent','stats','quiz'].forEach(t=>{
+  ['users','logs','agent','stats','quiz','event'].forEach(t=>{
     const btn=$('admTab-'+t),pane=$('admPane-'+t);
     if(!btn||!pane)return;
     const isActive=t===tab;
@@ -2818,6 +3118,7 @@ function switchAdmTab(tab){
   });
   if(tab==='logs') loadLoginLogs();
   if(tab==='quiz') loadAdminQuizStatus();
+  if(tab==='event') renderAdmPhotoContests();
 }
 
 // ── 접속 이력 ──

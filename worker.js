@@ -168,6 +168,9 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS quiz_sessions (id TEXT PRIMARY KEY, question TEXT NOT NULL, answer TEXT NOT NULL, status TEXT DEFAULT 'waiting', started_at INTEGER, revealed_at INTEGER, created_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS quiz_answers (quiz_id TEXT, user_id TEXT, answer TEXT NOT NULL, answered_at INTEGER, PRIMARY KEY(quiz_id, user_id))`,
     `CREATE TABLE IF NOT EXISTS quiz_series (id TEXT PRIMARY KEY, total_stages INTEGER DEFAULT 3, current_stage INTEGER DEFAULT 0, status TEXT DEFAULT 'active', created_by TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS photo_contests (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', status TEXT DEFAULT 'draft', created_by TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS photo_entries (id TEXT PRIMARY KEY, contest_id TEXT NOT NULL, uploader TEXT NOT NULL, img_url TEXT NOT NULL, caption TEXT DEFAULT '', created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS photo_votes (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter))`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
@@ -908,6 +911,125 @@ export default {
         const rows = await env.DB.prepare('SELECT nominee, COUNT(*) as count FROM contest_votes WHERE contest_id=? GROUP BY nominee ORDER BY count DESC').bind(contestId).all();
         const myVote = voter ? (await env.DB.prepare('SELECT nominee FROM contest_votes WHERE contest_id=? AND voter=?').bind(contestId, voter).first())?.nominee : null;
         return json({ results: rows.results, my_vote: myVote });
+      }
+
+      // ── 사진 투표 행사 ──
+      if (p === '/api/photo-contests' && m === 'GET') {
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        const role = sess ? await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first() : null;
+        const isAdmin = role?.role === 'admin';
+        const rows = isAdmin
+          ? await env.DB.prepare("SELECT * FROM photo_contests ORDER BY created_at DESC").all()
+          : await env.DB.prepare("SELECT * FROM photo_contests WHERE status!='draft' ORDER BY created_at DESC").all();
+        const list = rows.results || [];
+        for (const c of list) {
+          const ec = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_entries WHERE contest_id=?").bind(c.id).first();
+          c.entry_count = ec?.cnt || 0;
+          const vc = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_votes WHERE contest_id=?").bind(c.id).first();
+          c.vote_count = vc?.cnt || 0;
+        }
+        return json(list);
+      }
+
+      if (p === '/api/photo-contests' && m === 'POST') {
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const { title, description } = await request.json();
+        if (!title) return json({ error: '제목 필요' }, 400);
+        const id = 'pc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,created_by,created_at) VALUES(?,?,?,'draft',?,?)").bind(id, title, description || '', sess.user_id, Math.floor(Date.now() / 1000)).run();
+        return json({ ok: true, id });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/status$/) && m === 'POST') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        const { status } = await request.json();
+        if (!['draft', 'open', 'closed'].includes(status)) return json({ error: 'invalid' }, 400);
+        await env.DB.prepare("UPDATE photo_contests SET status=? WHERE id=?").bind(status, cid).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/entries\/[^/]+$/) && m === 'DELETE') {
+        const parts = p.split('/');
+        const cid = parts[3], eid = parts[5];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const entry = await env.DB.prepare("SELECT * FROM photo_entries WHERE id=? AND contest_id=?").bind(eid, cid).first();
+        if (!entry) return json({ error: 'not found' }, 404);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (entry.uploader !== sess.user_id && role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare("DELETE FROM photo_votes WHERE photo_id=?").bind(eid).run();
+        await env.DB.prepare("DELETE FROM photo_entries WHERE id=?").bind(eid).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/entries$/) && m === 'GET') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        const userId = sess?.user_id || null;
+        const contest = await env.DB.prepare("SELECT * FROM photo_contests WHERE id=?").bind(cid).first();
+        if (!contest) return json({ error: 'not found' }, 404);
+        const eRows = await env.DB.prepare(
+          `SELECT e.*, u.name as uploader_name, COALESCE(vc.cnt,0) as vote_count
+           FROM photo_entries e LEFT JOIN users u ON e.uploader=u.id
+           LEFT JOIN (SELECT photo_id, COUNT(*) as cnt FROM photo_votes WHERE contest_id=? GROUP BY photo_id) vc ON e.id=vc.photo_id
+           WHERE e.contest_id=? ORDER BY e.created_at ASC`
+        ).bind(cid, cid).all();
+        const myVote = userId ? (await env.DB.prepare("SELECT photo_id FROM photo_votes WHERE contest_id=? AND voter=?").bind(cid, userId).first())?.photo_id : null;
+        return json({ contest, entries: eRows.results || [], my_vote: myVote });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/entries$/) && m === 'POST') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const contest = await env.DB.prepare("SELECT * FROM photo_contests WHERE id=?").bind(cid).first();
+        if (!contest || contest.status !== 'open') return json({ error: '참여할 수 없는 행사입니다' }, 400);
+        const { img_url, caption } = await request.json();
+        if (!img_url) return json({ error: '이미지 필요' }, 400);
+        const id = 'pe_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+        await env.DB.prepare("INSERT INTO photo_entries(id,contest_id,uploader,img_url,caption,created_at) VALUES(?,?,?,?,?,?)").bind(id, cid, sess.user_id, img_url, caption || '', Math.floor(Date.now() / 1000)).run();
+        return json({ ok: true, id });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/vote$/) && m === 'POST') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const contest = await env.DB.prepare("SELECT * FROM photo_contests WHERE id=?").bind(cid).first();
+        if (!contest || contest.status !== 'open') return json({ error: '투표할 수 없는 행사입니다' }, 400);
+        const { photo_id } = await request.json();
+        const entry = await env.DB.prepare("SELECT uploader FROM photo_entries WHERE id=? AND contest_id=?").bind(photo_id, cid).first();
+        if (!entry) return json({ error: 'not found' }, 404);
+        if (entry.uploader === sess.user_id) return json({ error: '본인 사진에는 투표할 수 없습니다' }, 400);
+        await env.DB.prepare("INSERT INTO photo_votes(contest_id,voter,photo_id) VALUES(?,?,?) ON CONFLICT(contest_id,voter) DO UPDATE SET photo_id=?").bind(cid, sess.user_id, photo_id, photo_id).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+$/) && m === 'DELETE') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare("DELETE FROM photo_votes WHERE contest_id=?").bind(cid).run();
+        await env.DB.prepare("DELETE FROM photo_entries WHERE contest_id=?").bind(cid).run();
+        await env.DB.prepare("DELETE FROM photo_contests WHERE id=?").bind(cid).run();
+        return json({ ok: true });
       }
 
       // ── 역할 관리 ──
