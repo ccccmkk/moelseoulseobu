@@ -479,6 +479,14 @@ button,a,[role="button"]{touch-action:manipulation}
 .group-card-icon{font-size:32px;flex-shrink:0}
 .group-card-label{font-size:18px;font-weight:700;color:var(--text)}
 .photo-upload-area:active{border-color:var(--green);color:var(--green)}
+/* ── 크롭 모달 ── */
+.crop-container{position:relative;overflow:hidden;background:#111;touch-action:none;cursor:grab;user-select:none;width:100%}
+.crop-container:active{cursor:grabbing}
+.crop-container img{position:absolute;transform-origin:0 0;pointer-events:none;max-width:none;max-height:none}
+.crop-overlay{position:absolute;inset:0;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none;border:2px solid rgba(255,255,255,.85)}
+.crop-ratio-btns{display:flex;justify-content:center;gap:6px;padding:10px 16px 6px}
+.crop-ratio-btn{padding:5px 14px;border:1.5px solid var(--border);border-radius:20px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;color:var(--text-sub)}
+.crop-ratio-btn.active{border-color:var(--green);background:var(--green-light);color:var(--green-dark)}
 </style>
 </head>
 <body>
