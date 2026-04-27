@@ -2414,6 +2414,24 @@ $('imgFileInput').onchange=async function(e){
   const files=Array.from(e.target.files);this.value='';
   if(!files.length)return;
   const isBlog=$('blogModeToggle').checked;
+  if(files.length===1){
+    // 단일 이미지: 크롭 모달 표시
+    const file=files[0];
+    const reader=new FileReader();
+    reader.onload=ev=>openCropModal(file,ev.target.result,async croppedFile=>{
+      showUploadProgress('사진 업로드 중...');
+      try{
+        const d=await uploadFileXHR(croppedFile,pct=>updateUploadProgress(pct));
+        if(d.error)throw new Error(d.error);
+        editorBlocks.push({type:'image',url:imgUrl(d.url),caption:''});
+        if(isBlog)editorBlocks.push({type:'text',content:''});
+      }catch(err){hideUploadProgress();alert('업로드 실패: '+err.message);renderEditor();return;}
+      hideUploadProgress();renderEditor();
+    });
+    reader.readAsDataURL(file);
+    return;
+  }
+  // 다중 이미지: 크롭 생략, 바로 압축 후 업로드
   showUploadProgress(`사진 업로드 중... (0/${files.length})`);
   for(let i=0;i<files.length;i++){
     const file=await compressImage(files[i]);
