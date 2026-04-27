@@ -3924,7 +3924,7 @@ function onLoginSuccess(d){
   localStorage.setItem('session_token',d.token);
   // 이전 방식 삭제
   localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
-  showPage('appPage');$('fab').className='fab';renderFeed();initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+  showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
