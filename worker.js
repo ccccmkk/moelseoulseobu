@@ -1749,6 +1749,110 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 사다리 게임 ──
+      if (p === '/api/ladder' && m === 'POST') {
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        const { series_id, participants } = await request.json(); // participants: [{user_id,name}]
+        if (!participants || participants.length < 2) return json({ error: 'need 2+ participants' }, 400);
+        const n = participants.length;
+        // 사다리 구조 생성
+        const rows = Math.max(12, n * 4);
+        const rungs = []; // {row, col} → col과 col+1 사이 가로선
+        for (let r = 1; r < rows; r++) {
+          const used = new Set();
+          for (let c = 0; c < n - 1; c++) {
+            if (!used.has(c) && !used.has(c+1) && Math.random() < 0.35) {
+              rungs.push({ row: r, col: c });
+              used.add(c); used.add(c+1);
+            }
+          }
+        }
+        // 각 시작 열이 어느 끝 열로 이동하는지 계산
+        const trace = pos => {
+          let c = pos;
+          for (let r = 1; r < rows; r++) {
+            const rung = rungs.find(rg => rg.row === r && (rg.col === c || rg.col === c - 1));
+            if (rung) c = rung.col === c ? c + 1 : c - 1;
+          }
+          return c;
+        };
+        const endPositions = Array.from({ length: n }, (_, i) => trace(i));
+        const winnerEnd = Math.floor(Math.random() * n);
+        const winnerStart = endPositions.indexOf(winnerEnd);
+        const now = Math.floor(Date.now() / 1000);
+        const id = `ladder_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+        const structure = JSON.stringify({ rows, rungs, winner_start: winnerStart, end_positions: endPositions });
+        await env.DB.prepare("UPDATE ladder_games SET status='closed' WHERE status IN ('picking','assigned')").run();
+        await env.DB.prepare('INSERT INTO ladder_games(id,series_id,participants,structure,picks,status,pick_deadline,created_at,created_by) VALUES(?,?,?,?,?,?,?,?,?)')
+          .bind(id, series_id||null, JSON.stringify(participants), structure, '{}', 'picking', now + 8, now, adm.user_id).run();
+        return json({ ok: true, id });
+      }
+
+      if (p === '/api/ladder/current' && m === 'GET') {
+        const game = await env.DB.prepare("SELECT * FROM ladder_games WHERE status IN ('picking','assigned','revealed') ORDER BY created_at DESC LIMIT 1").first();
+        if (!game) return json({ game: null });
+        const now = Math.floor(Date.now() / 1000);
+        const participants = JSON.parse(game.participants);
+        const picks = JSON.parse(game.picks || '{}');
+        // 마감 지나면 미선택자 랜덤 배정
+        if (game.status === 'picking' && now >= game.pick_deadline) {
+          const taken = new Set(Object.values(picks));
+          const available = Array.from({ length: participants.length }, (_, i) => i).filter(i => !taken.has(i));
+          // shuffle available
+          for (let i = available.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i+1)); [available[i],available[j]]=[available[j],available[i]]; }
+          let ai = 0;
+          for (const p2 of participants) { if (picks[p2.user_id] === undefined) picks[p2.user_id] = available[ai++]; }
+          await env.DB.prepare("UPDATE ladder_games SET picks=?, status='assigned' WHERE id=?").bind(JSON.stringify(picks), game.id).run();
+          game.status = 'assigned'; game.picks = JSON.stringify(picks);
+        }
+        const safe = { id: game.id, series_id: game.series_id, status: game.status, participants, picks,
+          pick_deadline: game.pick_deadline, winner_id: game.winner_id,
+          structure: game.status === 'revealed' ? JSON.parse(game.structure) : { rows: JSON.parse(game.structure).rows, n: participants.length }
+        };
+        return json({ game: safe });
+      }
+
+      if (p.match(/^\/api\/ladder\/[^/]+\/pick$/) && m === 'POST') {
+        const lid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ','');
+        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!s) return json({ error: 'unauthorized' }, 401);
+        const { position } = await request.json(); // 0-indexed
+        const game = await env.DB.prepare("SELECT * FROM ladder_games WHERE id=? AND status='picking'").bind(lid).first();
+        if (!game) return json({ error: '선택 시간이 지났습니다' }, 400);
+        const now = Math.floor(Date.now() / 1000);
+        if (now >= game.pick_deadline) return json({ error: '시간이 지났습니다' }, 400);
+        const participants = JSON.parse(game.participants);
+        const n = participants.length;
+        if (position < 0 || position >= n) return json({ error: 'invalid position' }, 400);
+        const picks = JSON.parse(game.picks || '{}');
+        if (Object.values(picks).includes(position)) return json({ error: '이미 선택된 자리입니다' }, 409);
+        picks[s.user_id] = position;
+        await env.DB.prepare("UPDATE ladder_games SET picks=? WHERE id=?").bind(JSON.stringify(picks), lid).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/ladder\/[^/]+\/reveal$/) && m === 'POST') {
+        const lid = p.split('/')[3];
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        const game = await env.DB.prepare("SELECT * FROM ladder_games WHERE id=?").bind(lid).first();
+        if (!game) return json({ error: 'not found' }, 404);
+        const picks = JSON.parse(game.picks || '{}');
+        const structure = JSON.parse(game.structure);
+        // 미선택자 랜덤 배정
+        const participants = JSON.parse(game.participants);
+        const taken = new Set(Object.values(picks));
+        const available = Array.from({length: participants.length},(_,i)=>i).filter(i=>!taken.has(i));
+        for (let i = available.length-1; i>0; i--){const j=Math.floor(Math.random()*(i+1));[available[i],available[j]]=[available[j],available[i]];}
+        let ai=0; for(const p2 of participants){if(picks[p2.user_id]===undefined)picks[p2.user_id]=available[ai++];}
+        const winner = participants.find(p2 => picks[p2.user_id] === structure.winner_start);
+        await env.DB.prepare("UPDATE ladder_games SET picks=?,status='revealed',winner_id=? WHERE id=?").bind(JSON.stringify(picks), winner?.user_id||null, lid).run();
+        if (winner && game.series_id) {
+          await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE id=?").bind(game.series_id).run();
+        }
+        return json({ ok: true, winner });
+      }
+
       if (p.match(/^\/api\/quiz\/[^/]+\/answer$/) && m === 'POST') {
         const qid = p.split('/')[3];
         const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
