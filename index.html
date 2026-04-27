@@ -4441,6 +4441,7 @@ function setAdminQuizMode(mode){
   $('quizModeBtn-single').className='btn-sm'+(mode==='single'?' primary':'');
   $('quizModeBtn-series').className='btn-sm'+(mode==='series'?' primary':'');
   $('adminSeriesSetup').style.display=mode==='series'?'':'none';
+  $('adminQuizInputArea').style.display=mode==='single'?'':'none';
 }
 
 function setSeriesRounds(n){
