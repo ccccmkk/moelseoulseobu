@@ -1521,6 +1521,33 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 </div>
 
+<!-- ════ 크롭 모달 ════ -->
+<div class="modal-overlay center" id="cropModal" style="z-index:600">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title">사진 자르기</span>
+      <button class="modal-close" onclick="closeCropModal()">×</button>
+    </div>
+    <div class="modal-body" style="overflow:hidden">
+      <div id="cropContainer" class="crop-container">
+        <img id="cropImg">
+        <div class="crop-overlay"></div>
+      </div>
+      <div class="crop-ratio-btns">
+        <button class="crop-ratio-btn active" id="cropBtn11" onclick="setCropRatio(1,1,'11')">1:1</button>
+        <button class="crop-ratio-btn" id="cropBtn43" onclick="setCropRatio(4,3,'43')">4:3</button>
+        <button class="crop-ratio-btn" id="cropBtn169" onclick="setCropRatio(16,9,'169')">16:9</button>
+        <button class="crop-ratio-btn" id="cropBtnFree" onclick="setCropRatio(0,0,'Free')">원본</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-hint);text-align:center;padding:0 16px 10px">드래그로 위치 조절 · 두 손가락으로 확대/축소</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="closeCropModal()">취소</button>
+      <button class="btn-sm primary" onclick="confirmCrop()">자르기 완료</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
 
