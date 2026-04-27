@@ -4364,7 +4364,7 @@ function startQuizBgPoll(){
 async function loadAdminQuizStatus(){
   const box=$('adminQuizStatus'), ctrl=$('adminQuizControls');
   try {
-    const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+    const d=await fetch(`${API}/api/quiz/current?group=admin`).then(r=>r.json());
     const s=d.session, ser=d.series, survivors=d.survivors||[];
     const statusLabel={waiting:'대기 중',active:'진행 중',revealed:'결과 공개'};
 
