@@ -1272,6 +1272,15 @@ button,a,[role="button"]{touch-action:manipulation}
       <!-- ── 퀴즈 탭 ── -->
       <div id="admPane-quiz" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">OX 퀴즈</div>
+        <!-- 대상 그룹 선택 -->
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-hint);margin-bottom:6px">대상</div>
+          <div style="display:flex;gap:6px">
+            <button id="quizGrpBtn-all" class="btn-sm primary" onclick="setAdminQuizGroup('all')" style="flex:1;justify-content:center;padding:7px 0">전체</button>
+            <button id="quizGrpBtn-center" class="btn-sm" onclick="setAdminQuizGroup('center')" style="flex:1;justify-content:center;padding:7px 0">🏢 센터</button>
+            <button id="quizGrpBtn-branch" class="btn-sm" onclick="setAdminQuizGroup('branch')" style="flex:1;justify-content:center;padding:7px 0">🌿 지청</button>
+          </div>
+        </div>
         <!-- 모드 선택 -->
         <div id="adminQuizModeBar" style="display:flex;gap:8px;margin-bottom:14px">
           <button id="quizModeBtn-single" class="btn-sm primary" onclick="setAdminQuizMode('single')" style="flex:1;justify-content:center;padding:8px 0">단일</button>
