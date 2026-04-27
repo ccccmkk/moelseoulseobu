@@ -1722,7 +1722,24 @@ export default {
         const qid = p.split('/')[3];
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare("UPDATE quiz_sessions SET status='revealed', revealed_at=? WHERE id=?").bind(now, qid).run();
-        return json({ ok: true });
+        // 스테이지전인 경우: 생존자 수 체크
+        const sess = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE id=?").bind(qid).first();
+        let autoResult = {};
+        if (sess?.series_id) {
+          const revCount = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed'").bind(sess.series_id).first())?.cnt || 0;
+          const survivors = (await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(sess.series_id, revCount).all()).results || [];
+          // 정답자 수 (이 스테이지)
+          const stageCorrect = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_answers WHERE quiz_id=? AND answer=?").bind(qid, sess.answer).first())?.cnt || 0;
+          if (stageCorrect === 0) {
+            // 전원 탈락 — 이 스테이지 번호를 재진행 가능하도록 표시
+            autoResult = { all_eliminated: true, stage_num: sess.stage_num };
+          } else if (survivors.length === 1) {
+            // 최후의 1인 — 시리즈 자동 완료
+            await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE id=?").bind(sess.series_id).run();
+            autoResult = { auto_finished: true, winner: survivors[0] };
+          }
+        }
+        return json({ ok: true, ...autoResult });
       }
 
       if (p.match(/^\/api\/quiz\/[^/]+\/close$/) && m === 'POST') {
