@@ -1768,7 +1768,18 @@ async function fetchRoles(){
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
-async function initApp(){await Promise.all([fetchPosts(true),fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]);renderFeed();}
+function showFeedSkeleton(){
+  const sk=n=>Array(n).fill(0).map(()=>`<div class="sk-card"><div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><div class="sk sk-avatar"></div><div style="flex:1"><div class="sk sk-line" style="width:42%;margin-bottom:6px"></div><div class="sk sk-line" style="width:26%;height:10px;margin-bottom:0"></div></div></div><div class="sk sk-img"></div><div class="sk sk-line" style="width:88%"></div><div class="sk sk-line" style="width:60%;margin-bottom:0"></div></div>`).join('');
+  $('feed').innerHTML=sk(4);
+}
+async function initApp(){
+  // 1단계: 스켈레톤 → 게시물만 먼저 로드해서 즉시 표시
+  showFeedSkeleton();
+  await fetchPosts(true);
+  renderFeed();
+  // 2단계: 좋아요·프로필·권한은 백그라운드에서 로드 → 완료되면 re-render
+  Promise.all([fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]).then(()=>renderFeed());
+}
 
 // ── 뉴스 ──
 let newsCat='labor', lawLoaded=false, lunchLoaded=false;
