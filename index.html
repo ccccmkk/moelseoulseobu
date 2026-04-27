@@ -2844,19 +2844,22 @@ function confirmCrop(){
   const scaleX=_cropNatW/_cropImgR.w,scaleY=_cropNatH/_cropImgR.h;
   const srcX=(_cropBox.x-_cropImgR.x)*scaleX,srcY=(_cropBox.y-_cropImgR.y)*scaleY;
   const srcW=_cropBox.w*scaleX,srcH=_cropBox.h*scaleY;
-  const outW=Math.min(1200,Math.round(srcW)),outH=Math.round(outW*srcH/srcW);
+  const outW=Math.min(1080,Math.round(srcW)),outH=Math.round(outW*srcH/srcW);
   const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
   const ctx=canvas.getContext('2d');
   const img2=new Image();
   img2.onload=()=>{
     ctx.drawImage(img2,srcX,srcY,srcW,srcH,0,0,outW,outH);
     canvas.toBlob(blob=>{
-      photoUploadFile=new File([blob],'cropped.jpg',{type:'image/jpeg'});
+      const croppedFile=new File([blob],'cropped.jpg',{type:'image/jpeg'});
+      closeCropModal();
+      if(_cropCallback){_cropCallback(croppedFile);return;}
+      // 행사 사진 기본 동작
+      photoUploadFile=croppedFile;
       const r=new FileReader();
       r.onload=e=>{$('photoPreviewImg').src=e.target.result;$('photoUploadDrop').style.display='none';$('photoUploadPreview').style.display='';};
-      r.readAsDataURL(photoUploadFile);
-      closeCropModal();
-    },'image/jpeg',0.92);
+      r.readAsDataURL(croppedFile);
+    },'image/jpeg',0.78);
   };
   img2.src=_cropDataUrl;
 }
