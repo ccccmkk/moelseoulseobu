@@ -4386,6 +4386,7 @@ async function submitQuizAnswer(ans){
 // 백그라운드 폴링 (로그인 후 3초마다)
 function startQuizBgPoll(){
   setInterval(async()=>{
+    if(!_ladderOpen) _checkLadderBg();
     if(quizModalOpen) return;
     try {
       const d=await fetch(`${API}/api/quiz/current?group=${currentUserGroup()}`).then(r=>r.json());
