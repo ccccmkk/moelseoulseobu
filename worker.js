@@ -1685,8 +1685,9 @@ export default {
       // 퀴즈 문제 생성
       if (p === '/api/quiz' && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
-        const { question, answer, series_id, stage_num } = await request.json();
+        const { question, answer, series_id, stage_num, group_target } = await request.json();
         if (!question || !['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
+        const grp = ['all','center','branch'].includes(group_target) ? group_target : 'all';
         const now = Math.floor(Date.now() / 1000);
         const id = `quiz_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         if (series_id) {
@@ -1696,12 +1697,12 @@ export default {
           if (sNum > serRow.total_stages) return json({ error: `최대 ${serRow.total_stages}라운드까지 가능합니다` }, 400);
           await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE series_id=? AND status='waiting'").bind(series_id).run();
           await env.DB.prepare("UPDATE quiz_series SET current_stage=? WHERE id=?").bind(sNum, series_id).run();
-          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num) VALUES(?,?,?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now, series_id, sNum).run();
+          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now, series_id, sNum, grp).run();
         } else {
           await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE status IN ('waiting','active','revealed')").run();
           await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE status='active'").run();
           await env.DB.prepare("UPDATE quiz_series SET status='closed' WHERE status='finished'").run();
-          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now).run();
+          await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,group_target) VALUES(?,?,?,?,?,?,?)').bind(id, question, answer, 'waiting', adm.user_id, now, grp).run();
         }
         return json({ ok: true, id });
       }
