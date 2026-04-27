@@ -3740,7 +3740,7 @@ $('profileImgInput').onchange=async function(e){
     const fd=new FormData();fd.append('file',file);
     const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd});const d=await r.json();
     if(d.error)throw new Error(d.error);
-    selectedAvatar=API+d.url;
+    selectedAvatar=imgUrl(d.url);
     $('emojiPicker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));
     updateProfilePreview(selectedAvatar);
   }catch(err){alert('업로드 실패: '+err.message);}
