@@ -1474,6 +1474,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="btn-sm danger" id="pcCloseBtn" onclick="setPhotoContestStatus('closed')" style="justify-content:center">🔒 마감</button>
       <button class="btn-sm" onclick="setPhotoContestStatus('draft')" style="justify-content:center;background:#f5f5f5">초안으로</button>
       <button class="btn-sm" id="pcRevealBtn" onclick="revealPhotoContest()" style="justify-content:center;background:#e8f4fd;color:#1565c0;display:none">🔍 결과 공개</button>
+      <button class="btn-sm danger" id="pcDeleteBtn" onclick="deletePhotoContest()" style="justify-content:center;margin-left:auto;display:none">🗑️ 행사 삭제</button>
     </div>
     <div id="photoUploadArea" style="display:none;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
       <div id="photoUploadDrop" class="photo-upload-area" onclick="$('photoFileInput').click()">
