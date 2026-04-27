@@ -2713,26 +2713,25 @@ function _cropClamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 function openCropModal(file,dataUrl){
   _cropDataUrl=dataUrl;
   const img=$('cropImg');
+  img.style.width='';img.style.height='';
+  $('cropModal').classList.add('open'); // 먼저 열어야 offsetWidth가 0이 아님
   img.onload=()=>{
     _cropNatW=img.naturalWidth;_cropNatH=img.naturalHeight;
-    // 표시 크기 계산 후 명시적으로 지정 (letterbox 없앰)
     requestAnimationFrame(()=>{
       const wr=$('cropWrapper');
-      const maxW=wr.offsetWidth;
+      const maxW=wr.offsetWidth||Math.min(window.innerWidth-32,480);
       const maxH=Math.floor(window.innerHeight*0.58);
       const scale=Math.min(maxW/_cropNatW,maxH/_cropNatH);
       const dw=Math.round(_cropNatW*scale),dh=Math.round(_cropNatH*scale);
       img.style.width=dw+'px';img.style.height=dh+'px';
       wr.style.height=dh+'px';
       _cropImgR={x:0,y:0,w:dw,h:dh};
-      // 초기 박스: 이미지 중앙 80%
       const pad=Math.round(Math.min(dw,dh)*0.1);
       _cropBox={x:pad,y:pad,w:dw-pad*2,h:dh-pad*2};
       _cropRW=0;_cropRH=0;
       document.querySelectorAll('.crop-ratio-btn').forEach(b=>b.classList.remove('active'));
       $('cropBtnFree').classList.add('active');
       _updateCropDOM();
-      $('cropModal').classList.add('open');
       _bindCropEv();
     });
   };
