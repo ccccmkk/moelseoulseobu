@@ -2559,6 +2559,8 @@ async function refreshPhotoContestDetail(){
       $('pcCloseBtn').style.display=contest.status==='open'?'':'none';
       const revBtn=$('pcRevealBtn');
       if(revBtn) revBtn.style.display=(contest.status==='closed'&&!contest.revealed)?'':'none';
+      const delBtn=$('pcDeleteBtn');
+      if(delBtn) delBtn.style.display=contest.status==='closed'?'':'none';
     } else { adminBar.style.display='none'; }
     // 업로드 영역
     $('photoUploadArea').style.display=contest.status==='open'?'':'none';
