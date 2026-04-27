@@ -2065,7 +2065,7 @@ function renderBlocksInCard(p,blogMode){
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
   }else if(imgs.length>=2){
     const cid='car-'+p.id;
-    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${i.url}" loading="lazy" onclick="openLightbox('${i.url}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
+    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${imgUrl(i.url)}" loading="lazy" onclick="openLightbox('${imgUrl(i.url)}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
   }
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   return html;
