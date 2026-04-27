@@ -4771,7 +4771,22 @@ async function adminQuizAction(action){
   try {
     const r=await fetch(`${API}/api/quiz/${adminQuizCurrentId}/${action}?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
     const d=await r.json();
-    if(d.ok) await loadAdminQuizStatus();
+    if(d.ok){
+      if(action==='reveal'){
+        if(d.all_eliminated){
+          const msg=$('adminQuizMsg');
+          msg.style.color='var(--danger)';
+          msg.textContent=`⚠️ 전원 탈락! ${d.stage_num}라운드를 다시 진행하세요.`;
+          // stage_num 재진행: 같은 번호로 새 퀴즈 생성 가능하도록 리셋
+          adminSeriesNextStage=d.stage_num;
+        } else if(d.auto_finished){
+          const msg=$('adminQuizMsg');
+          msg.style.color='var(--green-dark)';
+          msg.textContent=`🏆 최후의 1인! ${d.winner?.name||'?'}님 우승!`;
+        }
+      }
+      await loadAdminQuizStatus();
+    }
   } catch(e){}
 }
 
