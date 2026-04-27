@@ -1604,7 +1604,15 @@ export default {
       };
 
       if (p === '/api/quiz/current' && m === 'GET') {
-        const series = await env.DB.prepare("SELECT * FROM quiz_series WHERE status IN ('active','finished') ORDER BY created_at DESC LIMIT 1").first();
+        const reqGroup = url.searchParams.get('group') || 'all'; // 'center','branch','all','admin'
+        const isAdminReq = reqGroup === 'admin';
+        // group filter: 'all' 퀴즈는 모두에게, 그룹 퀴즈는 해당 그룹에만
+        const grpFilter = isAdminReq ? '' : ` AND (group_target='all' OR group_target=?)`;
+        const grpBind = isAdminReq ? [] : [reqGroup];
+
+        const series = isAdminReq
+          ? await env.DB.prepare("SELECT * FROM quiz_series WHERE status IN ('active','finished') ORDER BY created_at DESC LIMIT 1").first()
+          : await env.DB.prepare(`SELECT * FROM quiz_series WHERE status IN ('active','finished')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
         let session = null, stats = { O: 0, X: 0, total: 0 }, answers = [], survivors = [];
 
         if (series) {
@@ -1616,7 +1624,9 @@ export default {
             survivors = (survRows.results || []).map(r => ({ user_id: r.user_id, name: r.name }));
           }
         } else {
-          session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first();
+          session = isAdminReq
+            ? await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first()
+            : await env.DB.prepare(`SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
         }
 
         if (session) {
