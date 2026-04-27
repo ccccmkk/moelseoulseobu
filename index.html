@@ -1515,6 +1515,33 @@ button,a,[role="button"]{touch-action:manipulation}
 
 <script>
 const API='https://band-archive-api.cm99i.workers.dev';
+
+// ── 상단 로딩바 (NProgress-style) ──
+const np=(()=>{
+  let bar=null,tid=null,pct=0,pending=0;
+  function el(){
+    if(!bar){bar=document.createElement('div');bar.id='npbar';bar.style.cssText='position:fixed;top:0;left:0;height:3px;width:0%;background:var(--green);z-index:10000;opacity:0;pointer-events:none;border-radius:0 2px 2px 0;box-shadow:0 0 6px var(--green);transition:width .35s cubic-bezier(0.25,0.46,0.45,0.94),opacity .3s';document.body.appendChild(bar);}
+    return bar;
+  }
+  function start(){
+    pending++;
+    const b=el();
+    if(pending===1){pct=8;b.style.opacity='1';b.style.transition='width .35s cubic-bezier(0.25,0.46,0.45,0.94),opacity .3s';b.style.width=pct+'%';}
+    clearInterval(tid);
+    tid=setInterval(()=>{if(pct<82){pct+=((90-pct)*0.12);b.style.width=pct+'%';}},400);
+  }
+  function done(){
+    pending=Math.max(0,pending-1);
+    if(pending>0)return;
+    clearInterval(tid);
+    const b=el();
+    b.style.transition='width .2s ease,opacity .4s .1s';
+    b.style.width='100%';
+    setTimeout(()=>{b.style.opacity='0';},200);
+    setTimeout(()=>{b.style.width='0';b.style.opacity='1';b.style.transition='';},700);
+  }
+  return{start,done};
+})();
 const EVT_TYPE_COLOR={결혼:'#e91e8c',출산:'#2196f3',생일:'#ff9800',상:'#607d8b',승진:'#4caf50',기타:'#9e9e9e'};
 function evtDot(type){return`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></span>`;}
 function switchChalSub(tab){
@@ -1541,7 +1568,7 @@ let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
 let newsCache=null,newsLastFetch=0;
-let photoContests=[],currentPhotoContestId=null,photoUploadFile=null;
+let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,currentContestMyVote=null;
 let currentUserDept='',currentPhotoGroup=null;
 
 function $(id){return document.getElementById(id)}
@@ -1653,16 +1680,16 @@ async function fetchPosts(reset=false){
   if(reset){posts=[];feedCursor=null;feedHasMore=true;}
   const params=new URLSearchParams({limit:'6'});
   if(feedCursor)params.set('before',String(feedCursor));
+  np.start();
   try{
     const r=await fetch(`${API}/api/posts?${params}`);
     const d=await r.json();
-    // 구 API(배열) / 신 API({posts,has_more,next_cursor}) 양쪽 대응
     const newPosts=Array.isArray(d)?d:(d.posts||[]);
     posts=[...posts,...newPosts];
     feedHasMore=Array.isArray(d)?false:(d.has_more||false);
     feedCursor=Array.isArray(d)?null:(d.next_cursor||null);
   }catch(e){if(reset)posts=[];}
-  finally{feedLoading=false;}
+  finally{feedLoading=false;np.done();}
 }
 async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${encodeURIComponent(currentUser)}`);const a=await r.json();likedPosts=new Set(a);}catch(e){}}
 async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events=await r.json();}catch(e){events=[];}}
@@ -1961,6 +1988,7 @@ async function loadNews(){
   const now=Date.now();
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
   $('newsContent').innerHTML='<div class="empty-state"><div class="ei">📡</div>뉴스를 불러오는 중...</div>';
+  np.start();
   try{
     const r=await fetch(`${API}/api/news?category=${newsCat}`);
     if(!r.ok)throw new Error('서버 오류 '+r.status);
@@ -1969,6 +1997,7 @@ async function loadNews(){
     if(!Array.isArray(data))throw new Error('잘못된 응답');
     newsCache=data;newsLastFetch=now;renderNews(newsCache);
   }catch(e){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'뉴스를 불러오지 못했습니다.')}<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>`;}
+  finally{np.done();}
 }
 function renderNews(items){
   if(!items||!items.length){$('newsContent').innerHTML='<div class="empty-state"><div class="ei">📰</div>뉴스 기사를 찾지 못했습니다.</div>';return;}
@@ -2074,8 +2103,10 @@ async function openComments(postId){
   await loadComments(postId);
 }
 async function loadComments(postId){
+  np.start();
   try{const r=await fetch(`${API}/api/posts/${postId}/comments?user_id=${encodeURIComponent(currentUser)}`);const c=await r.json();renderComments(c);}
   catch(e){$('commentsList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
+  finally{np.done();}
 }
 // ── 대댓글 렌더 (유튜브 스타일) ──
 const REPLY_FOLD=3;
@@ -2163,16 +2194,51 @@ $('commentInput').oninput=function(){$('submitComment').disabled=!this.value.tri
 $('submitComment').onclick=async function(){
   const txt=$('commentInput').value.trim();if(!txt||!commentingPostId)return;
   $('submitComment').disabled=true;
-  try{await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});$('commentInput').value='';await loadComments(commentingPostId);updatePostCommentCount(commentingPostId,1);}
-  catch(e){alert('댓글 등록 실패');}
+  $('commentInput').value='';
+  // 낙관적 즉시 표시
+  const tempId='tmp_'+Date.now();
+  const myAvatar=getAvatar(currentUser);
+  const myName=userNames[currentUser]||currentUser;
+  const isImg=myAvatar&&(myAvatar.startsWith('/')||myAvatar.startsWith('http'));
+  const avHtml=isImg?`<div class="avatar" style="overflow:hidden;padding:0"><img src="${escHtml(myAvatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/></div>`:`<div class="avatar">${myAvatar||initials(myName)}</div>`;
+  const tempEl=document.createElement('div');
+  tempEl.id=tempId;tempEl.className='comment-item';tempEl.style.opacity='.6';
+  tempEl.innerHTML=`<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px">${avHtml}<div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${escHtml(myName)}</div><div style="font-size:14px">${renderMd(txt)}</div></div></div>`;
+  $('commentsList').appendChild(tempEl);
+  tempEl.scrollIntoView({behavior:'smooth',block:'end'});
+  updatePostCommentCount(commentingPostId,1);
+  try{
+    await fetch(`${API}/api/posts/${commentingPostId}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,content:txt})});
+    // 백그라운드로 실제 목록 교체 (temp 제거 후)
+    const r=await fetch(`${API}/api/posts/${commentingPostId}/comments?user_id=${encodeURIComponent(currentUser)}`);
+    const c=await r.json();
+    const tmp=$(tempId);if(tmp)tmp.remove();
+    renderComments(c);
+  }catch(e){
+    const tmp=$(tempId);if(tmp){tmp.style.background='#fff0f0';tmp.style.opacity='1';}
+    alert('댓글 등록 실패');
+    updatePostCommentCount(commentingPostId,-1);
+  }
+  finally{$('submitComment').disabled=false;}
 };
 $('commentInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('submitComment').disabled)$('submitComment').click();}};
 async function deleteComment(id){
   if(!confirm('삭제할까요?'))return;
   const replies=commentRepliesCache[id]||[];
-  await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});
+  const el=$('cmt-'+id);
+  const snapshot=el?el.outerHTML:null;
+  if(el)el.remove();
   updatePostCommentCount(commentingPostId,-(1+replies.length));
-  await loadComments(commentingPostId);
+  try{
+    const r=await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});
+    if(!r.ok)throw new Error();
+  }catch(e){
+    if(snapshot&&el?.parentNode===null){
+      const list=$('commentsList');if(list)list.insertAdjacentHTML('beforeend',snapshot);
+    }
+    updatePostCommentCount(commentingPostId,(1+replies.length));
+    alert('삭제 실패');
+  }
 }
 async function toggleCommentLike(cmtId,cmtAuthor,btn){
   const wasLiked=btn.classList.contains('liked');
@@ -2397,6 +2463,7 @@ function exitPhotoGroup(){
   }
 }
 async function loadPhotoContests(){
+  np.start();
   try{
     const params=[];
     if(sessionToken) params.push(`token=${encodeURIComponent(sessionToken)}`);
@@ -2406,6 +2473,7 @@ async function loadPhotoContests(){
     photoContests=Array.isArray(d)?d:[];
     renderPhotoContestList();
   }catch(e){}
+  finally{np.done();}
 }
 function renderPhotoContestList(){
   const c=$('photoContestList'); if(!c) return;
@@ -2435,11 +2503,13 @@ function closePhotoContestModal(){
 }
 async function refreshPhotoContestDetail(){
   const id=currentPhotoContestId; if(!id) return;
+  np.start();
   try{
     const t=sessionToken?`&token=${encodeURIComponent(sessionToken)}`:'';
     const d=await fetch(`${API}/api/photo-contests/${id}/entries?_=${Date.now()}${t}`).then(r=>r.json());
     const {contest,entries,my_vote}=d;
     if(!contest) return;
+    currentContestMyVote=my_vote||null;
     const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
     $('photoContestModalTitle').textContent=contest.title;
     const stEl=$('photoContestModalStatus');
@@ -2475,7 +2545,7 @@ async function refreshPhotoContestDetail(){
         const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
         const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
           ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;padding:5px 12px;cursor:pointer;color:var(--danger)">삭제</button>`:'';
-        return`<div class="photo-feed-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}">
+        return`<div class="photo-feed-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
           <div class="photo-feed-hd">
             <div style="display:flex;align-items:center;gap:8px">
               <div style="width:32px;height:32px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green-dark)">${(e.uploader_name||'익').charAt(0)}</div>
@@ -2502,15 +2572,40 @@ async function refreshPhotoContestDetail(){
     else if(contest.status==='closed'){vm.textContent='투표가 마감되었습니다';vm.style.color='var(--text-hint)';}
     else {vm.textContent='';}
   }catch(e){}
+  finally{np.done();}
+}
+function _applyVoteDOM(prevId,newId){
+  // 이전 투표 카드에서 voted 제거
+  if(prevId){
+    const c=document.querySelector(`.photo-feed-card[data-photo-id="${prevId}"]`);
+    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=parseInt(p.textContent.replace(/\D/g,''))||0;p.className='photo-vote-pill';p.textContent=`🗳️ ${n}표`;}}
+  }
+  // 새 투표 카드에 voted 추가
+  if(newId){
+    const c=document.querySelector(`.photo-feed-card[data-photo-id="${newId}"]`);
+    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=parseInt(p.textContent.replace(/\D/g,''))||0;p.className='photo-vote-pill voted';p.textContent=`✓ 투표함 · ${n}표`;}}
+  }
+  const vm=$('photoVoteMsg');
+  if(newId){vm.textContent='✓ 투표 완료 · 다른 사진을 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
+  else{vm.textContent='마음에 드는 사진의 투표 버튼을 탭하세요 (본인 사진 제외)';vm.style.color='var(--text-hint)';}
 }
 async function voteForPhoto(photoId){
   if(!sessionToken){alert('로그인이 필요합니다');return;}
+  const prevVote=currentContestMyVote;
+  currentContestMyVote=photoId;
+  _applyVoteDOM(prevVote,photoId); // 즉시 반영
   try{
     const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/vote?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:photoId})});
     const d=await r.json();
-    if(d.ok){await refreshPhotoContestDetail();await loadPhotoContests();}
-    else{const vm=$('photoVoteMsg');vm.textContent=d.error||'투표 실패';vm.style.color='var(--danger)';}
-  }catch(e){}
+    if(!d.ok){
+      currentContestMyVote=prevVote;
+      _applyVoteDOM(photoId,prevVote); // 반려
+      const vm=$('photoVoteMsg');vm.textContent=d.error||'투표 실패';vm.style.color='var(--danger)';
+    }
+  }catch(e){
+    currentContestMyVote=prevVote;
+    _applyVoteDOM(photoId,prevVote);
+  }
 }
 async function deleteEventPhoto(evt,eid){
   evt.stopPropagation();
@@ -2672,8 +2767,9 @@ async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetc
 
 // ── 칭찬합니다 탭 전체 렌더 (데이터 로드 후에만 렌더) ──
 async function renderChal(){
-  await fetchAll();
-  await renderContests();renderKudos();renderChalEvents();
+  np.start();
+  try{await fetchAll();await renderContests();renderKudos();renderChalEvents();}
+  finally{np.done();}
 }
 
 // ── 칭찬합니다 (kudos) ──
