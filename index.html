@@ -2711,8 +2711,9 @@ let _cropCallback=null;            // 크롭 완료 콜백 (피드용)
 
 function _cropClamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 
-function openCropModal(file,dataUrl){
+function openCropModal(file,dataUrl,cb){
   _cropDataUrl=dataUrl;
+  _cropCallback=cb||null;
   const img=$('cropImg');
   img.style.width='';img.style.height='';
   $('cropModal').classList.add('open'); // 먼저 열어야 offsetWidth가 0이 아님
