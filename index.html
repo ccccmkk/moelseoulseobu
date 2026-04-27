@@ -2707,6 +2707,7 @@ let _cropBox={x:0,y:0,w:0,h:0};  // 선택 영역 (wrapper 기준 px)
 let _cropDS=null;                  // 드래그 상태 {type,dir,sx,sy,sb}
 let _cropRW=0,_cropRH=0;          // 비율 고정 (0=자유)
 let _cropEvBound=false;
+let _cropCallback=null;            // 크롭 완료 콜백 (피드용)
 
 function _cropClamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 
