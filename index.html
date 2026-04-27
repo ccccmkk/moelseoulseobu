@@ -4041,7 +4041,7 @@ function closeQuizModal(){
 
 async function quizPollStep(){
   try {
-    const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+    const d=await fetch(`${API}/api/quiz/current?group=${currentUserGroup()}`).then(r=>r.json());
     handleQuizState(d);
   } catch(e){}
   if(quizModalOpen) quizPollTid=setTimeout(quizPollStep,1500);
