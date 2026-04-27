@@ -2655,6 +2655,15 @@ async function deleteEventPhoto(evt,eid){
     else alert(d.error||'삭제 실패');
   }catch(e){}
 }
+async function deletePhotoContest(){
+  if(!confirm('이 행사와 모든 사진·투표 데이터를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.'))return;
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){closePhotoContestModal();await loadPhotoContests();renderAdmPhotoContests();}
+    else alert(d.error||'삭제 실패');
+  }catch(e){alert('네트워크 오류');}
+}
 async function setPhotoContestStatus(status){
   try{
     const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/status?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
