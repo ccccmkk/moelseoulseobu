@@ -1401,6 +1401,33 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="upload-pct" id="uploadPct">0%</div>
   </div>
 </div>
+<!-- ════ 사다리타기 ════ -->
+<div id="ladderOverlay">
+  <div class="ladder-card">
+    <button onclick="closeLadderModal()" style="position:absolute;top:10px;right:14px;background:none;border:none;color:rgba(255,255,255,.5);font-size:22px;cursor:pointer;line-height:1">×</button>
+    <div class="ladder-title">🪜 사다리타기</div>
+    <div class="ladder-subtitle" id="ladderSubtitle">자리를 선택하세요</div>
+    <!-- 선택 단계 -->
+    <div id="ladderPickPhase">
+      <div class="ladder-timer" id="ladderTimerNum">5</div>
+      <div class="ladder-slots" id="ladderSlots"></div>
+      <div style="font-size:11px;color:rgba(255,255,255,.35);text-align:center">선착순 · 시간 초과 시 자동 배정</div>
+    </div>
+    <!-- 사다리 애니메이션 단계 -->
+    <div id="ladderRevealPhase" style="display:none">
+      <div id="ladderSvgWrap"></div>
+      <div id="ladderWinnerBanner" style="display:none" class="ladder-winner-banner">
+        <div style="font-size:13px;font-weight:600;opacity:.85">🏆 최종 우승자</div>
+        <div class="wname" id="ladderWinnerName"></div>
+      </div>
+    </div>
+    <!-- 관리자: 결과 공개 버튼 -->
+    <div id="ladderAdminRevealWrap" style="display:none;margin-top:14px">
+      <button onclick="adminRevealLadder()" style="width:100%;padding:12px 0;background:#7c4dff;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">🪜 사다리 결과 공개</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 폭죽 캔버스 (fullscreen) ════ -->
 <canvas id="quizFireworks"></canvas>
 
