@@ -4472,7 +4472,7 @@ async function adminCreateSeries(){
   try {
     const r=await fetch(`${API}/api/quiz/series?token=${encodeURIComponent(sessionToken)}`,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({total_stages:adminSeriesRounds})
+      body:JSON.stringify({total_stages:adminSeriesRounds,group_target:adminQuizGroup})
     });
     const d=await r.json();
     if(d.ok){
