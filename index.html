@@ -2056,12 +2056,12 @@ function renderBlocksInCard(p,blogMode){
   const texts=p.blocks.filter(b=>b.type==='text'&&b.content.trim());
   let html='';
   if(blogMode){
-    if(imgs.length){html+=`<div class="blog-thumb-wrap"><img src="${imgs[0].url}" loading="lazy"/></div>`;}
+    if(imgs.length){html+=`<div class="blog-thumb-wrap"><img src="${imgUrl(imgs[0].url)}" loading="lazy"/></div>`;}
     if(texts.length){html+=`<div class="blog-excerpt">${escHtml(texts[0].content)}</div>`;}
     return html;
   }
   if(imgs.length===1){
-    html+=`<div class="post-img-wrap" onclick="openLightbox('${imgs[0].url}')"><img src="${imgs[0].url}" loading="lazy"/></div>`;
+    html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(imgs[0].url)}')"><img src="${imgUrl(imgs[0].url)}" loading="lazy"/></div>`;
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
   }else if(imgs.length>=2){
     const cid='car-'+p.id;
