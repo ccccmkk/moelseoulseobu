@@ -3981,8 +3981,7 @@ function onLoginSuccess(d){
   currentUserDept=d.dept||'';
   userNames[d.id]=d.name||d.id;
   localStorage.setItem('session_token',d.token);
-  // 이전 방식 삭제
-  localStorage.removeItem('saved_id');localStorage.removeItem('saved_pw');
+  localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
   showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
