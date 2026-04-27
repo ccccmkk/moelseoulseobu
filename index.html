@@ -3245,7 +3245,7 @@ function openFullPost(key){
   $('fullPostTitle').textContent=userName(p.author)+' · '+relDate(p.created_at);
   let html='';
   (p.blocks||[]).forEach(b=>{
-    if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${b.url}')"><img src="${b.url}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
+    if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(b.url)}')"><img src="${imgUrl(b.url)}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
     else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${renderMd(b.content)}</div>`;}
   });
   if(p.keyword)html+=`<div class="post-tag" style="margin:4px 14px 8px">#${escHtml(p.keyword)}</div>`;
