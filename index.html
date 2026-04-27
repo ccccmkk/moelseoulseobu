@@ -2659,6 +2659,9 @@ async function refreshPhotoContestDetail(){
     const stEl=$('photoContestModalStatus');
     stEl.textContent=stLabel[contest.status]||contest.status;
     stEl.className=`pc-status ${contest.status}`;
+    const descEl=$('photoContestModalDesc');
+    if(contest.description){descEl.textContent=contest.description;descEl.style.display='';}
+    else{descEl.style.display='none';}
     // 관리자 바
     const adminBar=$('photoContestAdminBar');
     if(currentUserRole==='admin'){
