@@ -2662,13 +2662,13 @@ async function refreshPhotoContestDetail(){
 function _applyVoteDOM(prevId,newId){
   // 이전 투표 카드에서 voted 제거
   if(prevId){
-    const c=document.querySelector(`.photo-feed-card[data-photo-id="${prevId}"]`);
+    const c=document.querySelector(`[data-photo-id="${prevId}"]`);
     if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=parseInt(p.textContent.replace(/\D/g,''))||0;p.className='photo-vote-pill';p.textContent=`🗳️ ${n}표`;}}
   }
   // 새 투표 카드에 voted 추가
   if(newId){
-    const c=document.querySelector(`.photo-feed-card[data-photo-id="${newId}"]`);
-    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=parseInt(p.textContent.replace(/\D/g,''))||0;p.className='photo-vote-pill voted';p.textContent=`✓ 투표함 · ${n}표`;}}
+    const c=document.querySelector(`[data-photo-id="${newId}"]`);
+    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=parseInt(p.textContent.replace(/\D/g,''))||0;p.className='photo-vote-pill voted';p.textContent=`✓ ${n}표`;}}
   }
   const vm=$('photoVoteMsg');
   if(newId){vm.textContent='✓ 투표 완료 · 다른 사진을 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
