@@ -2620,7 +2620,7 @@ async function refreshPhotoContestDetail(){
       $('photoContestGrid').innerHTML='<div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>';
     } else {
       const sorted=contest.status==='closed'?[...entries].sort((a,b)=>b.vote_count-a.vote_count):entries;
-      $('photoContestGrid').innerHTML='<div class="photo-feed">'+sorted.map((e,i)=>{
+      $('photoContestGrid').innerHTML='<div class="photo-grid">'+sorted.map((e,i)=>{
         const isOwn=e.is_mine;
         const isVoted=my_vote===e.id;
         const canVote=contest.status==='open'&&!isOwn&&my_vote===null;
@@ -2628,26 +2628,22 @@ async function refreshPhotoContestDetail(){
         const rank1=contest.status==='closed'&&i===0&&e.vote_count>0;
         let pillClass='photo-vote-pill';
         let pillLabel=`🗳️ ${e.vote_count}표`;
-        if(isVoted){pillClass+=' voted';pillLabel=`✓ 투표함 · ${e.vote_count}표`;}
-        else if(isOwn){pillClass+=' own';pillLabel=`📷 ${e.vote_count}표 (내 사진)`;}
+        if(isVoted){pillClass+=' voted';pillLabel=`✓ ${e.vote_count}표`;}
+        else if(isOwn){pillClass+=' own';pillLabel=`📷 ${e.vote_count}표`;}
         else if(contest.status==='closed'){pillClass+=' closed';}
         const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
         const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
-          ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;padding:5px 12px;cursor:pointer;color:var(--danger)">삭제</button>`:'';
-        return`<div class="photo-feed-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
-          <div class="photo-feed-hd">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:32px;height:32px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green-dark)">${(e.uploader_name||'익').charAt(0)}</div>
-              <div>
-                <div style="font-size:14px;font-weight:600">${escHtml(e.uploader_name||'익명')}${isOwn?'<span style="margin-left:6px;font-size:11px;color:var(--text-hint);font-weight:400">내 사진</span>':''}</div>
-              </div>
-            </div>
-            ${rank1?'<span style="font-size:22px">🏆</span>':''}
+          ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--danger)">✕</button>`:'';
+        const imgUrl_=escHtml(imgUrl(e.img_url));
+        return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
+          <div class="photo-grid-img-wrap" onclick="openLightbox('${imgUrl_}')">
+            <img src="${imgUrl_}" alt="" loading="lazy">
+            ${rank1?'<div class="photo-grid-badge">🏆</div>':''}
+            ${isOwn?'<div class="photo-grid-mine">내 사진</div>':''}
           </div>
-          <img class="photo-feed-img" src="${escHtml(imgUrl(e.img_url))}" alt="" loading="lazy">
-          <div class="photo-feed-body">
-            ${e.caption?`<div style="font-size:14px;color:var(--text)">${escHtml(e.caption)}</div>`:''}
-            <div class="photo-feed-actions">
+          <div class="photo-grid-foot">
+            <div class="photo-grid-author">${escHtml(e.uploader_name||'익명')}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between">
               <button class="${pillClass}" ${voteClick}>${pillLabel}</button>
               ${delBtn}
             </div>
