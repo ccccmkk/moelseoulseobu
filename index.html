@@ -46,8 +46,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .appbar-btn:hover{background:rgba(255,255,255,.32)}
 /* 탭 */
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%}
-.tab-page.active{display:block;animation:tabFadeIn .13s ease}
-@keyframes tabFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.tab-page.active{display:block;animation:tabFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) both}
+@keyframes tabFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 /* 서브탭 */
 .sub-tabs{display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
 .sub-tab{flex:1;padding:9px;border:none;background:none;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-hint);font-family:inherit;transition:.15s}
@@ -58,10 +58,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px}
 /* 하단 네비 */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;height:58px;background:#fff;border-top:1px solid var(--border);display:flex;z-index:100}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--text-hint);font-size:10px;font-family:inherit;transition:color .15s;padding:6px 0}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--text-hint);font-size:10px;font-family:inherit;transition:color .2s,transform .12s;padding:6px 0}
+.nav-btn:active{transform:scale(0.88)}
 .nav-btn.active{color:var(--green)}
-.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;transition:stroke-width .15s}
-.nav-btn.active svg{stroke-width:2.4}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;transition:stroke-width .2s,transform .2s}
+.nav-btn.active svg{stroke-width:2.4;transform:translateY(-1px)}
 /* FAB */
 .fab{position:fixed;right:18px;bottom:70px;width:52px;height:52px;background:var(--green);border:none;border-radius:50%;color:#fff;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(55,194,114,.45);display:none;align-items:center;justify-content:center;z-index:90;transition:transform .15s;line-height:1}
 .fab.show{display:flex}.fab:hover{transform:scale(1.07)}
@@ -102,13 +103,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .lb-close{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001}
 /* 모달 공통 */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center}
-.modal-overlay.open{display:flex;animation:overlayIn .18s ease forwards}
+.modal-overlay.open{display:flex;animation:overlayIn .25s ease forwards}
 @keyframes overlayIn{from{background:rgba(0,0,0,0)}to{background:rgba(0,0,0,.5)}}
-.modal-overlay.open .modal{animation:modalSlideUp .22s cubic-bezier(.22,.61,.36,1) forwards}
-@keyframes modalSlideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-overlay.open .modal{animation:modalSlideUp .3s cubic-bezier(0.34,1.56,0.64,1) forwards}
+@keyframes modalSlideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-overlay.center{align-items:center;padding:1rem}
-.modal-overlay.center.open .modal{animation:modalFadeIn .18s ease forwards}
-@keyframes modalFadeIn{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-overlay.center.open .modal{animation:modalFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) forwards}
+@keyframes modalFadeIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
 .modal{background:#fff;border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:600px;max-height:90dvh;display:flex;flex-direction:column}
 .modal-overlay.center .modal{border-radius:var(--radius);max-height:88dvh}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -457,14 +458,20 @@ button,a,[role="button"]{touch-action:manipulation}
 .pc-status.open{background:#e8faf0;color:var(--green-dark)}
 .pc-status.closed{background:#f5f5f5;color:#888}
 .pc-status.draft{background:#fff8e1;color:#f57c00}
-.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.photo-entry{border:2px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .15s;position:relative;background:#fff}
-.photo-entry.can-vote{cursor:pointer}.photo-entry.can-vote:active{opacity:.85}
-.photo-entry.voted{border-color:var(--green)}
-.photo-entry img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
-.photo-entry-info{padding:8px}
-.photo-vote-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px}
-.photo-rank-1{border-color:#f9a825;border-width:3px}
+.photo-feed{display:flex;flex-direction:column;gap:14px}
+.photo-feed-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.photo-feed-card.voted{border-color:var(--green);box-shadow:0 0 0 2px var(--green-light)}
+.photo-feed-card.rank-1{border-color:#f9a825;border-width:2px}
+.photo-feed-card.can-vote{cursor:pointer}
+.photo-feed-card.can-vote:active{opacity:.9}
+.photo-feed-hd{padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.photo-feed-img{width:100%;display:block;max-height:520px;object-fit:cover}
+.photo-feed-body{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.photo-feed-actions{display:flex;align-items:center;justify-content:space-between;margin-top:2px}
+.photo-vote-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:24px;border:1.5px solid var(--border);background:#fafafa;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
+.photo-vote-pill.voted{border-color:var(--green);background:var(--green-light);color:var(--green-dark)}
+.photo-vote-pill.own{opacity:.4;cursor:not-allowed}
+.photo-vote-pill.closed{cursor:not-allowed}
 .photo-upload-area{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:var(--text-hint);font-size:13px;transition:.15s}
 .group-card{background:var(--card);border-radius:var(--radius);border:1.5px solid var(--border);padding:28px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
 .group-card:active{border-color:var(--green);box-shadow:0 0 0 3px var(--green-light)}
@@ -2449,38 +2456,49 @@ async function refreshPhotoContestDetail(){
     } else { adminBar.style.display='none'; }
     // 업로드 영역
     $('photoUploadArea').style.display=contest.status==='open'?'':'none';
-    // 사진 그리드
+    // 사진 피드
     if(!entries.length){
       $('photoContestGrid').innerHTML='<div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>';
     } else {
       const sorted=contest.status==='closed'?[...entries].sort((a,b)=>b.vote_count-a.vote_count):entries;
-      $('photoContestGrid').innerHTML='<div class="photo-grid">'+sorted.map((e,i)=>{
+      $('photoContestGrid').innerHTML='<div class="photo-feed">'+sorted.map((e,i)=>{
         const isOwn=e.is_mine;
         const isVoted=my_vote===e.id;
         const canVote=contest.status==='open'&&!isOwn&&my_vote===null;
+        const changeVote=contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
         const rank1=contest.status==='closed'&&i===0&&e.vote_count>0;
+        let pillClass='photo-vote-pill';
+        let pillLabel=`🗳️ ${e.vote_count}표`;
+        if(isVoted){pillClass+=' voted';pillLabel=`✓ 투표함 · ${e.vote_count}표`;}
+        else if(isOwn){pillClass+=' own';pillLabel=`📷 ${e.vote_count}표 (내 사진)`;}
+        else if(contest.status==='closed'){pillClass+=' closed';}
+        const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
         const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
-          ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:4px;font-size:11px;padding:2px 6px;cursor:pointer">삭제</button>`:'';
-        return`<div class="photo-entry${isVoted?' voted':''}${rank1?' photo-rank-1':''}${canVote?' can-vote':''}" onclick="${canVote?`voteForPhoto('${e.id}')`:''}" >
-          <div style="position:relative">
-            <img src="${escHtml(e.img_url)}" alt="" loading="lazy">
-            <span class="photo-vote-badge">${e.vote_count}표</span>
-            ${rank1?'<span style="position:absolute;top:6px;left:6px;font-size:20px">🏆</span>':''}
+          ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:1px solid var(--border);border-radius:20px;font-size:12px;padding:5px 12px;cursor:pointer;color:var(--danger)">삭제</button>`:'';
+        return`<div class="photo-feed-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}">
+          <div class="photo-feed-hd">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green-dark)">${(e.uploader_name||'익').charAt(0)}</div>
+              <div>
+                <div style="font-size:14px;font-weight:600">${escHtml(e.uploader_name||'익명')}${isOwn?'<span style="margin-left:6px;font-size:11px;color:var(--text-hint);font-weight:400">내 사진</span>':''}</div>
+              </div>
+            </div>
+            ${rank1?'<span style="font-size:22px">🏆</span>':''}
           </div>
-          <div class="photo-entry-info">
-            <div style="font-size:12px;font-weight:600">${escHtml(e.uploader_name||e.uploader)}</div>
-            ${e.caption?`<div style="font-size:12px;color:var(--text-sub);margin-top:2px">${escHtml(e.caption)}</div>`:''}
-            ${isOwn?'<div style="font-size:11px;color:var(--text-hint);margin-top:2px">내 사진</div>':''}
-            ${isVoted?'<div style="font-size:11px;color:var(--green-dark);font-weight:600;margin-top:2px">✓ 투표함</div>':''}
-            ${canVote?'<div style="font-size:11px;color:var(--green);margin-top:2px">탭해서 투표</div>':''}
+          <img class="photo-feed-img" src="${escHtml(e.img_url)}" alt="" loading="lazy">
+          <div class="photo-feed-body">
+            ${e.caption?`<div style="font-size:14px;color:var(--text)">${escHtml(e.caption)}</div>`:''}
+            <div class="photo-feed-actions">
+              <button class="${pillClass}" ${voteClick}>${pillLabel}</button>
+              ${delBtn}
+            </div>
           </div>
-          ${delBtn}
         </div>`;
       }).join('')+'</div>';
     }
     const vm=$('photoVoteMsg');
-    if(contest.status==='open'&&my_vote){vm.textContent='✓ 투표 완료 · 다른 사진 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
-    else if(contest.status==='open'){vm.textContent='마음에 드는 사진을 탭해서 투표하세요 (본인 사진 제외)';vm.style.color='var(--text-hint)';}
+    if(contest.status==='open'&&my_vote){vm.textContent='✓ 투표 완료 · 다른 사진을 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
+    else if(contest.status==='open'){vm.textContent='마음에 드는 사진의 투표 버튼을 탭하세요 (본인 사진 제외)';vm.style.color='var(--text-hint)';}
     else if(contest.status==='closed'){vm.textContent='투표가 마감되었습니다';vm.style.color='var(--text-hint)';}
     else {vm.textContent='';}
   }catch(e){}
