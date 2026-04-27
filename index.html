@@ -1624,6 +1624,7 @@ function updateAvatarEl(el,u){
   else{el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av||initials(u);}
 }
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function imgUrl(u){return(u&&u.startsWith('/'))?API+u:(u||'');}
 function renderMd(s){
   if(!s)return'';
   // 1. HTML 이스케이프 (XSS 방지)
