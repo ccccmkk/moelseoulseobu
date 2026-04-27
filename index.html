@@ -4407,6 +4407,187 @@ function startQuizBgPoll(){
   },3000);
 }
 
+// ── 사다리타기 ──
+let _ladderPollTid=null,_ladderGameId=null,_ladderOpen=false,_ladderTimerTid=null,_ladderMyPick=null,_ladderRevealed=false;
+
+function openLadderModal(){$('ladderOverlay').classList.add('open');_ladderOpen=true;_ladderPollLadder();}
+function closeLadderModal(){$('ladderOverlay').classList.remove('open');_ladderOpen=false;clearTimeout(_ladderPollTid);clearInterval(_ladderTimerTid);}
+
+async function adminStartLadder(){
+  // 현재 생존자 목록 수집
+  const d=await fetch(`${API}/api/quiz/current?group=admin`).then(r=>r.json());
+  const survivors=d.survivors||[];
+  if(survivors.length<2){alert('생존자가 2명 이상이어야 합니다');return;}
+  const r=await fetch(`${API}/api/ladder?token=${encodeURIComponent(sessionToken)}`,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({series_id:d.series?.id||null,participants:survivors})
+  });
+  const res=await r.json();
+  if(res.ok){openLadderModal();}else{alert(res.error||'오류');}
+}
+
+async function adminRevealLadder(){
+  if(!_ladderGameId)return;
+  const r=await fetch(`${API}/api/ladder/${_ladderGameId}/reveal?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+  const d=await r.json();
+  if(d.ok){_ladderPollLadder();}
+}
+
+async function pickLadderSlot(pos){
+  if(!_ladderGameId||_ladderMyPick!==null)return;
+  const r=await fetch(`${API}/api/ladder/${_ladderGameId}/pick?token=${encodeURIComponent(sessionToken)}`,{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({position:pos})
+  });
+  const d=await r.json();
+  if(d.ok){_ladderMyPick=pos;_renderLadderPicking(null);}
+  else if(d.error)alert(d.error);
+}
+
+async function _ladderPollLadder(){
+  clearTimeout(_ladderPollTid);
+  if(!_ladderOpen)return;
+  try{
+    const d=await fetch(`${API}/api/ladder/current`).then(r=>r.json());
+    const g=d.game;
+    if(!g){closeLadderModal();return;}
+    _ladderGameId=g.id;
+    if(g.status==='picking'){
+      $('ladderPickPhase').style.display='';
+      $('ladderRevealPhase').style.display='none';
+      _renderLadderPicking(g);
+      _startLadderTimer(g.pick_deadline);
+    } else if(g.status==='assigned'){
+      $('ladderPickPhase').style.display='';
+      $('ladderRevealPhase').style.display='none';
+      clearInterval(_ladderTimerTid);
+      $('ladderTimerNum').textContent='⏳';$('ladderTimerNum').className='ladder-timer';
+      $('ladderSubtitle').textContent='모든 자리 배정 완료. 결과를 기다리세요.';
+      _renderLadderPicking(g);
+      if(currentUserRole==='admin'){$('ladderAdminRevealWrap').style.display='';}
+    } else if(g.status==='revealed'){
+      clearInterval(_ladderTimerTid);
+      $('ladderPickPhase').style.display='none';
+      $('ladderRevealPhase').style.display='';
+      $('ladderAdminRevealWrap').style.display='none';
+      if(!_ladderRevealed){_ladderRevealed=true;_animateLadder(g);}
+    }
+  }catch(e){}
+  if(_ladderOpen&&!_ladderRevealed) _ladderPollTid=setTimeout(_ladderPollLadder,1500);
+}
+
+function _startLadderTimer(deadline){
+  clearInterval(_ladderTimerTid);
+  _ladderTimerTid=setInterval(()=>{
+    const sec=Math.max(0,Math.ceil(deadline-Date.now()/1000));
+    const el=$('ladderTimerNum');
+    if(el){el.textContent=sec;el.className='ladder-timer'+(sec<=2?' urgent':'');}
+    if(sec===0)clearInterval(_ladderTimerTid);
+  },200);
+}
+
+function _renderLadderPicking(g){
+  const wrap=$('ladderSlots');
+  if(!g){// 내 선택만 업데이트
+    wrap.querySelectorAll('.ladder-slot').forEach(btn=>{
+      if(parseInt(btn.dataset.pos)===_ladderMyPick)btn.className='ladder-slot mine';
+    });return;
+  }
+  const n=g.participants.length;
+  const picks=g.picks||{};
+  $('ladderSubtitle').textContent=`${n}명 중 자리를 선택하세요`;
+  wrap.style.gridTemplateColumns=n<=4?`repeat(${n},1fr)`:`repeat(${Math.ceil(n/2)},1fr)`;
+  wrap.innerHTML=g.participants.map((_,i)=>{
+    const owner=Object.entries(picks).find(([,v])=>v===i);
+    const isMe=_ladderMyPick===i;
+    const isTaken=!!owner&&!isMe;
+    const cls='ladder-slot'+(isMe?' mine':isTaken?' taken':'');
+    const label=isMe?`✓ ${i+1}번`:isTaken?`🔒 ${i+1}번`:`${i+1}번`;
+    const disabled=isMe||isTaken||_ladderMyPick!==null?'disabled':'';
+    return`<button class="${cls}" data-pos="${i}" onclick="pickLadderSlot(${i})" ${disabled}>${label}</button>`;
+  }).join('');
+}
+
+function _animateLadder(g){
+  const struct=g.structure;
+  const n=g.participants.length;
+  const rows=struct.rows||20;
+  const picks=g.picks||{};
+  const winnerStart=struct.winner_start;
+  const colW=60,rowH=28,padX=24,padY=20;
+  const svgW=n*colW+padX*2,svgH=rows*rowH+padY*2;
+
+  // 각 참가자의 시작 열 (position → participant)
+  const posToUser={};
+  for(const[uid,pos] of Object.entries(picks)) posToUser[pos]=uid;
+
+  // 경로 트레이스
+  const tracePath=startCol=>{
+    let c=startCol; const pts=[{r:0,c}];
+    for(let r=1;r<rows;r++){
+      const rung=struct.rungs?.find(rg=>rg.row===r&&(rg.col===c||rg.col===c-1));
+      if(rung){c=rung.col===c?c+1:c-1;}
+      pts.push({r,c});
+    }
+    return pts;
+  };
+
+  const cx=c=>padX+c*colW+colW/2;
+  const cy=r=>padY+r*rowH;
+
+  // SVG 빌드
+  let svgLines='';
+  // 세로선
+  for(let c=0;c<n;c++) svgLines+=`<line x1="${cx(c)}" y1="${padY}" x2="${cx(c)}" y2="${padY+rows*rowH}" stroke="rgba(255,255,255,.15)" stroke-width="2"/>`;
+  // 가로선 (rungs)
+  for(const rg of struct.rungs||[]) svgLines+=`<line x1="${cx(rg.col)}" y1="${cy(rg.row)}" x2="${cx(rg.col+1)}" y2="${cy(rg.row)}" stroke="rgba(255,255,255,.25)" stroke-width="2.5"/>`;
+  // 이름 (상단)
+  for(let c=0;c<n;c++){
+    const uid=posToUser[c];
+    const name=uid?g.participants.find(p=>p.user_id===uid)?.name||'?':'?';
+    const isWinner=c===winnerStart;
+    svgLines+=`<text x="${cx(c)}" y="${padY-6}" text-anchor="middle" font-size="11" font-weight="${isWinner?800:400}" fill="${isWinner?'#f9a825':'rgba(255,255,255,.6)'}">${escHtml(name.slice(0,4))}</text>`;
+  }
+  // 하단 라벨
+  for(let c=0;c<n;c++){
+    const isWinEnd=struct.end_positions?.[winnerStart]===c||c===winnerStart;
+    svgLines+=`<text x="${cx(c)}" y="${padY+rows*rowH+16}" text-anchor="middle" font-size="12" font-weight="800" fill="${isWinEnd?'#f9a825':'rgba(255,255,255,.3)'}">${isWinEnd?'🏆':'✕'}</text>`;
+  }
+
+  // 우승자 경로 애니메이션
+  const winPath=tracePath(winnerStart);
+  let pathD=`M${cx(winPath[0].c)},${cy(0)}`;
+  for(let i=1;i<winPath.length;i++){
+    const prev=winPath[i-1],cur=winPath[i];
+    if(prev.c!==cur.c) pathD+=` L${cx(prev.c)},${cy(i)} L${cx(cur.c)},${cy(i)}`;
+    else pathD+=` L${cx(cur.c)},${cy(i)}`;
+  }
+  const pathLen=svgH*2;
+  const animId='lp'+Date.now();
+  svgLines+=`<path id="${animId}" d="${pathD}" fill="none" stroke="#f9a825" stroke-width="4" stroke-linecap="round" stroke-dasharray="${pathLen}" stroke-dashoffset="${pathLen}" opacity=".9"><animate attributeName="stroke-dashoffset" from="${pathLen}" to="0" dur="2.5s" fill="freeze" begin="0.3s"/></path>`;
+
+  $('ladderSvgWrap').innerHTML=`<svg width="${svgW}" height="${svgH+padY}" viewBox="0 0 ${svgW} ${svgH+padY}" style="overflow:visible">${svgLines}</svg>`;
+
+  // 2.8초 후 우승자 배너
+  setTimeout(()=>{
+    const winner=g.participants.find(p=>picks[p.user_id]===winnerStart);
+    if(winner){
+      $('ladderWinnerName').textContent=winner.name||'?';
+      $('ladderWinnerBanner').style.display='';
+      if(typeof launchFireworks==='function') launchFireworks();
+    }
+  },2800);
+}
+
+// 백그라운드에서 사다리 감지 (일반 유저)
+async function _checkLadderBg(){
+  try{
+    const d=await fetch(`${API}/api/ladder/current`).then(r=>r.json());
+    const g=d.game;
+    if(g&&!_ladderOpen&&g.status==='picking'){_ladderMyPick=null;_ladderRevealed=false;openLadderModal();}
+    if(g&&g.status==='revealed'&&!_ladderRevealed&&!_ladderOpen){_ladderRevealed=false;openLadderModal();}
+  }catch(e){}
+}
+
 // ── 관리자 퀴즈 컨트롤 ──
 async function loadAdminQuizStatus(){
   const box=$('adminQuizStatus'), ctrl=$('adminQuizControls');
