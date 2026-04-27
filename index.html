@@ -4612,8 +4612,10 @@ async function loadAdminQuizStatus(){
 
       const allStagesDone=s?.stage_num>=ser.total_stages&&s?.status==='revealed';
       const needInput=(!s||s.status==='revealed')&&!allStagesDone;
-      $('adminQuizInputArea').style.display=needInput?'':'none';
-      if(needInput){
+      // 사다리타기: 마지막 스테이지 완료 + 생존자 2명 이상
+      const needLadder=allStagesDone&&survivors.length>=2;
+      $('adminQuizInputArea').style.display=needInput&&!needLadder?'':'none';
+      if(needInput&&!needLadder){
         const nextStage=(s?.stage_num||0)+1;
         adminSeriesNextStage=nextStage;
         $('adminStageLabel').style.display='';
@@ -4622,10 +4624,11 @@ async function loadAdminQuizStatus(){
       ctrl.style.display='flex'; ctrl.style.flexDirection='column';
       $('adminQuizStartBtn').style.display=s?.status==='waiting'?'':'none';
       $('adminQuizRevealBtn').style.display=s?.status==='active'?'':'none';
-      $('adminQuizFinishSeriesBtn').style.display=s?.status!=='active'?'':'none';
+      $('adminQuizFinishSeriesBtn').style.display=(!needLadder&&s?.status!=='active')?'':'none';
       $('adminQuizCloseSeriesBtn').style.display='none';
       $('adminQuizDeleteSeriesBtn').style.display='none';
       $('adminQuizCloseBtn').style.display='none';
+      const lb=$('adminLadderBtn'); if(lb) lb.style.display=needLadder?'':'none';
       adminQuizCurrentId=s?.id||null;
       $('adminQuizModeBar').style.display='none';
       $('adminSeriesSetup').style.display='none';
