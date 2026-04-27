@@ -1528,18 +1528,30 @@ button,a,[role="button"]{touch-action:manipulation}
       <span class="modal-title">사진 자르기</span>
       <button class="modal-close" onclick="closeCropModal()">×</button>
     </div>
-    <div class="modal-body" style="overflow:hidden">
-      <div id="cropContainer" class="crop-container">
-        <img id="cropImg">
-        <div class="crop-overlay"></div>
+    <div class="modal-body" style="overflow:hidden;padding:0">
+      <div id="cropWrapper" style="position:relative;overflow:hidden;background:#111;line-height:0;touch-action:none;user-select:none">
+        <img id="cropImg" style="display:block;pointer-events:none">
+        <div id="cropBox" style="position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move;touch-action:none;z-index:1">
+          <div class="crop-grid-line" style="left:33.33%;top:0;bottom:0;width:1px"></div>
+          <div class="crop-grid-line" style="left:66.66%;top:0;bottom:0;width:1px"></div>
+          <div class="crop-grid-line" style="top:33.33%;left:0;right:0;height:1px"></div>
+          <div class="crop-grid-line" style="top:66.66%;left:0;right:0;height:1px"></div>
+          <div class="crop-handle" data-dir="nw" style="top:-11px;left:-11px;cursor:nw-resize"></div>
+          <div class="crop-handle" data-dir="n"  style="top:-11px;left:50%;margin-left:-11px;cursor:n-resize"></div>
+          <div class="crop-handle" data-dir="ne" style="top:-11px;right:-11px;cursor:ne-resize"></div>
+          <div class="crop-handle" data-dir="e"  style="top:50%;right:-11px;margin-top:-11px;cursor:e-resize"></div>
+          <div class="crop-handle" data-dir="se" style="bottom:-11px;right:-11px;cursor:se-resize"></div>
+          <div class="crop-handle" data-dir="s"  style="bottom:-11px;left:50%;margin-left:-11px;cursor:s-resize"></div>
+          <div class="crop-handle" data-dir="sw" style="bottom:-11px;left:-11px;cursor:sw-resize"></div>
+          <div class="crop-handle" data-dir="w"  style="top:50%;left:-11px;margin-top:-11px;cursor:w-resize"></div>
+        </div>
       </div>
       <div class="crop-ratio-btns">
-        <button class="crop-ratio-btn active" id="cropBtn11" onclick="setCropRatio(1,1,'11')">1:1</button>
+        <button class="crop-ratio-btn active" id="cropBtnFree" onclick="setCropRatio(0,0,'Free')">자유</button>
+        <button class="crop-ratio-btn" id="cropBtn11" onclick="setCropRatio(1,1,'11')">1:1</button>
         <button class="crop-ratio-btn" id="cropBtn43" onclick="setCropRatio(4,3,'43')">4:3</button>
         <button class="crop-ratio-btn" id="cropBtn169" onclick="setCropRatio(16,9,'169')">16:9</button>
-        <button class="crop-ratio-btn" id="cropBtnFree" onclick="setCropRatio(0,0,'Free')">원본</button>
       </div>
-      <div style="font-size:11px;color:var(--text-hint);text-align:center;padding:0 16px 10px">드래그로 위치 조절 · 두 손가락으로 확대/축소</div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm" onclick="closeCropModal()">취소</button>
