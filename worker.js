@@ -1644,14 +1644,15 @@ export default {
       // 스테이지전 생성
       if (p === '/api/quiz/series' && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
-        const { total_stages } = await request.json();
+        const { total_stages, group_target } = await request.json();
         if (!total_stages || total_stages < 2 || total_stages > 20) return json({ error: 'invalid' }, 400);
+        const grp = ['all','center','branch'].includes(group_target) ? group_target : 'all';
         await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE status IN ('waiting','active','revealed')").run();
         await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE status='active'").run();
         await env.DB.prepare("UPDATE quiz_series SET status='closed' WHERE status='finished'").run();
         const id = `series_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO quiz_series(id,total_stages,current_stage,status,created_by,created_at) VALUES(?,?,0,?,?,?)').bind(id, total_stages, 'active', adm.user_id, now).run();
+        await env.DB.prepare('INSERT INTO quiz_series(id,total_stages,current_stage,status,created_by,created_at,group_target) VALUES(?,?,0,?,?,?,?)').bind(id, total_stages, 'active', adm.user_id, now, grp).run();
         return json({ ok: true, series_id: id, total_stages });
       }
 
