@@ -2671,14 +2671,119 @@ async function revealPhotoContest(){
 }
 function onPhotoFileSelected(input){
   const file=input.files[0]; if(!file) return;
-  photoUploadFile=file;
   const reader=new FileReader();
-  reader.onload=e=>{
-    $('photoPreviewImg').src=e.target.result;
-    $('photoUploadDrop').style.display='none';
-    $('photoUploadPreview').style.display='';
-  };
+  reader.onload=e=>openCropModal(file,e.target.result);
   reader.readAsDataURL(file);
+}
+
+// ── 크롭 ──
+let _cropFile=null,_cropDataUrl=null,_cropNatW=0,_cropNatH=0;
+let _cropX=0,_cropY=0,_cropScale=1;
+let _cropDrag={active:false,lx:0,ly:0};
+let _cropPinch={active:false,ld:0};
+let _cropBound=false;
+
+function openCropModal(file,dataUrl){
+  _cropFile=file;_cropDataUrl=dataUrl;
+  const img=new Image();
+  img.onload=()=>{
+    _cropNatW=img.naturalWidth;_cropNatH=img.naturalHeight;
+    $('cropImg').src=dataUrl;
+    setCropRatio(1,1,'11');
+    $('cropModal').classList.add('open');
+    bindCropEvents();
+  };
+  img.src=dataUrl;
+}
+function closeCropModal(){
+  $('cropModal').classList.remove('open');
+  unbindCropEvents();
+}
+function setCropRatio(rw,rh,key){
+  document.querySelectorAll('.crop-ratio-btn').forEach(b=>b.classList.remove('active'));
+  const active=$('cropBtn'+key);if(active)active.classList.add('active');
+  const cc=$('cropContainer');
+  const cw=cc.offsetWidth;
+  let ch;
+  if(rw===0||rh===0){ch=Math.min(Math.round(cw*_cropNatH/_cropNatW),480);}
+  else{ch=Math.min(Math.round(cw*rh/rw),480);}
+  cc.style.height=ch+'px';
+  const fill=Math.max(cw/_cropNatW,ch/_cropNatH);
+  _cropScale=fill;
+  _cropX=(cw-_cropNatW*_cropScale)/2;
+  _cropY=(ch-_cropNatH*_cropScale)/2;
+  applyCropTransform();
+}
+function applyCropTransform(){
+  const cc=$('cropContainer');
+  const cw=cc.offsetWidth,ch=cc.offsetHeight;
+  _cropX=Math.min(0,Math.max(cw-_cropNatW*_cropScale,_cropX));
+  _cropY=Math.min(0,Math.max(ch-_cropNatH*_cropScale,_cropY));
+  $('cropImg').style.transform=`translate(${_cropX}px,${_cropY}px) scale(${_cropScale})`;
+}
+function _cropMD(e){_cropDrag.active=true;_cropDrag.lx=e.clientX;_cropDrag.ly=e.clientY;e.preventDefault();}
+function _cropMM(e){
+  if(!_cropDrag.active)return;
+  _cropX+=e.clientX-_cropDrag.lx;_cropY+=e.clientY-_cropDrag.ly;
+  _cropDrag.lx=e.clientX;_cropDrag.ly=e.clientY;
+  applyCropTransform();e.preventDefault();
+}
+function _cropMU(){_cropDrag.active=false;}
+function _cropTS(e){
+  if(e.touches.length===1){_cropDrag.active=true;_cropDrag.lx=e.touches[0].clientX;_cropDrag.ly=e.touches[0].clientY;}
+  else if(e.touches.length===2){_cropDrag.active=false;_cropPinch.active=true;_cropPinch.ld=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+  e.preventDefault();
+}
+function _cropTM(e){
+  if(_cropDrag.active&&e.touches.length===1){
+    _cropX+=e.touches[0].clientX-_cropDrag.lx;_cropY+=e.touches[0].clientY-_cropDrag.ly;
+    _cropDrag.lx=e.touches[0].clientX;_cropDrag.ly=e.touches[0].clientY;
+    applyCropTransform();
+  }else if(_cropPinch.active&&e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    const r=d/_cropPinch.ld;
+    const cc=$('cropContainer'),cx=cc.offsetWidth/2,cy=cc.offsetHeight/2;
+    _cropX=cx-(cx-_cropX)*r;_cropY=cy-(cy-_cropY)*r;
+    _cropScale*=r;_cropPinch.ld=d;
+    applyCropTransform();
+  }
+  e.preventDefault();
+}
+function _cropTE(){_cropDrag.active=false;_cropPinch.active=false;}
+function bindCropEvents(){
+  if(_cropBound)return;_cropBound=true;
+  const cc=$('cropContainer');
+  cc.addEventListener('mousedown',_cropMD);document.addEventListener('mousemove',_cropMM);document.addEventListener('mouseup',_cropMU);
+  cc.addEventListener('touchstart',_cropTS,{passive:false});cc.addEventListener('touchmove',_cropTM,{passive:false});cc.addEventListener('touchend',_cropTE);
+}
+function unbindCropEvents(){
+  if(!_cropBound)return;_cropBound=false;
+  const cc=$('cropContainer');
+  cc.removeEventListener('mousedown',_cropMD);document.removeEventListener('mousemove',_cropMM);document.removeEventListener('mouseup',_cropMU);
+  cc.removeEventListener('touchstart',_cropTS);cc.removeEventListener('touchmove',_cropTM);cc.removeEventListener('touchend',_cropTE);
+}
+function confirmCrop(){
+  const cc=$('cropContainer');
+  const cw=cc.offsetWidth,ch=cc.offsetHeight;
+  const outW=Math.min(1200,cw*2),outH=Math.round(outW*ch/cw);
+  const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
+  const ctx=canvas.getContext('2d');
+  const img=new Image();
+  img.onload=()=>{
+    ctx.drawImage(img,-_cropX/_cropScale,-_cropY/_cropScale,cw/_cropScale,ch/_cropScale,0,0,outW,outH);
+    canvas.toBlob(blob=>{
+      photoUploadFile=new File([blob],'cropped.jpg',{type:'image/jpeg'});
+      const r=new FileReader();
+      r.onload=e=>{
+        $('photoPreviewImg').src=e.target.result;
+        $('photoUploadDrop').style.display='none';
+        $('photoUploadPreview').style.display='';
+      };
+      r.readAsDataURL(photoUploadFile);
+      closeCropModal();
+    },'image/jpeg',0.92);
+  };
+  img.src=_cropDataUrl;
 }
 function cancelPhotoUpload(){
   photoUploadFile=null;
