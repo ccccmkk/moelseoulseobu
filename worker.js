@@ -257,7 +257,7 @@ export default {
         await env.R2.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
         await env.DB.prepare('INSERT INTO usage(id,bytes) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET bytes=bytes+?')
           .bind(file.size, file.size).run();
-        return json({ url: '/' + key });
+        return json({ url: `${new URL(request.url).origin}/${key}` });
       }
 
       // ── 뉴스 (Google News RSS + D1 캐시 10분, 요약 없음) ──
