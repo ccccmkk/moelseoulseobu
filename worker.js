@@ -186,6 +186,8 @@ async function initDB(env) {
   try { await env.DB.exec("CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN series_id TEXT"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN stage_num INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN group_target TEXT DEFAULT 'all'"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE quiz_series ADD COLUMN group_target TEXT DEFAULT 'all'"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN contest_group TEXT DEFAULT 'branch'"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN revealed INTEGER DEFAULT 0"); } catch(e) {}
   // 건강봇 아바타 시드
