@@ -4016,6 +4016,12 @@ let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=nul
 let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
 let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false,quizLastPreSec=-1;
 let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
+let adminQuizGroup='all';
+function setAdminQuizGroup(g){
+  adminQuizGroup=g;
+  ['all','center','branch'].forEach(k=>{const b=$('quizGrpBtn-'+k);if(b)b.className='btn-sm'+(g===k?' primary':'');});
+}
+function currentUserGroup(){return isUserCenter()?'center':'branch';}
 const QUIZ_DURATION=5000;
 
 function openQuizModal(){
