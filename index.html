@@ -4525,6 +4525,17 @@ async function adminQuizAction(action){
     navigator.serviceWorker.register('/sw.js').catch(()=>{});
   }
 
+  window.forceUpdate = async function(){
+    if('serviceWorker' in navigator && navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage('clearCache');
+    }
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+    location.reload(true);
+  };
+
   if(isStandalone) return; // 이미 설치됨
   if(!isIOS && !isAndroid) return; // 모바일만 표시
 
