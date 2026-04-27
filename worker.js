@@ -186,6 +186,8 @@ async function initDB(env) {
   try { await env.DB.exec("CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN series_id TEXT"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN stage_num INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN contest_group TEXT DEFAULT 'branch'"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN revealed INTEGER DEFAULT 0"); } catch(e) {}
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
@@ -919,9 +921,17 @@ export default {
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         const role = sess ? await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first() : null;
         const isAdmin = role?.role === 'admin';
-        const rows = isAdmin
-          ? await env.DB.prepare("SELECT * FROM photo_contests ORDER BY created_at DESC").all()
-          : await env.DB.prepare("SELECT * FROM photo_contests WHERE status!='draft' ORDER BY created_at DESC").all();
+        const grp = url.searchParams.get('group') || null;
+        let rows;
+        if (grp) {
+          rows = isAdmin
+            ? await env.DB.prepare("SELECT * FROM photo_contests WHERE contest_group=? ORDER BY created_at DESC").bind(grp).all()
+            : await env.DB.prepare("SELECT * FROM photo_contests WHERE contest_group=? AND status!='draft' ORDER BY created_at DESC").bind(grp).all();
+        } else {
+          rows = isAdmin
+            ? await env.DB.prepare("SELECT * FROM photo_contests ORDER BY created_at DESC").all()
+            : await env.DB.prepare("SELECT * FROM photo_contests WHERE status!='draft' ORDER BY created_at DESC").all();
+        }
         const list = rows.results || [];
         for (const c of list) {
           const ec = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_entries WHERE contest_id=?").bind(c.id).first();
@@ -938,10 +948,11 @@ export default {
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
         if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
-        const { title, description } = await request.json();
+        const { title, description, contest_group } = await request.json();
         if (!title) return json({ error: '제목 필요' }, 400);
+        const grpVal = contest_group === 'center' ? 'center' : 'branch';
         const id = 'pc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,created_by,created_at) VALUES(?,?,?,'draft',?,?)").bind(id, title, description || '', sess.user_id, Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,contest_group,created_by,created_at) VALUES(?,?,?,'draft',?,?,?)").bind(id, title, description || '', grpVal, sess.user_id, Math.floor(Date.now() / 1000)).run();
         return json({ ok: true, id });
       }
 
@@ -987,7 +998,13 @@ export default {
            WHERE e.contest_id=? ORDER BY e.created_at ASC`
         ).bind(cid, cid).all();
         const myVote = userId ? (await env.DB.prepare("SELECT photo_id FROM photo_votes WHERE contest_id=? AND voter=?").bind(cid, userId).first())?.photo_id : null;
-        return json({ contest, entries: eRows.results || [], my_vote: myVote });
+        const revealed = contest.revealed === 1;
+        const entries = (eRows.results || []).map(e => ({
+          ...e,
+          uploader_name: revealed ? e.uploader_name : '익명',
+          is_mine: userId ? e.uploader === userId : false,
+        }));
+        return json({ contest, entries, my_vote: myVote });
       }
 
       if (p.match(/^\/api\/photo-contests\/[^/]+\/entries$/) && m === 'POST') {
@@ -1016,6 +1033,17 @@ export default {
         if (!entry) return json({ error: 'not found' }, 404);
         if (entry.uploader === sess.user_id) return json({ error: '본인 사진에는 투표할 수 없습니다' }, 400);
         await env.DB.prepare("INSERT INTO photo_votes(contest_id,voter,photo_id) VALUES(?,?,?) ON CONFLICT(contest_id,voter) DO UPDATE SET photo_id=?").bind(cid, sess.user_id, photo_id, photo_id).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/reveal$/) && m === 'POST') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare("UPDATE photo_contests SET revealed=1 WHERE id=?").bind(cid).run();
         return json({ ok: true });
       }
 
@@ -1153,14 +1181,14 @@ export default {
           env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run(),
           logResult(id, 'ok'),
         ]));
-        return json({ ok: true, id: user.id, name: user.name || user.id, token, must_change_password: user.password === '1234' });
+        return json({ ok: true, id: user.id, name: user.name || user.id, dept: user.dept || '', token, must_change_password: user.password === '1234' });
       }
       if (p === '/api/verify-session' && m === 'POST') {
         const { token } = await request.json();
         if (!token) return json({ error: 'no token' }, 401);
         // sessions + users 단일 JOIN 쿼리
         const row = await env.DB.prepare(
-          'SELECT s.created_at as sess_created, u.id, u.name, u.status, u.password FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=?'
+          'SELECT s.created_at as sess_created, u.id, u.name, u.status, u.password, u.dept FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token=?'
         ).bind(token).first();
         if (!row) return json({ error: 'invalid' }, 401);
         const now = Math.floor(Date.now() / 1000);
@@ -1177,7 +1205,7 @@ export default {
           env.DB.prepare('SELECT id FROM login_logs WHERE user_id=? AND result=? AND created_at>=?').bind(row.id, 'session', todayStart).first()
             .then(recentLog => { if (!recentLog) return env.DB.prepare('INSERT INTO login_logs(user_id,ip,user_agent,result,created_at) VALUES(?,?,?,?,?)').bind(row.id, ip, ua, 'session', now).run(); })
         );
-        return json({ ok: true, id: row.id, name: row.name || row.id, must_change_password: row.password === '1234' });
+        return json({ ok: true, id: row.id, name: row.name || row.id, dept: row.dept || '', must_change_password: row.password === '1234' });
       }
       if (p === '/api/sessions' && m === 'DELETE') {
         const { token } = await request.json();
