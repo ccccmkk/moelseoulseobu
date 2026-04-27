@@ -2700,114 +2700,164 @@ function onPhotoFileSelected(input){
   reader.readAsDataURL(file);
 }
 
-// ── 크롭 ──
-let _cropFile=null,_cropDataUrl=null,_cropNatW=0,_cropNatH=0;
-let _cropX=0,_cropY=0,_cropScale=1;
-let _cropDrag={active:false,lx:0,ly:0};
-let _cropPinch={active:false,ld:0};
-let _cropBound=false;
+// ── 크롭 (드래그 핸들 방식) ──
+let _cropDataUrl=null,_cropNatW=0,_cropNatH=0;
+let _cropImgR={x:0,y:0,w:0,h:0}; // 이미지가 실제 렌더된 영역
+let _cropBox={x:0,y:0,w:0,h:0};  // 선택 영역 (wrapper 기준 px)
+let _cropDS=null;                  // 드래그 상태 {type,dir,sx,sy,sb}
+let _cropRW=0,_cropRH=0;          // 비율 고정 (0=자유)
+let _cropEvBound=false;
+
+function _cropClamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
 
 function openCropModal(file,dataUrl){
-  _cropFile=file;_cropDataUrl=dataUrl;
-  const img=new Image();
+  _cropDataUrl=dataUrl;
+  const img=$('cropImg');
   img.onload=()=>{
     _cropNatW=img.naturalWidth;_cropNatH=img.naturalHeight;
-    $('cropImg').src=dataUrl;
-    setCropRatio(1,1,'11');
-    $('cropModal').classList.add('open');
-    bindCropEvents();
+    // 표시 크기 계산 후 명시적으로 지정 (letterbox 없앰)
+    requestAnimationFrame(()=>{
+      const wr=$('cropWrapper');
+      const maxW=wr.offsetWidth;
+      const maxH=Math.floor(window.innerHeight*0.58);
+      const scale=Math.min(maxW/_cropNatW,maxH/_cropNatH);
+      const dw=Math.round(_cropNatW*scale),dh=Math.round(_cropNatH*scale);
+      img.style.width=dw+'px';img.style.height=dh+'px';
+      wr.style.height=dh+'px';
+      _cropImgR={x:0,y:0,w:dw,h:dh};
+      // 초기 박스: 이미지 중앙 80%
+      const pad=Math.round(Math.min(dw,dh)*0.1);
+      _cropBox={x:pad,y:pad,w:dw-pad*2,h:dh-pad*2};
+      _cropRW=0;_cropRH=0;
+      document.querySelectorAll('.crop-ratio-btn').forEach(b=>b.classList.remove('active'));
+      $('cropBtnFree').classList.add('active');
+      _updateCropDOM();
+      $('cropModal').classList.add('open');
+      _bindCropEv();
+    });
   };
   img.src=dataUrl;
 }
+
 function closeCropModal(){
   $('cropModal').classList.remove('open');
-  unbindCropEvents();
+  _unbindCropEv();
 }
+
 function setCropRatio(rw,rh,key){
+  _cropRW=rw;_cropRH=rh;
   document.querySelectorAll('.crop-ratio-btn').forEach(b=>b.classList.remove('active'));
-  const active=$('cropBtn'+key);if(active)active.classList.add('active');
-  const cc=$('cropContainer');
-  const cw=cc.offsetWidth;
-  let ch;
-  if(rw===0||rh===0){ch=Math.min(Math.round(cw*_cropNatH/_cropNatW),480);}
-  else{ch=Math.min(Math.round(cw*rh/rw),480);}
-  cc.style.height=ch+'px';
-  const fill=Math.max(cw/_cropNatW,ch/_cropNatH);
-  _cropScale=fill;
-  _cropX=(cw-_cropNatW*_cropScale)/2;
-  _cropY=(ch-_cropNatH*_cropScale)/2;
-  applyCropTransform();
-}
-function applyCropTransform(){
-  const cc=$('cropContainer');
-  const cw=cc.offsetWidth,ch=cc.offsetHeight;
-  _cropX=Math.min(0,Math.max(cw-_cropNatW*_cropScale,_cropX));
-  _cropY=Math.min(0,Math.max(ch-_cropNatH*_cropScale,_cropY));
-  $('cropImg').style.transform=`translate(${_cropX}px,${_cropY}px) scale(${_cropScale})`;
-}
-function _cropMD(e){_cropDrag.active=true;_cropDrag.lx=e.clientX;_cropDrag.ly=e.clientY;e.preventDefault();}
-function _cropMM(e){
-  if(!_cropDrag.active)return;
-  _cropX+=e.clientX-_cropDrag.lx;_cropY+=e.clientY-_cropDrag.ly;
-  _cropDrag.lx=e.clientX;_cropDrag.ly=e.clientY;
-  applyCropTransform();e.preventDefault();
-}
-function _cropMU(){_cropDrag.active=false;}
-function _cropTS(e){
-  if(e.touches.length===1){_cropDrag.active=true;_cropDrag.lx=e.touches[0].clientX;_cropDrag.ly=e.touches[0].clientY;}
-  else if(e.touches.length===2){_cropDrag.active=false;_cropPinch.active=true;_cropPinch.ld=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
-  e.preventDefault();
-}
-function _cropTM(e){
-  if(_cropDrag.active&&e.touches.length===1){
-    _cropX+=e.touches[0].clientX-_cropDrag.lx;_cropY+=e.touches[0].clientY-_cropDrag.ly;
-    _cropDrag.lx=e.touches[0].clientX;_cropDrag.ly=e.touches[0].clientY;
-    applyCropTransform();
-  }else if(_cropPinch.active&&e.touches.length===2){
-    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    const r=d/_cropPinch.ld;
-    const cc=$('cropContainer'),cx=cc.offsetWidth/2,cy=cc.offsetHeight/2;
-    _cropX=cx-(cx-_cropX)*r;_cropY=cy-(cy-_cropY)*r;
-    _cropScale*=r;_cropPinch.ld=d;
-    applyCropTransform();
+  const ab=$('cropBtn'+key);if(ab)ab.classList.add('active');
+  if(rw>0&&rh>0){
+    const cx=_cropBox.x+_cropBox.w/2,cy=_cropBox.y+_cropBox.h/2;
+    let nw,nh;
+    if(_cropBox.w/_cropBox.h>rw/rh){nh=_cropBox.h;nw=Math.round(nh*rw/rh);}
+    else{nw=_cropBox.w;nh=Math.round(nw*rh/rw);}
+    nw=Math.min(nw,_cropImgR.w);nh=Math.min(nh,_cropImgR.h);
+    _cropBox={
+      x:_cropClamp(Math.round(cx-nw/2),_cropImgR.x,_cropImgR.x+_cropImgR.w-nw),
+      y:_cropClamp(Math.round(cy-nh/2),_cropImgR.y,_cropImgR.y+_cropImgR.h-nh),
+      w:nw,h:nh
+    };
   }
-  e.preventDefault();
+  _updateCropDOM();
 }
-function _cropTE(){_cropDrag.active=false;_cropPinch.active=false;}
-function bindCropEvents(){
-  if(_cropBound)return;_cropBound=true;
-  const cc=$('cropContainer');
-  cc.addEventListener('mousedown',_cropMD);document.addEventListener('mousemove',_cropMM);document.addEventListener('mouseup',_cropMU);
-  cc.addEventListener('touchstart',_cropTS,{passive:false});cc.addEventListener('touchmove',_cropTM,{passive:false});cc.addEventListener('touchend',_cropTE);
+
+function _updateCropDOM(){
+  const b=$('cropBox');
+  b.style.left=_cropBox.x+'px';b.style.top=_cropBox.y+'px';
+  b.style.width=_cropBox.w+'px';b.style.height=_cropBox.h+'px';
 }
-function unbindCropEvents(){
-  if(!_cropBound)return;_cropBound=false;
-  const cc=$('cropContainer');
-  cc.removeEventListener('mousedown',_cropMD);document.removeEventListener('mousemove',_cropMM);document.removeEventListener('mouseup',_cropMU);
-  cc.removeEventListener('touchstart',_cropTS);cc.removeEventListener('touchmove',_cropTM);cc.removeEventListener('touchend',_cropTE);
+
+function _cropPt(e){
+  const wr=$('cropWrapper').getBoundingClientRect();
+  const src=e.touches?e.touches[0]:e;
+  return{x:src.clientX-wr.left,y:src.clientY-wr.top};
 }
+
+function _onCropDown(e){
+  const pt=_cropPt(e);
+  const dir=e.target.dataset&&e.target.dataset.dir?e.target.dataset.dir:null;
+  if(dir){
+    _cropDS={type:'handle',dir,sx:pt.x,sy:pt.y,sb:{..._cropBox}};
+  } else if(pt.x>=_cropBox.x&&pt.x<=_cropBox.x+_cropBox.w&&pt.y>=_cropBox.y&&pt.y<=_cropBox.y+_cropBox.h){
+    _cropDS={type:'move',sx:pt.x,sy:pt.y,sb:{..._cropBox}};
+  }
+  if(_cropDS)e.preventDefault();
+}
+
+function _onCropMove(e){
+  if(!_cropDS)return;
+  const pt=_cropPt(e.touches?e:e);
+  const dx=pt.x-_cropDS.sx,dy=pt.y-_cropDS.sy;
+  const ir=_cropImgR,sb=_cropDS.sb;
+  const MIN=44;
+  if(_cropDS.type==='move'){
+    _cropBox.x=_cropClamp(sb.x+dx,ir.x,ir.x+ir.w-sb.w);
+    _cropBox.y=_cropClamp(sb.y+dy,ir.y,ir.y+ir.h-sb.h);
+    _cropBox.w=sb.w;_cropBox.h=sb.h;
+  } else {
+    let {x,y,w,h}=sb;const dir=_cropDS.dir;
+    if(dir.includes('e')){w=_cropClamp(sb.w+dx,MIN,ir.x+ir.w-x);}
+    if(dir.includes('s')){h=_cropClamp(sb.h+dy,MIN,ir.y+ir.h-y);}
+    if(dir.includes('w')){const nw=_cropClamp(sb.w-dx,MIN,sb.x+sb.w-ir.x);x=sb.x+sb.w-nw;w=nw;}
+    if(dir.includes('n')){const nh=_cropClamp(sb.h-dy,MIN,sb.y+sb.h-ir.y);y=sb.y+sb.h-nh;h=nh;}
+    // 비율 고정
+    if(_cropRW>0&&_cropRH>0){
+      if(dir==='e'||dir==='w'){h=Math.round(w*_cropRH/_cropRW);}
+      else if(dir==='n'||dir==='s'){w=Math.round(h*_cropRW/_cropRH);}
+      else if(dir.length===2){h=Math.round(w*_cropRH/_cropRW);}
+      if(y+h>ir.y+ir.h)h=ir.y+ir.h-y;
+      if(x+w>ir.x+ir.w)w=ir.x+ir.w-x;
+    }
+    _cropBox={x:_cropClamp(x,ir.x,ir.x+ir.w-MIN),y:_cropClamp(y,ir.y,ir.y+ir.h-MIN),w:Math.max(MIN,w),h:Math.max(MIN,h)};
+  }
+  _updateCropDOM();
+  if(e.cancelable)e.preventDefault();
+}
+
+function _onCropUp(){_cropDS=null;}
+
+function _bindCropEv(){
+  if(_cropEvBound)return;_cropEvBound=true;
+  const wr=$('cropWrapper');
+  wr.addEventListener('mousedown',_onCropDown);
+  document.addEventListener('mousemove',_onCropMove);
+  document.addEventListener('mouseup',_onCropUp);
+  wr.addEventListener('touchstart',_onCropDown,{passive:false});
+  wr.addEventListener('touchmove',_onCropMove,{passive:false});
+  wr.addEventListener('touchend',_onCropUp);
+}
+function _unbindCropEv(){
+  if(!_cropEvBound)return;_cropEvBound=false;
+  const wr=$('cropWrapper');
+  wr.removeEventListener('mousedown',_onCropDown);
+  document.removeEventListener('mousemove',_onCropMove);
+  document.removeEventListener('mouseup',_onCropUp);
+  wr.removeEventListener('touchstart',_onCropDown);
+  wr.removeEventListener('touchmove',_onCropMove);
+  wr.removeEventListener('touchend',_onCropUp);
+}
+
 function confirmCrop(){
-  const cc=$('cropContainer');
-  const cw=cc.offsetWidth,ch=cc.offsetHeight;
-  const outW=Math.min(1200,cw*2),outH=Math.round(outW*ch/cw);
+  const scaleX=_cropNatW/_cropImgR.w,scaleY=_cropNatH/_cropImgR.h;
+  const srcX=(_cropBox.x-_cropImgR.x)*scaleX,srcY=(_cropBox.y-_cropImgR.y)*scaleY;
+  const srcW=_cropBox.w*scaleX,srcH=_cropBox.h*scaleY;
+  const outW=Math.min(1200,Math.round(srcW)),outH=Math.round(outW*srcH/srcW);
   const canvas=document.createElement('canvas');canvas.width=outW;canvas.height=outH;
   const ctx=canvas.getContext('2d');
-  const img=new Image();
-  img.onload=()=>{
-    ctx.drawImage(img,-_cropX/_cropScale,-_cropY/_cropScale,cw/_cropScale,ch/_cropScale,0,0,outW,outH);
+  const img2=new Image();
+  img2.onload=()=>{
+    ctx.drawImage(img2,srcX,srcY,srcW,srcH,0,0,outW,outH);
     canvas.toBlob(blob=>{
       photoUploadFile=new File([blob],'cropped.jpg',{type:'image/jpeg'});
       const r=new FileReader();
-      r.onload=e=>{
-        $('photoPreviewImg').src=e.target.result;
-        $('photoUploadDrop').style.display='none';
-        $('photoUploadPreview').style.display='';
-      };
+      r.onload=e=>{$('photoPreviewImg').src=e.target.result;$('photoUploadDrop').style.display='none';$('photoUploadPreview').style.display='';};
       r.readAsDataURL(photoUploadFile);
       closeCropModal();
     },'image/jpeg',0.92);
   };
-  img.src=_cropDataUrl;
+  img2.src=_cropDataUrl;
 }
 function cancelPhotoUpload(){
   photoUploadFile=null;
