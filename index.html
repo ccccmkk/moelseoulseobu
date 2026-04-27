@@ -2594,7 +2594,7 @@ async function refreshPhotoContestDetail(){
             </div>
             ${rank1?'<span style="font-size:22px">🏆</span>':''}
           </div>
-          <img class="photo-feed-img" src="${escHtml(e.img_url.startsWith('/')?API+e.img_url:e.img_url)}" alt="" loading="lazy">
+          <img class="photo-feed-img" src="${escHtml(imgUrl(e.img_url))}" alt="" loading="lazy">
           <div class="photo-feed-body">
             ${e.caption?`<div style="font-size:14px;color:var(--text)">${escHtml(e.caption)}</div>`:''}
             <div class="photo-feed-actions">
