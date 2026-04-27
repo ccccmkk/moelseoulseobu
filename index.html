@@ -4341,7 +4341,7 @@ function startQuizBgPoll(){
   setInterval(async()=>{
     if(quizModalOpen) return;
     try {
-      const d=await fetch(`${API}/api/quiz/current`).then(r=>r.json());
+      const d=await fetch(`${API}/api/quiz/current?group=${currentUserGroup()}`).then(r=>r.json());
       const s=d.session, ser=d.series;
       const hasActivity=ser||(s&&s.status!=='closed');
       if(hasActivity){
