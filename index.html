@@ -2681,12 +2681,15 @@ async function refreshPhotoContestDetail(){
       $('photoContestGrid').innerHTML='<div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>';
     } else {
       const sorted=contest.status==='closed'?[...entries].sort((a,b)=>b.vote_count-a.vote_count):entries;
+      const top1vc=sorted[0]?.vote_count||0;
+      const top2vc=top1vc>0?(sorted.find(e=>e.vote_count<top1vc)?.vote_count??-1):-1;
       $('photoContestGrid').innerHTML='<div class="photo-grid">'+sorted.map((e,i)=>{
         const isOwn=e.is_mine;
         const isVoted=my_vote===e.id;
         const canVote=contest.status==='open'&&!isOwn&&my_vote===null;
         const changeVote=contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
-        const rank1=contest.status==='closed'&&i===0&&e.vote_count>0;
+        const rank1=contest.status==='closed'&&e.vote_count>0&&e.vote_count===top1vc;
+        const rank2=contest.status==='closed'&&!rank1&&e.vote_count>0&&top2vc>0&&e.vote_count===top2vc;
         let pillClass='photo-vote-pill';
         let pillLabel=`🗳️ ${e.vote_count}표`;
         if(isVoted){pillClass+=' voted';pillLabel=`✓ ${e.vote_count}표`;}
@@ -2696,10 +2699,10 @@ async function refreshPhotoContestDetail(){
         const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
           ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--danger)">✕</button>`:'';
         const imgUrl_=escHtml(imgUrl(e.img_url));
-        return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
+        return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
           <div class="photo-grid-img-wrap" onclick="openLightbox('${imgUrl_}')">
             <img src="${imgUrl_}" alt="" loading="lazy">
-            ${rank1?'<div class="photo-grid-badge">🏆</div>':''}
+            ${rank1?'<div class="photo-grid-badge">🏆</div>':rank2?'<div class="photo-grid-badge">🥈</div>':''}
             ${isOwn?'<div class="photo-grid-mine">내 사진</div>':''}
           </div>
           <div class="photo-grid-foot">
