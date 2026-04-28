@@ -3106,7 +3106,7 @@ async function renderAdmPhotoContests(){
           <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">📷 ${pc.entry_count}장 · 🗳️ ${pc.vote_count}표${pc.revealed?'&nbsp;·&nbsp;🔍 공개됨':''}</div>
+      <div style="font-size:12px;color:var(--text-hint);margin-bottom:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} · 🗳️ ${pc.vote_count}표${pc.revealed?'&nbsp;·&nbsp;🔍 공개됨':''}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${pc.status!=='open'?`<button class="btn-sm primary" onclick="admPcStatus('${pc.id}','open')" style="font-size:11px;padding:4px 10px">▶ 공개</button>`:''}
         ${pc.status==='open'?`<button class="btn-sm danger" onclick="admPcStatus('${pc.id}','closed')" style="font-size:11px;padding:4px 10px">🔒 마감</button>`:''}
