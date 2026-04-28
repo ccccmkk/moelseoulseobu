@@ -5081,16 +5081,23 @@ async function loadAdminQuizStatus(){
 
     if(!s||s.status==='closed'){
       box.innerHTML='<span style="color:var(--text-hint)">진행 중인 퀴즈 없음</span>';
-      ctrl.style.display='none'; adminQuizCurrentId=null; return;
+      ctrl.style.display='flex'; ctrl.style.flexDirection='column';
+      $('adminQuizOpenBtn').style.display=''; $('adminQuizStartBtn').style.display='none';
+      $('adminQuizRevealBtn').style.display='none'; $('adminQuizCloseBtn').style.display='none';
+      $('adminQuizInputArea').style.display='none';
+      adminQuizCurrentId=null; return;
     }
     adminQuizCurrentId=s.id;
     const oC=d.stats?.O||0,xC=d.stats?.X||0,total=d.stats?.total||0;
-    box.innerHTML=`<div style="margin-bottom:6px"><b>${escHtml(s.question)}</b></div>
-      <div style="font-size:12px;color:var(--text-sub)">상태: <b>${statusLabel[s.status]||s.status}</b> · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})</div>`;
+    const stLabel2={lobby:'🚪 개설됨',waiting:'대기 중',active:'진행 중',revealed:'결과 공개'};
+    box.innerHTML=`<div style="margin-bottom:6px"><b>${s.status==='lobby'?'(문제 미게시)':escHtml(s.question)}</b></div>
+      <div style="font-size:12px;color:var(--text-sub)">상태: <b>${stLabel2[s.status]||s.status}</b>${s.status!=='lobby'?` · 정답: ${s.answer??'(숨김)'} · 참여: ${total}명 (O:${oC} X:${xC})`:` · 참가자: ${d.attendees_count||0}명`}</div>`;
     ctrl.style.display='flex'; ctrl.style.flexDirection='column';
+    $('adminQuizInputArea').style.display=s.status==='lobby'?'':'none';
+    $('adminQuizOpenBtn').style.display='none';
     $('adminQuizStartBtn').style.display=s.status==='waiting'?'':'none';
     $('adminQuizRevealBtn').style.display=s.status==='active'?'':'none';
-    $('adminQuizCloseBtn').style.display=['active','revealed'].includes(s.status)?'':'none';
+    $('adminQuizCloseBtn').style.display=['lobby','waiting','active'].includes(s.status)?'':'none';
   } catch(e){
     box.innerHTML='<span style="color:var(--danger)">불러오기 실패</span>';
   }
