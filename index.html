@@ -1499,6 +1499,18 @@ button,a,[role="button"]{touch-action:manipulation}
 <!-- ════ 폭죽 캔버스 (fullscreen) ════ -->
 <canvas id="quizFireworks"></canvas>
 
+<!-- ════ 퀴즈 초대 오버레이 (채팅방 입장 방식) ════ -->
+<div id="quizInviteOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:20px;padding:32px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div style="font-size:48px;margin-bottom:12px">🎯</div>
+    <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:8px">퀴즈 대기방이 열렸어요!</div>
+    <div style="font-size:14px;color:var(--text-sub);margin-bottom:24px;line-height:1.6">지금 참석하면 퀴즈에 참가할 수 있어요.<br>참석하지 않으면 관전만 가능합니다.</div>
+    <button onclick="attendFromInvite()" id="inviteAttendBtn" style="width:100%;padding:15px 0;background:var(--green);color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:800;cursor:pointer;margin-bottom:10px;letter-spacing:.02em;font-family:inherit">✋ 참석하기</button>
+    <button onclick="declineInvite()" style="width:100%;padding:10px 0;background:none;color:var(--text-hint);border:1px solid var(--border);border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit">👀 관전만 하기</button>
+    <div id="inviteAttendMsg" style="font-size:12px;color:var(--danger);margin-top:8px;min-height:16px"></div>
+  </div>
+</div>
+
 <!-- ════ OX 퀴즈 ════ -->
 <div id="quizOverlay">
   <div class="quiz-card" style="max-height:88dvh;overflow-y:auto">
