@@ -1655,16 +1655,6 @@ export default {
         return json({ bytes: row?.bytes || 0, max: MAX_BYTES });
       }
 
-      // ── OX 퀴즈 ──
-      // 관리자 인증 헬퍼
-      const quizAdminAuth = async () => {
-        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
-        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
-        if (!s) return null;
-        const r = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
-        return (r?.role === 'admin' || r?.role === 'sub_admin') ? s : null;
-      };
-
       if (p === '/api/quiz/current' && m === 'GET') {
         const reqGroup = url.searchParams.get('group') || 'all'; // 'center','branch','all','admin'
         const isAdminReq = reqGroup === 'admin';
