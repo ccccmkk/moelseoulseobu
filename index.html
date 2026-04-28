@@ -2491,7 +2491,16 @@ function _showLbSlide(){
   }else{nav.style.display='none';}
   if(_lbCap){cap.textContent=_lbCap;cap.style.display='';}else{cap.style.display='none';}
 }
-function lbGo(dir){_lbIdx=Math.max(0,Math.min(_lbUrls.length-1,_lbIdx+dir));_showLbSlide();}
+function lbGo(dir){
+  const next=_lbIdx+dir;
+  if(next<0||next>=_lbUrls.length)return;
+  _lbIdx=next;
+  const img=$('lightboxImg');
+  img.style.animation='none';
+  img.offsetWidth; // reflow
+  img.style.animation=dir>0?'lbSlideLeft .28s cubic-bezier(0.25,0.46,0.45,0.94) forwards':'lbSlideRight .28s cubic-bezier(0.25,0.46,0.45,0.94) forwards';
+  _showLbSlide();
+}
 function lbTouchStart(e){_lbTouchX=e.touches[0].clientX;_lbDragDist=0;}
 function lbTouchEnd(e){_lbDragDist=Math.abs(e.changedTouches[0].clientX-_lbTouchX);if(_lbDragDist>50)lbGo(e.changedTouches[0].clientX<_lbTouchX?1:-1);}
 function lbMouseDown(e){_lbTouchX=e.clientX;_lbDragDist=0;}
