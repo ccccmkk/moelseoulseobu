@@ -3814,17 +3814,19 @@ async function openAdminModal(){
       </div>`).join('');
     }else{$('pendingSection').style.display='none';}
     function renderUserRow(u){
-      const role=userRoles[u.id]||'user';const isAdmin=role==='admin';
+      const role=userRoles[u.id]||'user';const isAdmin=role==='admin';const isSubAdmin=role==='sub_admin';
       const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
       const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
       const deptStr=escHtml(u.dept||'');
-      const meta=`<div style="font-size:12px;color:var(--text-hint);margin-top:1px">${di} · ${lastSeenStr}${isAdmin?' · <b style="color:var(--green)">관리자</b>':''}</div>`;
+      const roleLabel=isAdmin?' · <b style="color:var(--green)">관리자</b>':isSubAdmin?' · <b style="color:var(--accent)">중간관리자</b>':'';
+      const meta=`<div style="font-size:12px;color:var(--text-hint);margin-top:1px">${di} · ${lastSeenStr}${roleLabel}</div>`;
       if(u.id===currentUser)return`<div class="user-role-row"><div><span class="user-role-name">${dn}</span>${meta}</div><div style="font-size:12px;color:var(--text-hint)">(나)</div></div>`;
       const uprefs=badgePrefs[u.id]||{};
       return`<div class="user-role-row">
         <div><span class="user-role-name">${dn}</span>${meta}</div>
         <div class="role-btns">
-          <button class="role-btn${!isAdmin?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button>
+          <button class="role-btn${role==='user'?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button>
+          <button class="role-btn${isSubAdmin?' on':''}" onclick="setUserRole('${di}','sub_admin',this)">중간관리자</button>
           <button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button>
           <button class="role-btn${uprefs.granted_badge_admin?' on':''}" onclick="toggleBadge('${di}','admin',this)">관리자칭호</button>
           <button class="role-btn${uprefs.granted_badge_top?' on':''}" onclick="toggleBadge('${di}','top',this)">소통왕칭호</button>
