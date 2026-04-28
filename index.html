@@ -4214,11 +4214,22 @@ async function openUserProfile(userId){
 
 // ── 로그인 / 세션 ──
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
+function _applyFontSize(lg){
+  document.body.classList.toggle('font-lg',!!lg);
+  const btn=$('fontSizeBtn');
+  if(btn)btn.innerHTML=lg?'가<sup style="font-size:9px">-</sup>':'가<sup style="font-size:9px">+</sup>';
+}
+function toggleFontSize(){
+  const isLg=document.body.classList.contains('font-lg');
+  _applyFontSize(!isLg);
+  if(currentUser)localStorage.setItem('fontsize_'+currentUser,!isLg?'lg':'sm');
+}
 function onLoginSuccess(d){
   currentUser=d.id;currentUserName=d.name||d.id;sessionToken=d.token;
   currentUserDept=d.dept||'';
   userNames[d.id]=d.name||d.id;
   localStorage.setItem('session_token',d.token);
+  _applyFontSize(localStorage.getItem('fontsize_'+d.id)==='lg');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
   showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
