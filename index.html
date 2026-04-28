@@ -4280,7 +4280,7 @@ function handleQuizState(d){
     }
     showQuizState('Active');
     $('quizQuestion').textContent=s.question;
-    if(quizIsEliminated&&currentUserRole!=='admin'&&!quizUserAnswer){
+    if(quizIsEliminated&&!isAdminOrSub()&&!quizUserAnswer){
       $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
       $('quizAnswerMsg').textContent='💀 탈락 - 관전 중';
       $('quizAnswerMsg').style.color='#e53935';
