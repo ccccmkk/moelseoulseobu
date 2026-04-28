@@ -1665,8 +1665,9 @@ export default {
           for (const r of (sr.results || [])) { stats[r.answer] = r.cnt; stats.total += r.cnt; }
           const ar = await env.DB.prepare('SELECT qa.answer, u.name FROM quiz_answers qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?').bind(session.id).all();
           answers = (ar.results || []).map(r => ({ name: r.name || '?', answer: r.answer }));
-          const atRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_attendees WHERE quiz_id=?").bind(session.id).first();
-          attendees_count = atRow?.cnt || 0;
+          const atRows = await env.DB.prepare("SELECT u.name FROM quiz_attendees qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=? ORDER BY qa.attended_at ASC").bind(session.id).all();
+          const attendees_list = (atRows.results || []).map(r => r.name || '?');
+          attendees_count = attendees_list.length;
           const tokParam = url.searchParams.get('token');
           if (tokParam) {
             const usess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(tokParam).first();
