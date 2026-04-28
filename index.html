@@ -2937,12 +2937,12 @@ async function refreshPhotoContestDetail(){
         const isVoted=my_vote===e.id;
         const canVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote===null;
         const changeVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
-        const rank1=contest.status==='closed'&&e.vote_count>0&&e.vote_count===top1vc;
-        const rank2=contest.status==='closed'&&!rank1&&e.vote_count>0&&top2vc>0&&e.vote_count===top2vc;
+        const rank1=revealed&&e.vote_count>0&&e.vote_count===top1vc;
+        const rank2=revealed&&!rank1&&e.vote_count>0&&top2vc>0&&e.vote_count===top2vc;
         let pillClass='photo-vote-pill';
-        let pillLabel=`🗳️ ${e.vote_count}표`;
-        if(isVoted){pillClass+=' voted';pillLabel=`✓ ${e.vote_count}표`;}
-        else if(isOwn){pillClass+=' own';pillLabel=`${isText?'✏️':'📷'} ${e.vote_count}표`;}
+        let pillLabel=revealed?`🗳️ ${e.vote_count}표`:'🗳️';
+        if(isVoted){pillClass+=' voted';pillLabel=revealed?`✓ ${e.vote_count}표`:'✓';}
+        else if(isOwn){pillClass+=' own';pillLabel=revealed?(isText?`✏️ ${e.vote_count}표`:`📷 ${e.vote_count}표`):(isText?'✏️':'📷');}
         else if(contest.status==='closed'){pillClass+=' closed';}
         const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
         const delBtn=(isOwn||isAdminOrSub())&&contest.status!=='closed'
