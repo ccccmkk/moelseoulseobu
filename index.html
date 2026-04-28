@@ -4547,14 +4547,14 @@ function handleQuizState(d){
     return;
   }
   $('quizEventBtn').style.display='';
-  if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')&&!isAdminOrSub()){
+  if(!quizModalOpen&&(s.status==='lobby'||s.status==='active'||s.status==='waiting')&&!isAdminOrSub()){
     openQuizModal();
   }
 
   // 생존자 목록 — 모든 상태에서 항상 업데이트
   updateWaitingSurvivors(survivors);
 
-  if(s.status==='waiting'){
+  if(s.status==='lobby'||s.status==='waiting'){
     // 참석 상태 동기화
 
     if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
