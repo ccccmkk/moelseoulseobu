@@ -4251,6 +4251,13 @@ function handleQuizState(d){
 
   if(s.status==='waiting'){
     updateWaitingSurvivors(survivors);
+    // 참석 상태 동기화
+    if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
+    else if(d.my_attendance)quizMyAttendance=true;
+    const showAttend=!quizIsEliminated&&currentUserRole!=='admin'&&!quizSeriesId||d.series?.current_stage<=1;
+    _applyAttendanceUI(quizMyAttendance,d.attendees_count);
+    const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(!showAttend||quizMyAttendance)?'none':'';
+    const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&currentUserRole!=='admin')?'':'none';
     showQuizState(quizIsEliminated&&currentUserRole!=='admin'?'Eliminated':'Waiting');
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
