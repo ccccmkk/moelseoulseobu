@@ -644,6 +644,29 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 퀴즈 개설 (lobby) ──
+      if (p === '/api/quiz/open' && m === 'POST') {
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        const { group_target, series_id, stage_num } = await request.json();
+        const id = 'quiz_' + Date.now();
+        const now = Math.floor(Date.now() / 1000);
+        const grp = group_target || 'all';
+        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?)')
+          .bind(id, '', '', 'lobby', adm.user_id, now, series_id || null, stage_num || 1, grp).run();
+        return json({ ok: true, id });
+      }
+
+      // ── 퀴즈 문제 게시 (lobby→waiting) ──
+      if (p.match(/^\/api\/quiz\/[^/]+\/post$/) && m === 'POST') {
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        const qid = p.split('/')[3];
+        const { question, answer } = await request.json();
+        if (!question || !answer) return json({ error: 'invalid' }, 400);
+        await env.DB.prepare("UPDATE quiz_sessions SET question=?, answer=?, status='waiting' WHERE id=? AND status='lobby'")
+          .bind(question, answer, qid).run();
+        return json({ ok: true });
+      }
+
       // ── 글 검색 (전체 DB) ──
       if (p === '/api/posts/search' && m === 'GET') {
         const q = (url.searchParams.get('q') || '').trim();
