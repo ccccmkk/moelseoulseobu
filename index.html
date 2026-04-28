@@ -4625,14 +4625,18 @@ function showQuizState(state){
   });
 }
 
-function updateWaitingSurvivors(survivors){
+function updateWaitingSurvivors(activePlayers, hasRevealedRounds){
   const el=$('quizWaitingSurvivors');
   if(!el) return;
-  if(!quizSeriesId||survivors.length===0){el.style.display='none';return;}
+  if(!quizSeriesId||!activePlayers||activePlayers.length===0){el.style.display='none';return;}
+  const label=hasRevealedRounds?`🏆 생존자 ${activePlayers.length}명`:`✋ 참가자 ${activePlayers.length}명`;
+  const color=hasRevealedRounds?'var(--green)':'#546e7a';
+  const bg=hasRevealedRounds?'#f0fdf4':'#f5f5f5';
+  el.style.background=bg; el.style.borderColor=hasRevealedRounds?'var(--green)':'#ccc';
   el.style.display='';
-  el.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:8px">🏆 생존자 ${survivors.length}명</div>
+  el.innerHTML=`<div style="font-size:12px;font-weight:700;color:${color};margin-bottom:8px">${label}</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center">
-    ${survivors.map(sv=>`<span style="font-size:13px;background:var(--green);color:#fff;border-radius:14px;padding:5px 13px;font-weight:700">${escHtml(sv.name||'?')}</span>`).join('')}
+    ${activePlayers.map(name=>`<span style="font-size:12px;background:${color};color:#fff;border-radius:14px;padding:4px 11px;font-weight:600">${escHtml(name||'?')}</span>`).join('')}
     </div>`;
 }
 
