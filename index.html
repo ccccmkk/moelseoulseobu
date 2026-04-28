@@ -4560,7 +4560,8 @@ function handleQuizState(d){
 
   if(s.status==='lobby'||s.status==='waiting'){
     // 참석 상태 동기화
-    if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizCurrentId=s.id; quizMyAttendance=d.my_attendance||false;}
+    quizCurrentId=s.id;
+    if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizMyAttendance=d.my_attendance||false;}
     else if(d.my_attendance)quizMyAttendance=true;
     // 참가 버튼: lobby 상태 + 첫 라운드(단판 or series 1라운드) + 비관리자 + 미탈락
     const isFirstStage=!quizSeriesId||(s.stage_num<=1);
