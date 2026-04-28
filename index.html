@@ -4510,12 +4510,17 @@ function handleQuizState(d){
     if(!quizSeriesFinishedShown){
       quizSeriesFinishedShown=true;
       showQuizState('Finished');
+      const titleEl=$('quizStateFinished')?.querySelector('.finished-title');
       const list=$('quizSurvivorList');
+      const isLastOne=survivors.length===1;
+      if(titleEl) titleEl.textContent=isLastOne?'🏆 최후의 1인 우승!':'최종 생존자';
       if(list){
         list.innerHTML='';
         survivors.forEach(sv=>{
           const el=document.createElement('div');
-          el.style.cssText='background:var(--green);color:#fff;border-radius:20px;padding:6px 14px;font-size:14px;font-weight:600';
+          el.style.cssText=isLastOne
+            ?'background:linear-gradient(135deg,#f9a825,#ff6f00);color:#fff;border-radius:20px;padding:10px 22px;font-size:18px;font-weight:800;letter-spacing:.02em'
+            :'background:var(--green);color:#fff;border-radius:20px;padding:6px 14px;font-size:14px;font-weight:600';
           el.textContent=sv.name||'?';
           list.appendChild(el);
         });
