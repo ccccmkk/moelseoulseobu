@@ -572,7 +572,10 @@ button,a,[role="button"]{touch-action:manipulation}
       <div class="appbar-title">STEP</div>
       <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">Seobu Together Empathy Platform</div>
     </div>
-    <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
+      <button id="fontSizeBtn" class="font-size-btn" onclick="toggleFontSize()">가<sup style="font-size:9px">+</sup></button>
+    </div>
   </div>
 
   <!-- 피드 탭 -->
