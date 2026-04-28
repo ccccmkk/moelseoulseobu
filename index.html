@@ -5209,6 +5209,16 @@ async function adminFinishSeries(){
   } catch(e){}
 }
 
+async function adminForceClose(){
+  if(!confirm('모든 진행 중인 퀴즈를 강제 종료합니다. 계속할까요?')) return;
+  try {
+    const r=await fetch(`${API}/api/quiz/force-close?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+    const d=await r.json();
+    if(d.ok){ adminSeriesId=null; adminQuizCurrentId=null; await loadAdminQuizStatus(); }
+    else alert(d.error||'강제 종료 실패');
+  } catch(e){ alert('네트워크 오류: '+e.message); }
+}
+
 async function adminCloseSeriesFully(){
   if(!adminSeriesId){ alert('종료할 시리즈가 없습니다'); return; }
   if(!confirm('퀴즈를 완전 종료합니다. 수상자 기록은 유지되며 화면에서는 사라집니다. 계속할까요?')) return;
