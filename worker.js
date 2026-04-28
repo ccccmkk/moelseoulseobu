@@ -530,9 +530,12 @@ export default {
             debug.push(`parse_fail:${raw.slice(0,120)}`);
           } catch(e) { debug.push(`fail:${e.message}`); }
         }
+        if (!html && lawGoFallbackUrl) {
+          html = `<div style="padding:24px 16px;text-align:center"><div style="font-size:14px;color:#666;margin-bottom:16px;line-height:1.6">본문을 직접 불러오지 못했습니다.<br>법제처 사이트에서 확인해 주세요.</div><a href="${lawGoFallbackUrl}" target="_blank" rel="noopener" style="display:inline-block;padding:10px 24px;background:#37c272;color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">⚖️ 법제처에서 보기 →</a></div>`;
+        }
         const result = { html, id, lawtype, debug };
         const now = Math.floor(Date.now() / 1000);
-        if (html.length > 200) {
+        if (html.length > 200 && !html.includes('법제처에서 보기')) {
           await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
             .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
         }
