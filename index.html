@@ -4492,9 +4492,9 @@ function handleQuizState(d){
       $('quizStageLabel').textContent=ser.finished
         ?`완료 (${ser.total_stages}라운드)`
         :`${s.stage_num}라운드 / ${ser.total_stages}라운드`;
-      const attCnt=d.attendees_count||0;
-      if(survivors.length>0)$('quizSurvivorCount').textContent=`생존자 ${survivors.length}명${attCnt>0?` / 참석 ${attCnt}명`:''}`;
-      else if(attCnt>0&&s?.status==='waiting')$('quizSurvivorCount').textContent=`참석 ${attCnt}명`;
+      const activeCnt=(d.active_players||[]).length;
+      if(survivors.length>0)$('quizSurvivorCount').textContent=`생존자 ${survivors.length}명`;
+      else if(activeCnt>0)$('quizSurvivorCount').textContent=`참가자 ${activeCnt}명`;
       else $('quizSurvivorCount').textContent='';
     } else {
       bar.style.display='none';
