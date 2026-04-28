@@ -4262,7 +4262,7 @@ function handleQuizState(d){
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
       quizCurrentId=s.id; quizUserAnswer=null; quizRevealDone=false;
-      quizLastPreSec=-1;
+      quizLastPreSec=-1; quizMyAttendance=false; quizLastAttendId=null;
       quizKnownO=new Set(); quizKnownX=new Set();
       $('quizActNamesO').innerHTML=''; $('quizActNamesX').innerHTML='';
       $('quizParticipantsPanel').style.display='none';
