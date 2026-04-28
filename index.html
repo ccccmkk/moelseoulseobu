@@ -4549,8 +4549,10 @@ function handleQuizState(d){
     openQuizModal();
   }
 
+  // 생존자 목록 — 모든 상태에서 항상 업데이트
+  updateWaitingSurvivors(survivors);
+
   if(s.status==='waiting'){
-    updateWaitingSurvivors(survivors);
     // 참석 상태 동기화
     if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
     else if(d.my_attendance)quizMyAttendance=true;
