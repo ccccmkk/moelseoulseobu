@@ -2309,6 +2309,7 @@ function appendFeedCards(newPosts){
     feed.appendChild(div.firstChild);
   });
   initCarousels();
+  setupViewObserver();
 }
 let _viewedPosts=new Set();
 let _viewTimers={};
