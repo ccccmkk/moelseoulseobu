@@ -1048,7 +1048,7 @@ export default {
         const { photo_id } = await request.json();
         const entry = await env.DB.prepare("SELECT uploader FROM photo_entries WHERE id=? AND contest_id=?").bind(photo_id, cid).first();
         if (!entry) return json({ error: 'not found' }, 404);
-        if (entry.uploader === sess.user_id) return json({ error: '본인 사진에는 투표할 수 없습니다' }, 400);
+        if (entry.uploader === sess.user_id) return json({ error: '본인 항목에는 투표할 수 없습니다' }, 400);
         await env.DB.prepare("INSERT INTO photo_votes(contest_id,voter,photo_id) VALUES(?,?,?) ON CONFLICT(contest_id,voter) DO UPDATE SET photo_id=?").bind(cid, sess.user_id, photo_id, photo_id).run();
         return json({ ok: true });
       }
