@@ -2769,8 +2769,9 @@ async function refreshPhotoContestDetail(){
     } else { adminBar.style.display='none'; }
     // 업로드 영역
     const isText=contest.entry_type==='text';
+    const alreadySubmitted=!isText&&entries.some(e=>e.is_mine);
     if(contest.status==='open'){
-      $('photoUploadArea').style.display=isText?'none':'';
+      $('photoUploadArea').style.display=(!isText&&!alreadySubmitted)?'':'none';
       $('textUploadArea').style.display=isText?'':'none';
     } else {
       $('photoUploadArea').style.display='none';
