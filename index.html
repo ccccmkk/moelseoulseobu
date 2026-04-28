@@ -1449,10 +1449,20 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <!-- 대기 -->
     <div id="quizStateWaiting">
-      <div style="font-size:44px;margin-bottom:12px">🎉</div>
-      <div style="font-size:17px;font-weight:700;margin-bottom:8px">퀴즈 준비 중!</div>
-      <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px">잠시 후 문제가 출제됩니다</div>
-      <div class="ptr-spinner" style="margin:0 auto;width:24px;height:24px;display:block"></div>
+      <div style="font-size:40px;margin-bottom:10px">🤚</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:6px">퀴즈 준비 중!</div>
+      <div style="font-size:13px;color:var(--text-hint);margin-bottom:18px">잠시 후 문제가 출제됩니다</div>
+      <!-- 참석 미확인 -->
+      <div id="quizAttendAsk" style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">참석하시겠습니까?</div>
+        <button onclick="confirmAttendance()" style="padding:12px 36px;background:var(--green);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.02em">✋ 참석</button>
+      </div>
+      <!-- 참석 완료 -->
+      <div id="quizAttendDone" style="display:none;margin-bottom:14px">
+        <div style="font-size:14px;color:var(--green-dark);font-weight:700;margin-bottom:4px">✅ 참석 확인 완료</div>
+        <div id="quizAttendeeCount" style="font-size:13px;color:var(--text-hint)">현재 0명 참석 중</div>
+      </div>
+      <div class="ptr-spinner" style="margin:0 auto;width:22px;height:22px;display:block"></div>
       <div id="quizWaitingSurvivors" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
     </div>
     <!-- 진행 중 -->
