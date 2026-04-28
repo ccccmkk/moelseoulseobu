@@ -1595,16 +1595,15 @@ button,a,[role="button"]{touch-action:manipulation}
 <!-- ════ 사진 투표 상세 모달 ════ -->
 <div class="modal-overlay" id="photoContestModal">
   <div class="modal" style="max-width:640px;height:88dvh;display:flex;flex-direction:column;padding:0">
-    <div style="flex-shrink:0;border-bottom:1px solid var(--border);position:relative">
-      <div style="position:sticky;top:0;right:0;float:right;z-index:1;padding:10px 12px 0 0">
-        <button class="modal-close" onclick="closePhotoContestModal()">×</button>
+    <div style="flex-shrink:0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px">
+        <div class="modal-title" id="photoContestModalTitle" style="flex:1;min-width:0;margin:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <span id="photoContestModalStatus" class="pc-status" style="flex-shrink:0"></span>
+        <button class="modal-close" onclick="closePhotoContestModal()" style="flex-shrink:0;margin:0">×</button>
       </div>
-      <div class="modal-header" style="border-bottom:none;max-height:28dvh;overflow-y:auto;align-items:flex-start;padding-right:44px">
-        <div style="flex:1;min-width:0">
-          <div class="modal-title" id="photoContestModalTitle" style="margin-bottom:4px"></div>
-          <span id="photoContestModalStatus" class="pc-status"></span>
-          <div id="photoContestModalDesc" style="display:none;font-size:12px;color:var(--text-sub);margin-top:5px;line-height:1.5"></div>
-        </div>
+      <div id="photoContestModalDescWrap" style="display:none;padding:0 12px 8px">
+        <div id="photoContestModalDesc" class="pc-desc-clamped" style="font-size:12px;color:var(--text-sub);line-height:1.5"></div>
+        <button id="pcDescMoreBtn" onclick="togglePcDesc()" style="font-size:11px;color:var(--green);background:none;border:none;padding:2px 0;cursor:pointer">더보기 ▾</button>
       </div>
     </div>
     <div id="photoContestAdminBar" style="display:none;padding:8px 16px;border-bottom:1px solid var(--border);background:#fafafa;flex-shrink:0;gap:8px;flex-wrap:wrap">
