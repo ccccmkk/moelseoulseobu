@@ -4564,6 +4564,16 @@ function handleQuizState(d){
     _applyAttendeesNames(d.attendees_list||[]);
     const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(!showAttend||quizMyAttendance)?'none':'';
     const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&!isAdminOrSub())?'':'none';
+    const titleEl=$('quizWaitingTitle'),subEl=$('quizWaitingSubtitle'),cntEl=$('quizLobbyCount');
+    if(s.status==='lobby'){
+      if(titleEl) titleEl.textContent='🚪 참가 대기 중!';
+      if(subEl) subEl.textContent='참가 버튼을 눌러 입장해주세요';
+      if(cntEl) cntEl.textContent=d.attendees_count?`현재 ${d.attendees_count}명 참가 완료`:'';
+    } else {
+      if(titleEl) titleEl.textContent='🤚 퀴즈 준비 중!';
+      if(subEl) subEl.textContent='잠시 후 문제가 출제됩니다';
+      if(cntEl) cntEl.textContent=d.attendees_count?`참가자 ${d.attendees_count}명`:'';
+    }
     showQuizState(quizIsEliminated&&!isAdminOrSub()?'Eliminated':'Waiting');
   } else if(s.status==='active'){
     if(quizCurrentId!==s.id){
