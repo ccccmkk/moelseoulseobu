@@ -4554,6 +4554,7 @@ function handleQuizState(d){
 
   if(s.status==='waiting'){
     // 참석 상태 동기화
+
     if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
     else if(d.my_attendance)quizMyAttendance=true;
     const showAttend=!quizIsEliminated&&!isAdminOrSub()&&!quizSeriesId||d.series?.current_stage<=1;
