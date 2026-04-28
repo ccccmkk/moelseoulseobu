@@ -4165,7 +4165,7 @@ function openQuizModal(){
   $('quizOverlay').classList.add('open');
   quizModalOpen=true;
   const cb=$('quizModalCloseBtn');
-  if(cb) cb.style.display=currentUserRole==='admin'?'':'none';
+  if(cb) cb.style.display=isAdminOrSub()?'':'none';
   clearTimeout(quizPollTid);
   quizPollStep();
 }
