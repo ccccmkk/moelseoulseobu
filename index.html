@@ -4807,7 +4807,7 @@ function startQuizBgPoll(){
         if(!isAdminOrSub()){
           if(ser&&ser.finished&&!quizSeriesFinishedShown){
             openQuizModal();
-          } else if(!ser?.finished&&s&&(s.status==='active'||s.status==='waiting')){
+          } else if(!ser?.finished&&s&&(s.status==='lobby'||s.status==='active'||s.status==='waiting')){
             openQuizModal();
           }
         }
