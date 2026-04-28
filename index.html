@@ -2773,6 +2773,8 @@ async function refreshPhotoContestDetail(){
       const delBtn=$('pcDeleteBtn');
       if(delBtn) delBtn.style.display=contest.status==='closed'?'':'none';
     } else { adminBar.style.display='none'; }
+    // 투표 허용 여부
+    const allowVote=contest.allow_vote!==0;
     // 업로드 영역
     const isText=contest.entry_type==='text';
     const alreadySubmitted=!isText&&entries.some(e=>e.is_mine);
