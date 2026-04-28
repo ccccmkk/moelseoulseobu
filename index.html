@@ -1622,7 +1622,11 @@ button,a,[role="button"]{touch-action:manipulation}
       <label style="font-size:12px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px">행사 제목 *</label>
       <input type="text" id="pcTitle" placeholder="예: 워크숍 사진 투표" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-bottom:10px">
       <label style="font-size:12px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px">설명 (선택)</label>
-      <textarea id="pcDesc" rows="2" placeholder="행사에 대한 간단한 설명" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;margin-bottom:12px"></textarea>
+      <textarea id="pcDesc" rows="2" placeholder="행사에 대한 간단한 설명" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;margin-bottom:10px"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="pcAllowVote" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)">
+        <span style="font-size:13px;color:var(--text)">투표 허용</span>
+      </label>
       <div id="pcCreateMsg" style="font-size:12px;min-height:14px;color:var(--danger);margin-bottom:8px"></div>
       <button class="btn-green" onclick="submitCreatePhotoContest()">행사 만들기</button>
     </div>
