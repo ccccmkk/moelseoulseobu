@@ -4222,7 +4222,7 @@ function _applyFontSize(lg){
 function toggleFontSize(){
   const isLg=document.body.classList.contains('font-lg');
   _applyFontSize(!isLg);
-  if(currentUser)localStorage.setItem('fontsize_'+currentUser,!isLg?'lg':'sm');
+  if(currentUser)localStorage.setItem('fontsize_'+currentUser,!isLg?'sm':'lg');
 }
 function onLoginSuccess(d){
   currentUser=d.id;currentUserName=d.name||d.id;sessionToken=d.token;
