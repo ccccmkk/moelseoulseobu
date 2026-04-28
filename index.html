@@ -925,8 +925,14 @@ button,a,[role="button"]{touch-action:manipulation}
 </div>
 
 <!-- ════ 라이트박스 ════ -->
-<div id="lightbox" onclick="closeLightbox()">
-  <img id="lightboxImg" onclick="event.stopPropagation()"/>
+<div id="lightbox" onclick="closeLightbox()" ontouchstart="lbTouchStart(event)" ontouchend="lbTouchEnd(event)">
+  <img id="lightboxImg" onclick="event.stopPropagation()" style="max-width:100%;max-height:calc(100dvh - 80px);object-fit:contain"/>
+  <div id="lbCaption" style="display:none" onclick="event.stopPropagation()"></div>
+  <div id="lbNav" style="display:none" onclick="event.stopPropagation()">
+    <button id="lbPrev" onclick="lbGo(-1)">‹</button>
+    <span id="lbCounter"></span>
+    <button id="lbNext" onclick="lbGo(1)">›</button>
+  </div>
   <button class="lb-close" onclick="closeLightbox()">×</button>
 </div>
 
