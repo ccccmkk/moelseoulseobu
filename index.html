@@ -2838,7 +2838,7 @@ function renderPhotoContestList(){
       <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
       <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
     </div>
-    ${pc.description?`<div style="font-size:13px;color:var(--text-sub);margin-top:4px">${escHtml(pc.description)}</div>`:''}
+    ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
     <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
   </div>`).join('');
 }
