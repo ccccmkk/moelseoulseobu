@@ -4555,19 +4555,20 @@ function handleQuizState(d){
     openQuizModal();
   }
 
-  // 생존자 목록 — 모든 상태에서 항상 업데이트
-  updateWaitingSurvivors(survivors);
+  // 참가자/생존자 패널 — 모든 상태에서 항상 업데이트
+  updateWaitingSurvivors(d.active_players||[], survivors.length>0);
 
   if(s.status==='lobby'||s.status==='waiting'){
     // 참석 상태 동기화
-
-    if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
+    if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizCurrentId=s.id; quizMyAttendance=d.my_attendance||false;}
     else if(d.my_attendance)quizMyAttendance=true;
-    const showAttend=!quizIsEliminated&&!isAdminOrSub()&&!quizSeriesId||d.series?.current_stage<=1;
+    // 참가 버튼: lobby 상태 + 첫 라운드(단판 or series 1라운드) + 비관리자 + 미탈락
+    const isFirstStage=!quizSeriesId||(s.stage_num<=1);
+    const showAttend=s.status==='lobby'&&!isAdminOrSub()&&!quizIsEliminated&&isFirstStage;
     _applyAttendanceUI(quizMyAttendance,d.attendees_count);
     _applyAttendeesNames(d.attendees_list||[]);
-    const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(!showAttend||quizMyAttendance)?'none':'';
-    const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&!isAdminOrSub())?'':'none';
+    const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(showAttend&&!quizMyAttendance)?'':'none';
+    const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&!isAdminOrSub()&&s.status==='lobby')?'':'none';
     const titleEl=$('quizWaitingTitle'),subEl=$('quizWaitingSubtitle'),cntEl=$('quizLobbyCount');
     if(s.status==='lobby'){
       if(titleEl) titleEl.textContent='🚪 참가 대기 중!';
