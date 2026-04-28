@@ -2704,7 +2704,7 @@ async function refreshPhotoContestDetail(){
     else{descEl.style.display='none';}
     // 관리자 바
     const adminBar=$('photoContestAdminBar');
-    if(currentUserRole==='admin'){
+    if(isAdminOrSub()){
       adminBar.style.display='flex';
       $('pcOpenBtn').style.display=contest.status!=='open'?'':'none';
       $('pcCloseBtn').style.display=contest.status==='open'?'':'none';
