@@ -1710,7 +1710,11 @@ export default {
           if (session.status !== 'revealed') delete safe.answer;
           session = safe;
         }
-        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, attendees_list: attendees_list || [], my_attendance });
+        // active_players: 현재 게임에 남아있는 사람 목록 (이름 배열)
+        const active_players = series && survivors.length > 0
+          ? survivors.map(sv => sv.name)
+          : attendees_list;
+        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, attendees_list: attendees_list || [], my_attendance, active_players });
       }
 
       // 스테이지전 생성
