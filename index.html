@@ -4333,7 +4333,7 @@ $('searchInput').oninput=function(){
 $('logoutBtn').onclick=async function(){
   if(sessionToken){try{await fetch(`${API}/api/sessions`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken})});}catch(e){}}
   currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
-  _applyFontSize(false);
+  _applyFontSize('sm');
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';
   $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
