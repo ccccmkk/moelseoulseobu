@@ -4505,6 +4505,43 @@ function _applyAttendeesNames(list){
   if(lbl) lbl.textContent=`✋ 참가자 ${list.length}명`;
   nameList.innerHTML=list.map(n=>`<span style="font-size:12px;background:var(--green);color:#fff;border-radius:14px;padding:4px 11px;font-weight:600">${escHtml(n)}</span>`).join('');
 }
+function showQuizInvite(){
+  const inv=$('quizInviteOverlay');
+  if(!inv)return;
+  inv.style.display='flex';
+  const msg=$('inviteAttendMsg');if(msg)msg.textContent='';
+  const btn=$('inviteAttendBtn');if(btn){btn.disabled=false;btn.textContent='✋ 참석하기';}
+}
+function hideQuizInvite(){
+  const inv=$('quizInviteOverlay');
+  if(inv) inv.style.display='none';
+}
+async function attendFromInvite(){
+  if(!quizCurrentId||!sessionToken)return;
+  const btn=$('inviteAttendBtn');
+  if(btn){btn.disabled=true;btn.textContent='처리 중...';}
+  try{
+    const r=await fetch(`${API}/api/quiz/${quizCurrentId}/attend?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      quizMyAttendance=true;
+      hideQuizInvite();
+      openQuizModal();
+    } else {
+      const msg=$('inviteAttendMsg');
+      if(msg) msg.textContent='참가 실패: '+(d.error||'알 수 없는 오류');
+      if(btn){btn.disabled=false;btn.textContent='✋ 참석하기';}
+    }
+  }catch(e){
+    const msg=$('inviteAttendMsg');
+    if(msg) msg.textContent='네트워크 오류, 다시 시도해주세요';
+    if(btn){btn.disabled=false;btn.textContent='✋ 참석하기';}
+  }
+}
+function declineInvite(){
+  quizDeclinedId=quizCurrentId;
+  hideQuizInvite();
+}
 let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
 let adminQuizGroup='all';
 function setAdminQuizGroup(g){
