@@ -2784,6 +2784,14 @@ async function refreshPhotoContestDetail(){
       const sorted=contest.status==='closed'?[...entries].sort((a,b)=>b.vote_count-a.vote_count):entries;
       const top1vc=sorted[0]?.vote_count||0;
       const top2vc=top1vc>0?(sorted.find(e=>e.vote_count<top1vc)?.vote_count??-1):-1;
+      // entry map for gallery lightbox
+      window._pcEntryMap={};
+      sorted.forEach(e=>{
+        let urls;
+        try{urls=[imgUrl(e.img_url),...JSON.parse(e.extra_images||'[]').map(u=>imgUrl(u))];}
+        catch{urls=[imgUrl(e.img_url)];}
+        window._pcEntryMap[e.id]={urls,cap:e.caption||''};
+      });
       const makeCard=(e)=>{
         const isOwn=e.is_mine;
         const isVoted=my_vote===e.id;
@@ -2814,11 +2822,14 @@ async function refreshPhotoContestDetail(){
           ${foot}
         </div>`;
         }
-        const imgUrl_=escHtml(imgUrl(e.img_url));
+        const entryUrls=window._pcEntryMap[e.id]?.urls||[];
+        const coverUrl=escHtml(entryUrls[0]||imgUrl(e.img_url));
+        const multiCount=entryUrls.length;
         return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
-          <div class="photo-grid-img-wrap" onclick="openLightbox('${imgUrl_}')">
-            <img src="${imgUrl_}" alt="" loading="lazy">
+          <div class="photo-grid-img-wrap" onclick="openEntryLightbox('${e.id}')">
+            <img src="${coverUrl}" alt="" loading="lazy">
             ${rank1?'<div class="photo-grid-badge">🏆</div>':rank2?'<div class="photo-grid-badge">🥈</div>':''}
+            ${multiCount>1?`<div class="photo-grid-count">${multiCount}장</div>`:''}
             ${isOwn?'<div class="photo-grid-mine">내 사진</div>':''}
           </div>
           ${foot}
