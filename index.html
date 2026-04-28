@@ -2628,7 +2628,7 @@ function enterPhotoGroup(group){
   $('eventGroupSelect').style.display='none';
   $('eventGroupContent').style.display='';
   $('eventGroupTitle').textContent=group==='center'?'센터':'지청';
-  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=currentUserRole==='admin'?'':'none';
+  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
   loadPhotoContests();
 }
 function exitPhotoGroup(){
@@ -2661,7 +2661,7 @@ async function loadPhotoContests(){
 }
 function renderPhotoContestList(){
   const c=$('photoContestList'); if(!c) return;
-  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=currentUserRole==='admin'?'':'none';
+  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
   if(!photoContests.length){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';return;}
   const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
   c.innerHTML=photoContests.map(pc=>`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
