@@ -2096,6 +2096,11 @@ function removeLawAskTag(i){
   renderLawAskTags();
 }
 async function lawAsk(){
+  const used=_lawAskUsed();
+  if(used>=LAW_ASK_MAX){
+    $('lawAskResult').innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px;text-align:center">오늘의 AI 질문 횟수(${LAW_ASK_MAX}회)를 모두 사용했습니다.<br>내일 다시 이용해주세요.</div>`;
+    return;
+  }
   const userQ=($('lawAskInput').value||'').trim();
   const precTag=_lawAskTags.find(t=>t.type==='prec');
   const tagContext=_lawAskTags.map(t=>t.label).join(', ');
@@ -2109,6 +2114,7 @@ async function lawAsk(){
   try{
     const data=await fetch(`${API}/api/law-ask`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
     if(data.error){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>`;return;}
+    const key=_lawAskCountKey();localStorage.setItem(key,String(used+1));updateLawAskCounter();
     let srcHtml='';
     if(data.sources&&data.sources.length){
       const icons={law:'📜',prec:'⚖️',expc:'📋'};
