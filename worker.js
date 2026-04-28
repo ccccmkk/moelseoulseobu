@@ -1636,16 +1636,27 @@ export default {
             : await env.DB.prepare(`SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
         }
 
+        let attendees_count = 0, my_attendance = false;
         if (session) {
           const sr = await env.DB.prepare("SELECT answer, COUNT(*) as cnt FROM quiz_answers WHERE quiz_id=? GROUP BY answer").bind(session.id).all();
           for (const r of (sr.results || [])) { stats[r.answer] = r.cnt; stats.total += r.cnt; }
           const ar = await env.DB.prepare('SELECT qa.answer, u.name FROM quiz_answers qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?').bind(session.id).all();
           answers = (ar.results || []).map(r => ({ name: r.name || '?', answer: r.answer }));
+          const atRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_attendees WHERE quiz_id=?").bind(session.id).first();
+          attendees_count = atRow?.cnt || 0;
+          const tokParam = url.searchParams.get('token');
+          if (tokParam) {
+            const usess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(tokParam).first();
+            if (usess) {
+              const myAt = await env.DB.prepare("SELECT 1 FROM quiz_attendees WHERE quiz_id=? AND user_id=?").bind(session.id, usess.user_id).first();
+              my_attendance = !!myAt;
+            }
+          }
           const safe = { ...session };
           if (session.status !== 'revealed') delete safe.answer;
           session = safe;
         }
-        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors });
+        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, my_attendance });
       }
 
       // 스테이지전 생성
