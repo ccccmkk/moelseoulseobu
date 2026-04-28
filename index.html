@@ -4604,9 +4604,9 @@ function updateWaitingSurvivors(survivors){
   if(!el) return;
   if(!quizSeriesId||survivors.length===0){el.style.display='none';return;}
   el.style.display='';
-  el.innerHTML=`<div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">생존자 ${survivors.length}명</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
-    ${survivors.map(sv=>`<span style="font-size:11px;background:var(--green-light);color:var(--green-dark);border-radius:12px;padding:3px 9px;border:1px solid var(--green);font-weight:600">${escHtml(sv.name||'?')}</span>`).join('')}
+  el.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:8px">🏆 생존자 ${survivors.length}명</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center">
+    ${survivors.map(sv=>`<span style="font-size:13px;background:var(--green);color:#fff;border-radius:14px;padding:5px 13px;font-weight:700">${escHtml(sv.name||'?')}</span>`).join('')}
     </div>`;
 }
 
