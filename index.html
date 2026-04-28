@@ -4494,7 +4494,7 @@ function startQuizBgPoll(){
       const hasActivity=ser||(s&&s.status!=='closed');
       if(hasActivity){
         $('quizEventBtn').style.display='';
-        if(currentUserRole!=='admin'){
+        if(!isAdminOrSub()){
           if(ser&&ser.finished&&!quizSeriesFinishedShown){
             openQuizModal();
           } else if(!ser?.finished&&s&&(s.status==='active'||s.status==='waiting')){
