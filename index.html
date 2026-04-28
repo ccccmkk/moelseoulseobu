@@ -2692,6 +2692,8 @@ async function openPhotoContest(id){
   $('photoContestGrid').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
   $('photoVoteMsg').textContent='';
   cancelPhotoUpload();
+  const ti=$('textEntryInput');if(ti)ti.value='';
+  const tm=$('textUploadMsg');if(tm)tm.textContent='';
   $('photoContestModal').classList.add('open');
   await refreshPhotoContestDetail();
 }
