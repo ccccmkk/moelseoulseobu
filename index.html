@@ -927,7 +927,7 @@ button,a,[role="button"]{touch-action:manipulation}
 </div>
 
 <!-- ════ 라이트박스 ════ -->
-<div id="lightbox" onclick="if(_lbDragDist<10)closeLightbox()" ontouchstart="lbTouchStart(event)" ontouchend="lbTouchEnd(event)" onmousedown="lbMouseDown(event)" onmouseup="lbMouseUp(event)">
+<div id="lightbox" onclick="if(_lbDragDist<10)closeLightbox()" ontouchstart="lbTouchStart(event)" ontouchmove="lbTouchMove(event)" ontouchend="lbTouchEnd(event)" onmousedown="lbMouseDown(event)" onmousemove="lbMouseMove(event)" onmouseup="lbMouseUp(event)">
   <div id="lbTrack">
     <img id="lightboxImg" onclick="event.stopPropagation()"/>
   </div>
