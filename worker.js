@@ -637,6 +637,13 @@ export default {
         return json({ id });
       }
 
+      // ── 조회수 증가 ──
+      if (p.match(/^\/api\/posts\/[^/]+\/view$/) && m === 'POST') {
+        const postId = p.split('/')[3];
+        ctx.waitUntil(env.DB.prepare('UPDATE posts SET views=views+1 WHERE id=?').bind(postId).run());
+        return json({ ok: true });
+      }
+
       // ── 글 검색 (전체 DB) ──
       if (p === '/api/posts/search' && m === 'GET') {
         const q = (url.searchParams.get('q') || '').trim();
