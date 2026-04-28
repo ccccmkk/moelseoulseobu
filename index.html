@@ -4445,12 +4445,29 @@ let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
 let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false,quizLastPreSec=-1;
 let quizMyAttendance=false,quizLastAttendId=null;
 async function confirmAttendance(){
-  if(!quizCurrentId||quizMyAttendance)return;
+  if(quizMyAttendance)return;
+  if(!quizCurrentId){console.warn('[attend] quizCurrentId 없음');return;}
+  if(!sessionToken){console.warn('[attend] sessionToken 없음');return;}
+  const btn=document.querySelector('#quizAttendAsk button');
+  if(btn){btn.disabled=true;btn.textContent='처리 중...';}
   try{
     const r=await fetch(`${API}/api/quiz/${quizCurrentId}/attend?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
     const d=await r.json();
-    if(d.ok){quizMyAttendance=true;_applyAttendanceUI(true,d.count);}
-  }catch(e){}
+    if(d.ok){
+      quizMyAttendance=true;
+      _applyAttendanceUI(true,d.count);
+    } else {
+      console.error('[attend] API 오류:', d.error);
+      const msgEl=$('quizAttendMsg');
+      if(msgEl) msgEl.textContent='참가 실패: '+(d.error||'알 수 없는 오류');
+      if(btn){btn.disabled=false;btn.textContent='✋ 참석';}
+    }
+  }catch(e){
+    console.error('[attend] 네트워크 오류:', e);
+    const msgEl=$('quizAttendMsg');
+    if(msgEl) msgEl.textContent='네트워크 오류, 다시 시도해주세요';
+    if(btn){btn.disabled=false;btn.textContent='✋ 참석';}
+  }
 }
 function _applyAttendanceUI(attended,count){
   const ask=$('quizAttendAsk'),done=$('quizAttendDone'),cnt=$('quizAttendeeCount');
