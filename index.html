@@ -1579,21 +1579,20 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="textUploadMsg" style="font-size:12px;min-height:12px;color:var(--danger);text-align:center;margin-top:3px"></div>
     </div>
     <div id="photoUploadArea" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
-      <div id="photoUploadDrop" class="photo-upload-area" onclick="$('photoFileInput').click()">📷 내 사진 올리기</div>
+      <div id="photoQueueRow" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;margin-bottom:6px"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="photoAddBtn" class="photo-upload-area" onclick="if(_photoQueue.length<5)$('photoFileInput').click();else $('photoUploadMsg').textContent='최대 5장까지 가능합니다'" style="flex:1;padding:10px 12px;font-size:13px">📷 사진 추가</button>
+        <span id="photoQueueCount" style="font-size:12px;color:var(--text-hint);flex-shrink:0;min-width:28px">0/5</span>
+      </div>
       <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="onPhotoFileSelected(this)">
-      <div id="photoUploadPreview" style="display:none;margin-top:8px">
-        <div style="display:flex;gap:8px;align-items:flex-start">
-          <img id="photoPreviewImg" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0">
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-            <input type="text" id="photoCaption" placeholder="사진 설명 (선택)" style="width:100%;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none">
-            <div style="display:flex;gap:6px">
-              <button class="btn-sm" onclick="cancelPhotoUpload()" style="flex:1;justify-content:center">취소</button>
-              <button class="btn-sm primary" id="photoSubmitBtn" onclick="submitEventPhoto()" style="flex:2;justify-content:center">등록</button>
-            </div>
-          </div>
+      <div id="photoSubmitRow" style="display:none;margin-top:8px">
+        <input type="text" id="photoCaption" placeholder="설명 (선택)" style="width:100%;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;margin-bottom:6px;box-sizing:border-box">
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm" onclick="cancelPhotoUpload()" style="flex:1;justify-content:center">취소</button>
+          <button class="btn-sm primary" id="photoSubmitBtn" onclick="submitEventPhoto()" style="flex:2;justify-content:center">등록</button>
         </div>
       </div>
-      <div id="photoUploadMsg" style="font-size:12px;min-height:12px;color:var(--danger);text-align:center;margin-top:3px"></div>
+      <div id="photoUploadMsg" style="font-size:12px;min-height:12px;color:var(--danger);text-align:center;margin-top:4px"></div>
     </div>
     <div id="photoContestGrid" style="padding:14px;overflow-y:auto;flex:1">
       <div class="empty-state" style="padding:2rem"><div class="ei">📷</div>아직 사진이 없습니다</div>
