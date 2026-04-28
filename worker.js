@@ -959,11 +959,12 @@ export default {
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
         if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
-        const { title, description, contest_group } = await request.json();
+        const { title, description, contest_group, entry_type } = await request.json();
         if (!title) return json({ error: '제목 필요' }, 400);
         const grpVal = contest_group === 'center' ? 'center' : 'branch';
+        const eType = entry_type === 'text' ? 'text' : 'photo';
         const id = 'pc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,contest_group,created_by,created_at) VALUES(?,?,?,'draft',?,?,?)").bind(id, title, description || '', grpVal, sess.user_id, Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,contest_group,entry_type,created_by,created_at) VALUES(?,?,?,'draft',?,?,?,?)").bind(id, title, description || '', grpVal, eType, sess.user_id, Math.floor(Date.now() / 1000)).run();
         return json({ ok: true, id });
       }
 
