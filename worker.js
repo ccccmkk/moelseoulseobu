@@ -501,7 +501,7 @@ export default {
           if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=eflaw&ID=${id}&type=XML`);
         }
         let html = '';
-        const debug = [];
+        const debug = ['trying_fetch'];
         for (const apiUrl of attempts) {
           try {
             const res = await fetchTimeout(apiUrl, { headers: xhdr }, 12000);
