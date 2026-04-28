@@ -1398,12 +1398,13 @@ button,a,[role="button"]{touch-action:manipulation}
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">현재 퀴즈 상태</div>
         <div id="adminQuizStatus" style="background:#f5f5f5;border-radius:10px;padding:14px;font-size:13px;color:var(--text-hint)">불러오는 중...</div>
         <div id="adminQuizControls" style="display:none;margin-top:10px;flex-direction:column;gap:8px">
-          <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center">▶ 시작</button>
-          <button id="adminQuizRevealBtn" class="btn-sm" onclick="adminQuizAction('reveal')" style="justify-content:center">🏆 결과 공개</button>
+          <button id="adminQuizOpenBtn" class="btn-sm primary" onclick="adminOpenLobby()" style="justify-content:center;display:none">🚪 개설</button>
+          <button id="adminQuizStartBtn" class="btn-sm primary" onclick="adminQuizAction('start')" style="justify-content:center;display:none">▶ 시작</button>
+          <button id="adminQuizRevealBtn" class="btn-sm" onclick="adminQuizAction('reveal')" style="justify-content:center;display:none">🏆 결과 공개</button>
           <button id="adminQuizFinishSeriesBtn" class="btn-sm danger" onclick="adminFinishSeries()" style="justify-content:center;display:none">🏁 시리즈 종료</button>
           <button id="adminQuizCloseSeriesBtn" class="btn-sm" onclick="adminCloseSeriesFully()" style="justify-content:center;display:none;background:#546e7a;color:#fff">🔒 완전 종료</button>
           <button id="adminQuizDeleteSeriesBtn" class="btn-sm danger" onclick="deleteQuizSeries()" style="justify-content:center;display:none">🗑 기록 삭제</button>
-          <button id="adminQuizCloseBtn" class="btn-sm danger" onclick="adminQuizAction('close')" style="justify-content:center">✖ 퀴즈 종료</button>
+          <button id="adminQuizCloseBtn" class="btn-sm danger" onclick="adminQuizAction('close')" style="justify-content:center;display:none">✖ 퀴즈 종료</button>
           <button id="adminLadderBtn" class="btn-sm" onclick="adminStartLadder()" style="justify-content:center;display:none;background:#7c4dff;color:#fff">🪜 사다리타기</button>
         </div>
       </div>
