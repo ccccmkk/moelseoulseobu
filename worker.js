@@ -1680,7 +1680,7 @@ export default {
           if (session.status !== 'revealed') delete safe.answer;
           session = safe;
         }
-        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, my_attendance });
+        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, attendees_list: attendees_list || [], my_attendance });
       }
 
       // 스테이지전 생성
