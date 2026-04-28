@@ -1724,6 +1724,8 @@ let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
 let newsCache=null,newsLastFetch=0;
 let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,currentContestMyVote=null;
+let _photoQueue=[]; // {file, dataUrl}[]
+let _lbUrls=[],_lbIdx=0,_lbCap='',_lbTouchX=0;
 let currentUserDept='',currentPhotoGroup=null;
 
 function $(id){return document.getElementById(id)}
