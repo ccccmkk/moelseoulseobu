@@ -665,6 +665,14 @@ export default {
         return json({ ok: true, id });
       }
 
+      // ── 강제 종료 (모든 활성 퀴즈 세션 닫기) ──
+      if (p === '/api/quiz/force-close' && m === 'POST') {
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        await env.DB.prepare("UPDATE quiz_sessions SET status='closed' WHERE status IN ('lobby','waiting','active','revealed')").run();
+        await env.DB.prepare("UPDATE quiz_series SET status='finished' WHERE status='active'").run();
+        return json({ ok: true });
+      }
+
       // ── 퀴즈 문제 게시 (lobby→waiting) ──
       if (p.match(/^\/api\/quiz\/[^/]+\/post$/) && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
