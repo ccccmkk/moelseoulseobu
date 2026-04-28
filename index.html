@@ -2466,8 +2466,31 @@ async function deleteReply(replyId,cid){
   updateReplyBtn(cid);
   updatePostCommentCount(commentingPostId,-1);
 }
-function openLightbox(url){$('lightboxImg').src=url;$('lightbox').classList.add('open');document.body.style.overflow='hidden';}
+function openLightbox(urlsOrUrl,startIdx,cap){
+  _lbUrls=typeof urlsOrUrl==='string'?[urlsOrUrl]:[...urlsOrUrl];
+  _lbIdx=startIdx||0;_lbCap=cap||'';
+  _showLbSlide();
+  $('lightbox').classList.add('open');document.body.style.overflow='hidden';
+}
+function _showLbSlide(){
+  $('lightboxImg').src=_lbUrls[_lbIdx]||'';
+  const nav=$('lbNav'),cap=$('lbCaption');
+  if(_lbUrls.length>1){
+    nav.style.display='flex';
+    $('lbCounter').textContent=`${_lbIdx+1}/${_lbUrls.length}`;
+    $('lbPrev').style.opacity=_lbIdx>0?'1':'0.25';
+    $('lbNext').style.opacity=_lbIdx<_lbUrls.length-1?'1':'0.25';
+  }else{nav.style.display='none';}
+  if(_lbCap&&_lbIdx===0){cap.textContent=_lbCap;cap.style.display='';}else{cap.style.display='none';}
+}
+function lbGo(dir){_lbIdx=Math.max(0,Math.min(_lbUrls.length-1,_lbIdx+dir));_showLbSlide();}
+function lbTouchStart(e){_lbTouchX=e.touches[0].clientX;}
+function lbTouchEnd(e){const dx=e.changedTouches[0].clientX-_lbTouchX;if(Math.abs(dx)>50)lbGo(dx<0?1:-1);}
 function closeLightbox(){$('lightbox').classList.remove('open');document.body.style.overflow='';}
+function openEntryLightbox(eid){
+  const d=window._pcEntryMap&&window._pcEntryMap[eid];
+  if(d)openLightbox(d.urls,0,d.cap);
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();});
 
 // ── 업로드 XHR (진행률) ──
