@@ -2803,8 +2803,8 @@ async function refreshPhotoContestDetail(){
       const makeCard=(e)=>{
         const isOwn=e.is_mine;
         const isVoted=my_vote===e.id;
-        const canVote=contest.status==='open'&&!isOwn&&my_vote===null;
-        const changeVote=contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
+        const canVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote===null;
+        const changeVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
         const rank1=contest.status==='closed'&&e.vote_count>0&&e.vote_count===top1vc;
         const rank2=contest.status==='closed'&&!rank1&&e.vote_count>0&&top2vc>0&&e.vote_count===top2vc;
         let pillClass='photo-vote-pill';
