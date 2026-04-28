@@ -1659,14 +1659,14 @@ export default {
             : await env.DB.prepare(`SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
         }
 
-        let attendees_count = 0, my_attendance = false;
+        let attendees_count = 0, my_attendance = false, attendees_list = [];
         if (session) {
           const sr = await env.DB.prepare("SELECT answer, COUNT(*) as cnt FROM quiz_answers WHERE quiz_id=? GROUP BY answer").bind(session.id).all();
           for (const r of (sr.results || [])) { stats[r.answer] = r.cnt; stats.total += r.cnt; }
           const ar = await env.DB.prepare('SELECT qa.answer, u.name FROM quiz_answers qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?').bind(session.id).all();
           answers = (ar.results || []).map(r => ({ name: r.name || '?', answer: r.answer }));
           const atRows = await env.DB.prepare("SELECT u.name FROM quiz_attendees qa LEFT JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=? ORDER BY qa.attended_at ASC").bind(session.id).all();
-          const attendees_list = (atRows.results || []).map(r => r.name || '?');
+          attendees_list = (atRows.results || []).map(r => r.name || '?');
           attendees_count = attendees_list.length;
           const tokParam = url.searchParams.get('token');
           if (tokParam) {
