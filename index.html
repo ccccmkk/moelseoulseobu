@@ -1519,6 +1519,11 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="quizAttendeeCount" style="font-size:13px;color:var(--text-hint)">현재 0명 참석 중</div>
       </div>
       <div class="ptr-spinner" style="margin:0 auto;width:22px;height:22px;display:block"></div>
+      <!-- 현재 참석자 이름 목록 -->
+      <div id="quizAttendeesNames" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:8px">참가자</div>
+        <div id="quizAttendeesNameList" style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center"></div>
+      </div>
       <div id="quizWaitingSurvivors" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
     </div>
     <!-- 진행 중 -->
