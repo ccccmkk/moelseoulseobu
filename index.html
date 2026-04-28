@@ -2917,10 +2917,23 @@ async function revealPhotoContest(){
 }
 function onPhotoFileSelected(input){
   const file=input.files[0]; if(!file) return;
+  input.value='';
+  if(_photoQueue.length>=5){$('photoUploadMsg').textContent='최대 5장까지 가능합니다';return;}
   const reader=new FileReader();
-  reader.onload=e=>openCropModal(file,e.target.result);
+  reader.onload=e=>openCropModal(file,e.target.result,croppedFile=>{
+    const r2=new FileReader();
+    r2.onload=e2=>{_photoQueue.push({file:croppedFile,dataUrl:e2.target.result});_renderPhotoQueue();};
+    r2.readAsDataURL(croppedFile);
+  });
   reader.readAsDataURL(file);
 }
+function _renderPhotoQueue(){
+  const row=$('photoQueueRow');const cnt=$('photoQueueCount');const sr=$('photoSubmitRow');
+  if(row)row.innerHTML=_photoQueue.map((q,i)=>`<div class="photo-queue-thumb"><img src="${q.dataUrl}"><button class="photo-queue-del" onclick="_removeQueuePhoto(${i})">×</button></div>`).join('');
+  if(cnt)cnt.textContent=`${_photoQueue.length}/5`;
+  if(sr)sr.style.display=_photoQueue.length>0?'':'none';
+}
+function _removeQueuePhoto(idx){_photoQueue.splice(idx,1);_renderPhotoQueue();}
 
 // ── 크롭 (드래그 핸들 방식) ──
 let _cropDataUrl=null,_cropNatW=0,_cropNatH=0;
