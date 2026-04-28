@@ -2309,6 +2309,38 @@ function appendFeedCards(newPosts){
   });
   initCarousels();
 }
+let _viewedPosts=new Set();
+let _viewTimers={};
+let _viewObserver=null;
+function setupViewObserver(){
+  if(_viewObserver)_viewObserver.disconnect();
+  _viewObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      const id=entry.target.dataset.postId;
+      if(!id)return;
+      if(entry.isIntersecting){
+        if(!_viewedPosts.has(id)&&!_viewTimers[id]){
+          _viewTimers[id]=setTimeout(()=>{
+            if(!_viewedPosts.has(id)){
+              _viewedPosts.add(id);
+              fetch(`/api/posts/${id}/view`,{method:'POST'}).then(()=>{
+                const el=document.getElementById('vc-'+id);
+                if(el)el.textContent=parseInt(el.textContent||0)+1;
+              }).catch(()=>{});
+            }
+            delete _viewTimers[id];
+          },1500);
+        }
+      } else {
+        if(_viewTimers[id]){clearTimeout(_viewTimers[id]);delete _viewTimers[id];}
+      }
+    });
+  },{threshold:0.5});
+  document.querySelectorAll('.post-card[id^="pc-"]').forEach(el=>{
+    el.dataset.postId=el.id.replace('pc-','');
+    _viewObserver.observe(el);
+  });
+}
 let _feedObserver=null;
 function setupFeedObserver(){
   if(_feedObserver)_feedObserver.disconnect();
