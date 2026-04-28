@@ -600,11 +600,14 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="lawSearchResult" style="max-height:40vh;overflow-y:auto"></div>
       <!-- AI 질문 -->
       <div style="border-top:4px solid var(--border);padding:14px 16px">
-        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">⚖️ 법률 AI 질문</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">⚖️ 법률 AI 질문</div>
+          <span id="lawAskCounter" style="font-size:11px;color:var(--text-hint)"></span>
+        </div>
         <div id="lawAskTags" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <input id="lawAskInput" type="text" placeholder="예) 연차 미사용 수당 언제 받나요?" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawAsk()">
-          <button onclick="lawAsk()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">질문</button>
+          <button id="lawAskBtn" onclick="lawAsk()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">질문</button>
         </div>
         <div id="lawAskResult"></div>
       </div>
