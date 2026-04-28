@@ -504,6 +504,13 @@ button,a,[role="button"]{touch-action:manipulation}
 .photo-grid-img-wrap:active img{transform:scale(.97)}
 .photo-grid-badge{position:absolute;top:5px;right:5px;font-size:16px;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,.3)}
 .photo-grid-mine{position:absolute;bottom:0;left:0;right:0;font-size:10px;font-weight:600;color:#fff;background:rgba(0,0,0,.45);padding:2px 0;text-align:center;letter-spacing:.02em}
+.photo-img-loading{background:#f0f0f0;position:relative;overflow:hidden}
+.photo-img-loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.6) 50%,transparent 100%);animation:shimmer 1.4s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.photo-img-loading img{opacity:0;transition:opacity .25s}
+.photo-img-loading.loaded img{opacity:1}
+#photoUploadBar{height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden;margin-top:6px;display:none}
+#photoUploadBarFill{height:100%;width:0%;background:var(--green);border-radius:2px;transition:width .3s ease}
 .photo-grid-foot{padding:5px 7px 7px}
 .photo-grid-author{font-size:11px;font-weight:600;color:var(--text-sub);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .photo-vote-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fafafa;font-size:11px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
