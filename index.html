@@ -3039,9 +3039,16 @@ async function submitEventPhoto(){
   }catch(e){$('photoUploadMsg').textContent='오류: '+e.message;}
   finally{btn.disabled=false;btn.textContent='사진 등록';}
 }
+let _pcEntryType='photo';
+function setPcType(t){
+  _pcEntryType=t;
+  $('pcTypeBtnPhoto').className='role-btn'+(t==='photo'?' on':'');
+  $('pcTypeBtnText').className='role-btn'+(t==='text'?' on':'');
+}
 function openCreatePhotoContest(){
   $('pcTitle').value='';$('pcDesc').value='';$('pcCreateMsg').textContent='';
   if($('pcGroup') && currentPhotoGroup) $('pcGroup').value=currentPhotoGroup;
+  setPcType('photo');
   $('createPhotoContestModal').classList.add('open');
 }
 async function submitCreatePhotoContest(){
@@ -3049,7 +3056,7 @@ async function submitCreatePhotoContest(){
   if(!title){$('pcCreateMsg').textContent='제목을 입력하세요';return;}
   const contest_group=$('pcGroup')?$('pcGroup').value:'branch';
   try{
-    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group})});
+    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group,entry_type:_pcEntryType})});
     const d=await r.json();
     if(d.ok){$('createPhotoContestModal').classList.remove('open');await loadPhotoContests();renderAdmPhotoContests();}
     else $('pcCreateMsg').textContent=d.error||'오류';
