@@ -1655,8 +1655,8 @@ export default {
           }
         } else {
           session = isAdminReq
-            ? await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first()
-            : await env.DB.prepare(`SELECT * FROM quiz_sessions WHERE status IN ('waiting','active','revealed') AND (series_id IS NULL OR series_id='')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
+            ? await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('lobby','waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first()
+            : await env.DB.prepare(`SELECT * FROM quiz_sessions WHERE status IN ('lobby','waiting','active','revealed') AND (series_id IS NULL OR series_id='')${grpFilter} ORDER BY created_at DESC LIMIT 1`).bind(...grpBind).first();
         }
 
         let attendees_count = 0, my_attendance = false, attendees_list = [];
