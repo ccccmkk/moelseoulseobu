@@ -5032,21 +5032,31 @@ async function loadAdminQuizStatus(){
 
       const allStagesDone=s?.stage_num>=ser.total_stages&&s?.status==='revealed';
       const needLadder=allStagesDone&&survivors.length>=2;
-      const needOpen=(!s||s.status==='revealed')&&!allStagesDone&&!needLadder;
+      const needOpen=!s&&!allStagesDone&&!needLadder;          // 첫 라운드 개설만
+      const needNextRound=s?.status==='revealed'&&!allStagesDone&&!needLadder; // 다음 라운드 출제
       const needPost=s?.status==='lobby';
-      // 문제 입력 영역: lobby 상태일 때만 표시
-      $('adminQuizInputArea').style.display=needPost?'':'none';
+      // 문제 입력 영역: lobby(문제 게시) 또는 revealed(다음 라운드 출제) 상태에서 표시
+      const showInput=needPost||needNextRound;
+      $('adminQuizInputArea').style.display=showInput?'':'none';
+      const createBtn=$('adminQuizCreateBtn');
       if(needPost){
         const nextStage=s.stage_num||1;
         adminSeriesNextStage=nextStage;
         $('adminStageLabel').style.display='';
         $('adminStageLabel').textContent=`🎯 ${nextStage}라운드 문제`;
+        if(createBtn){createBtn.textContent='📝 문제 게시';createBtn.onclick=adminPostQuestion;}
+      } else if(needNextRound){
+        const nextStage=(s?.stage_num||0)+1;
+        adminSeriesNextStage=nextStage;
+        $('adminStageLabel').style.display='';
+        $('adminStageLabel').textContent=`🎯 ${nextStage}라운드 문제`;
+        if(createBtn){createBtn.textContent='▶ 다음 라운드 출제';createBtn.onclick=adminNextRound;}
       }
       ctrl.style.display='flex'; ctrl.style.flexDirection='column';
       $('adminQuizOpenBtn').style.display=needOpen?'':'none';
       $('adminQuizStartBtn').style.display=s?.status==='waiting'?'':'none';
       $('adminQuizRevealBtn').style.display=s?.status==='active'?'':'none';
-      $('adminQuizFinishSeriesBtn').style.display=(!needLadder&&s?.status==='revealed'&&!allStagesDone)?'':'none';
+      $('adminQuizFinishSeriesBtn').style.display=needNextRound?'':'none'; // 조기 종료 옵션
       $('adminQuizCloseSeriesBtn').style.display='none';
       $('adminQuizDeleteSeriesBtn').style.display='none';
       $('adminQuizCloseBtn').style.display=(s?.status==='lobby'||s?.status==='waiting'||s?.status==='active')?'':'none';
