@@ -4246,12 +4246,12 @@ function handleQuizState(d){
       $('quizEventBtn').style.display='';
       return;
     }
-    if(quizModalOpen&&currentUserRole!=='admin') closeQuizModal();
+    if(quizModalOpen&&!isAdminOrSub()) closeQuizModal();
     $('quizEventBtn').style.display='none';
     return;
   }
   $('quizEventBtn').style.display='';
-  if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')&&currentUserRole!=='admin'){
+  if(!quizModalOpen&&(s.status==='active'||s.status==='waiting')&&!isAdminOrSub()){
     openQuizModal();
   }
 
