@@ -1027,14 +1027,17 @@ export default {
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const contest = await env.DB.prepare("SELECT * FROM photo_contests WHERE id=?").bind(cid).first();
         if (!contest || contest.status !== 'open') return json({ error: '참여할 수 없는 행사입니다' }, 400);
-        const { img_url, caption, text_content } = await request.json();
+        const { img_url, caption, text_content, extra_images } = await request.json();
         const id = 'pe_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         if (contest.entry_type === 'text') {
           if (!text_content?.trim()) return json({ error: '내용을 입력하세요' }, 400);
-          await env.DB.prepare("INSERT INTO photo_entries(id,contest_id,uploader,img_url,text_content,caption,created_at) VALUES(?,?,?,'',?,?,?)").bind(id, cid, sess.user_id, text_content.trim(), caption || '', Math.floor(Date.now() / 1000)).run();
+          await env.DB.prepare("INSERT INTO photo_entries(id,contest_id,uploader,img_url,text_content,caption,extra_images,created_at) VALUES(?,?,?,'',?,?,'[]',?)").bind(id, cid, sess.user_id, text_content.trim(), caption || '', Math.floor(Date.now() / 1000)).run();
         } else {
+          const existing = await env.DB.prepare("SELECT id FROM photo_entries WHERE contest_id=? AND uploader=?").bind(cid, sess.user_id).first();
+          if (existing) return json({ error: '이미 참여하셨습니다' }, 400);
           if (!img_url) return json({ error: '이미지 필요' }, 400);
-          await env.DB.prepare("INSERT INTO photo_entries(id,contest_id,uploader,img_url,text_content,caption,created_at) VALUES(?,?,?,?,'',?,?)").bind(id, cid, sess.user_id, img_url, caption || '', Math.floor(Date.now() / 1000)).run();
+          const extraJson = JSON.stringify(Array.isArray(extra_images) ? extra_images : []);
+          await env.DB.prepare("INSERT INTO photo_entries(id,contest_id,uploader,img_url,text_content,caption,extra_images,created_at) VALUES(?,?,?,?,'',?,?,?)").bind(id, cid, sess.user_id, img_url, caption || '', extraJson, Math.floor(Date.now() / 1000)).run();
         }
         return json({ ok: true, id });
       }
