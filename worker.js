@@ -1647,10 +1647,10 @@ export default {
 
         if (series) {
           session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE series_id=? AND status IN ('waiting','active','revealed') ORDER BY stage_num DESC LIMIT 1").bind(series.id).first();
-          const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed'").bind(series.id).first();
+          const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed' AND EXISTS (SELECT 1 FROM quiz_answers WHERE quiz_id=quiz_sessions.id AND answer=quiz_sessions.answer)").bind(series.id).first();
           const revCount = revRow?.cnt || 0;
           if (revCount > 0) {
-            const survRows = await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(series.id, revCount).all();
+            const survRows = await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(series.id, revCount).all();
             survivors = (survRows.results || []).map(r => ({ user_id: r.user_id, name: r.name }));
           }
         } else {
