@@ -1784,6 +1784,7 @@ function switchNewsMainTab(sub){
   });
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
+  if(sub==='law') updateLawAskCounter();
   if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
