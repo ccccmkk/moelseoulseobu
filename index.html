@@ -4564,7 +4564,7 @@ async function _ladderPollLadder(){
       $('ladderTimerNum').textContent='⏳';$('ladderTimerNum').className='ladder-timer';
       $('ladderSubtitle').textContent='모든 자리 배정 완료. 결과를 기다리세요.';
       _renderLadderPicking(g);
-      if(currentUserRole==='admin'){$('ladderAdminRevealWrap').style.display='';}
+      if(isAdminOrSub()){$('ladderAdminRevealWrap').style.display='';}
     } else if(g.status==='revealed'){
       clearInterval(_ladderTimerTid);
       $('ladderPickPhase').style.display='none';
