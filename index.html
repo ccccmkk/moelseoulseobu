@@ -3274,32 +3274,41 @@ function cancelPhotoUpload(){
 async function submitEventPhoto(){
   if(!_photoQueue.length){$('photoUploadMsg').textContent='사진을 선택하세요';return;}
   const btn=$('photoSubmitBtn');
-  const bar=$('photoUploadBar'),fill=$('photoUploadBarFill');
-  btn.disabled=true; btn.textContent='업로드 중...';
-  if(bar){bar.style.display='';fill.style.width='0%';}
+  const setProgress=pct=>{if(btn)btn.style.setProperty('--up-pct',pct+'%');if(btn&&btn.firstElementChild)btn.firstElementChild.style.width=pct+'%';};
+  btn.disabled=true; btn.textContent=`업로드 중 0/${_photoQueue.length}`;
+  btn.style.cssText+='background:var(--green);';
+  const pseudo=btn.querySelector('::before');
+  // ::before width는 CSS로 제어, style attribute로 직접 변경
+  btn.style.background=`linear-gradient(to right, rgba(0,0,0,.15) 0%, rgba(0,0,0,.15) 0%, transparent 0%)`;
   $('photoUploadMsg').textContent='';
+  const setFill=pct=>{btn.style.background=`linear-gradient(to right, rgba(255,255,255,.22) ${pct}%, var(--green) ${pct}%)`; };
+  setFill(0);
   try{
     const urls=[];
     const total=_photoQueue.length;
     for(let i=0;i<total;i++){
-      if(fill) fill.style.width=`${Math.round((i/total)*90)}%`;
+      btn.textContent=`업로드 중 ${i+1}/${total}`;
+      setFill(Math.round((i/total)*85));
       const fd=new FormData();fd.append('file',_photoQueue[i].file);
       const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
       if(!up.url){$('photoUploadMsg').textContent=up.error||'업로드 실패';return;}
       urls.push(up.url);
     }
-    if(fill) fill.style.width='95%';
+    setFill(90);
     const [img_url,...extra_images]=urls;
     const caption=$('photoCaption').value.trim();
     const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/entries?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({img_url,extra_images,caption})});
     const d=await r.json();
     if(d.ok){
-      if(fill) fill.style.width='100%';
-      cancelPhotoUpload();
-      await refreshPhotoContestDetail();await loadPhotoContests();
+      setFill(100); btn.textContent='완료!';
+      setTimeout(async()=>{cancelPhotoUpload();await refreshPhotoContestDetail();await loadPhotoContests();},400);
     } else { $('photoUploadMsg').textContent=d.error||'등록 실패'; }
   }catch(e){$('photoUploadMsg').textContent='오류: '+e.message;}
-  finally{if(btn){btn.disabled=false;btn.textContent='등록';}if(bar)bar.style.display='none';}
+  finally{
+    setTimeout(()=>{
+      if(btn){btn.disabled=false;btn.textContent='등록';btn.style.background='';}
+    },450);
+  }
 }
 let _pcEntryType='photo';
 function setPcType(t){
