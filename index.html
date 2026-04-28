@@ -2684,7 +2684,7 @@ function renderPhotoContestList(){
       <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
     </div>
     ${pc.description?`<div style="font-size:13px;color:var(--text-sub);margin-top:4px">${escHtml(pc.description)}</div>`:''}
-    <div style="font-size:12px;color:var(--text-hint);margin-top:8px">📷 ${pc.entry_count}장 &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
+    <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
   </div>`).join('');
 }
 async function openPhotoContest(id){
