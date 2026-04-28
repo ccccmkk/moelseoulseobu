@@ -2818,7 +2818,7 @@ async function refreshPhotoContestDetail(){
         const foot=`<div class="photo-grid-foot">
             <div class="photo-grid-author">${escHtml(e.uploader_name||'익명')}</div>
             <div style="display:flex;align-items:center;justify-content:space-between">
-              <button class="${pillClass}" ${voteClick}>${pillLabel}</button>
+              ${allowVote?`<button class="${pillClass}" ${voteClick}>${pillLabel}</button>`:''}
               ${delBtn}
             </div>
           </div>`;
