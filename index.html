@@ -2826,9 +2826,22 @@ async function voteForPhoto(photoId){
     _applyVoteDOM(photoId,prevVote);
   }
 }
+async function submitEventText(){
+  const inp=$('textEntryInput');const txt=inp.value.trim();
+  if(!txt){$('textUploadMsg').textContent='내용을 입력하세요';return;}
+  const btn=$('textSubmitBtn');btn.disabled=true;btn.textContent='등록 중...';
+  $('textUploadMsg').textContent='';
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/entries?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text_content:txt})});
+    const d=await r.json();
+    if(d.ok){inp.value='';await refreshPhotoContestDetail();await loadPhotoContests();}
+    else $('textUploadMsg').textContent=d.error||'등록 실패';
+  }catch(e){$('textUploadMsg').textContent='오류: '+e.message;}
+  finally{btn.disabled=false;btn.textContent='등록';}
+}
 async function deleteEventPhoto(evt,eid){
   evt.stopPropagation();
-  if(!confirm('이 사진을 삭제할까요?'))return;
+  if(!confirm('이 항목을 삭제할까요?'))return;
   try{
     const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/entries/${eid}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
     const d=await r.json();
