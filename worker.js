@@ -929,7 +929,7 @@ export default {
         const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         const role = sess ? await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first() : null;
-        const isAdmin = role?.role === 'admin';
+        const isAdmin = role?.role === 'admin' || role?.role === 'sub_admin';
         const grp = url.searchParams.get('group') || null;
         let rows;
         if (grp) {
