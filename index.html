@@ -2694,8 +2694,9 @@ async function renderSearch(q){
     container.innerHTML=results.map(p=>{
       const txt=p.blocks?p.blocks.filter(b=>b.type==='text').map(b=>b.content).join(' '):'';
       const preview=txt.length>100?txt.slice(0,100)+'...':txt;
+      const displayName=p.author_name||userNames[p.author]||p.author||'';
       return`<div class="post-card" style="cursor:pointer" onclick="switchTab('Feed')">
-        <div class="post-header"><div class="avatar">${initials(p.author)}</div><div class="post-header-info"><div class="post-author">${escHtml(p.author||'')}</div><div class="post-date">${relDate(p.created_at)}</div></div></div>
+        <div class="post-header"><div class="avatar">${initials(displayName)}</div><div class="post-header-info"><div class="post-author">${escHtml(displayName)}</div><div class="post-date">${relDate(p.created_at)}</div></div></div>
         ${preview?`<div class="block-text">${escHtml(preview)}</div>`:''}
       </div>`;
     }).join('');
