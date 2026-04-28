@@ -1924,7 +1924,7 @@ export default {
         if (!s) return json({ error: 'unauthorized' }, 401);
         const quiz = await env.DB.prepare('SELECT status FROM quiz_sessions WHERE id=?').bind(qid).first();
         if (!quiz) return json({ error: 'not found' }, 404);
-        if (quiz.status !== 'waiting') return json({ error: 'not_waiting' }, 400);
+        if (!['lobby','waiting'].includes(quiz.status)) return json({ error: 'not_waiting' }, 400);
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO quiz_attendees(quiz_id,user_id,attended_at) VALUES(?,?,?) ON CONFLICT(quiz_id,user_id) DO NOTHING').bind(qid, s.user_id, now).run();
         const cnt = await env.DB.prepare('SELECT COUNT(*) as cnt FROM quiz_attendees WHERE quiz_id=?').bind(qid).first();
