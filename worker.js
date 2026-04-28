@@ -644,6 +644,15 @@ export default {
         return json({ ok: true });
       }
 
+      // ── OX 퀴즈 관리자 인증 헬퍼 ──
+      const quizAdminAuth = async () => {
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!s) return null;
+        const r = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
+        return (r?.role === 'admin' || r?.role === 'sub_admin') ? s : null;
+      };
+
       // ── 퀴즈 개설 (lobby) ──
       if (p === '/api/quiz/open' && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
