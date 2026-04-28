@@ -643,10 +643,11 @@ export default {
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '30'), 50);
         const like = `%${q}%`;
         const rows = await env.DB.prepare(
-          `SELECT p.id, p.author, p.blocks, p.created_at, p.like_count, p.mode, pk.keyword
+          `SELECT p.id, p.author, u.name as author_name, p.blocks, p.created_at, p.like_count, p.mode, pk.keyword
            FROM posts p
+           LEFT JOIN users u ON p.author=u.id
            LEFT JOIN post_keywords pk ON p.id=pk.post_id
-           WHERE p.author LIKE ? OR pk.keyword LIKE ? OR p.blocks LIKE ?
+           WHERE u.name LIKE ? OR pk.keyword LIKE ? OR p.blocks LIKE ?
            ORDER BY p.created_at DESC LIMIT ?`
         ).bind(like, like, like, limit).all();
         return json({ posts: (rows.results || []).map(r => ({ ...r, blocks: JSON.parse(r.blocks) })) });
