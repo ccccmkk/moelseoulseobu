@@ -509,8 +509,7 @@ button,a,[role="button"]{touch-action:manipulation}
 @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 .photo-img-loading img{opacity:0}
 .photo-grid-img-wrap:not(.photo-img-loading) img{opacity:1;transition:opacity .2s}
-#photoSubmitBtn{position:relative;overflow:hidden;transition:color .2s}
-#photoSubmitBtn::before{content:'';position:absolute;left:0;top:0;height:100%;width:0%;background:rgba(255,255,255,.25);transition:width .3s ease;pointer-events:none}
+#photoSubmitBtn{transition:background .3s ease}
 .photo-grid-foot{padding:5px 7px 7px}
 .photo-grid-author{font-size:11px;font-weight:600;color:var(--text-sub);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .photo-vote-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fafafa;font-size:11px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
