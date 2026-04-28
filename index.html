@@ -2735,7 +2735,7 @@ async function refreshPhotoContestDetail(){
         else if(isOwn){pillClass+=' own';pillLabel=`📷 ${e.vote_count}표`;}
         else if(contest.status==='closed'){pillClass+=' closed';}
         const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
-        const delBtn=(isOwn||currentUserRole==='admin')&&contest.status!=='closed'
+        const delBtn=(isOwn||isAdminOrSub())&&contest.status!=='closed'
           ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--danger)">✕</button>`:'';
         const imgUrl_=escHtml(imgUrl(e.img_url));
         return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
