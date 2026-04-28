@@ -4234,16 +4234,25 @@ async function openUserProfile(userId){
 
 // ── 로그인 / 세션 ──
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
-function _applyFontSize(lg){
-  document.body.classList.toggle('font-lg',!!lg);
-  const btn=$('fontSizeBtn');
-  if(btn)btn.textContent=lg?'작게':'크게';
+const _fsSizes=['sm','md','lg','xl'];
+function setFontSize(key){
+  _fsSizes.forEach(k=>document.body.classList.remove('font-'+k));
+  document.body.classList.add('font-'+key);
+  document.querySelectorAll('.font-size-opt').forEach((el,i)=>el.classList.toggle('active',_fsSizes[i]===key));
+  $('fontSizeMenu').classList.remove('open');
+  if(currentUser)localStorage.setItem('fontsize_'+currentUser,key);
 }
-function toggleFontSize(){
-  const isLg=document.body.classList.contains('font-lg');
-  _applyFontSize(!isLg);
-  if(currentUser)localStorage.setItem('fontsize_'+currentUser,!isLg?'sm':'lg');
+function toggleFontMenu(e){
+  e.stopPropagation();
+  $('fontSizeMenu').classList.toggle('open');
 }
+function _applyFontSize(key){
+  key=key||'md';
+  _fsSizes.forEach(k=>document.body.classList.remove('font-'+k));
+  document.body.classList.add('font-'+key);
+  document.querySelectorAll('.font-size-opt').forEach((el,i)=>el.classList.toggle('active',_fsSizes[i]===key));
+}
+document.addEventListener('click',()=>$('fontSizeMenu')?.classList.remove('open'));
 function onLoginSuccess(d){
   currentUser=d.id;currentUserName=d.name||d.id;sessionToken=d.token;
   currentUserDept=d.dept||'';
