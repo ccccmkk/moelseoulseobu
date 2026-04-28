@@ -1834,12 +1834,15 @@ function badgeHtml(userId){
   if(prefs.granted_badge_top&&(prefs.show_badge_top??1))b+='<span class="badge badge-top">소통왕</span>';
   return b;
 }
+function isAdminOrSub(){return currentUserRole==='admin'||currentUserRole==='sub_admin';}
 async function fetchRoles(){
   try{
     const r=await fetch(`${API}/api/roles`);const a=await r.json();userRoles={};
     a.forEach(x=>{userRoles[x.user_id]=x.role;});
     currentUserRole=userRoles[currentUser]||'user';
     if(currentUserRole==='admin'){$('moreAdminGroup').style.display='';$('kudosAddBtn').style.display='';$('contestAddBtn').style.display='';}
+    // 중간관리자: 사진 이벤트 추가 버튼만 표시
+    if(currentUserRole==='sub_admin'){const b=$('photoEventAddBtn');if(b)b.style.display='';}
   }catch(e){}
 }
 async function fetchAll(){await Promise.all([fetchKudos(),fetchEvents(),fetchContests()]);}
