@@ -1749,6 +1749,37 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 다음 라운드 출제 (개설 없이 바로 진행) ──
+      if (p.match(/^\/api\/quiz\/series\/[^/]+\/post-next$/) && m === 'POST') {
+        const sid = p.split('/')[4];
+        const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
+        const { question, answer } = await request.json();
+        if (!question || !['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
+        const ser = await env.DB.prepare('SELECT * FROM quiz_series WHERE id=? AND status=?').bind(sid, 'active').first();
+        if (!ser) return json({ error: 'series not active' }, 400);
+        // 생존자 계산
+        const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed' AND EXISTS (SELECT 1 FROM quiz_answers WHERE quiz_id=quiz_sessions.id AND answer=quiz_sessions.answer)").bind(sid).first();
+        const revCount = revRow?.cnt || 0;
+        if (revCount === 0) return json({ error: 'first round must use lobby flow' }, 400);
+        const survRows = await env.DB.prepare(`SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?`).bind(sid, revCount).all();
+        const survivors = (survRows.results || []).map(r => r.user_id);
+        if (!survivors.length) return json({ error: 'no survivors' }, 400);
+        // 다음 스테이지 번호
+        const lastSess = await env.DB.prepare("SELECT stage_num FROM quiz_sessions WHERE series_id=? ORDER BY stage_num DESC LIMIT 1").bind(sid).first();
+        const nextStage = (lastSess?.stage_num || 0) + 1;
+        if (nextStage > ser.total_stages) return json({ error: 'all stages done' }, 400);
+        // 새 세션 생성 (waiting 상태 - lobby 단계 없음)
+        const id = 'quiz_' + Date.now();
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?)')
+          .bind(id, question, answer, 'waiting', adm.user_id, now, sid, nextStage, ser.group_target || 'all').run();
+        // 생존자들을 참가자로 자동 등록
+        for (const uid of survivors) {
+          await env.DB.prepare('INSERT INTO quiz_attendees(quiz_id,user_id,attended_at) VALUES(?,?,?) ON CONFLICT(quiz_id,user_id) DO NOTHING').bind(id, uid, now).run();
+        }
+        return json({ ok: true, id });
+      }
+
       // 스테이지전 기록 삭제
       if (p.match(/^\/api\/quiz\/series\/[^/]+$/) && m === 'DELETE') {
         const sid = p.split('/')[4];
