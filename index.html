@@ -1943,6 +1943,16 @@ async function lawSearch(){
     box.innerHTML=html?(html+dbgHtml):'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>'+dbgHtml;
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
+function _lawGoUrl(lawtype,lawName,id,mst){
+  if(lawtype==='prec') return`https://www.law.go.kr/판례/${encodeURIComponent(lawName||'')}`;
+  if(lawName) return`https://www.law.go.kr/법령/${encodeURIComponent(lawName)}`;
+  if(mst) return`https://www.law.go.kr/lsEfInfoP.do?lsiSeq=${encodeURIComponent(mst)}`;
+  return`https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(id)}`;
+}
+function _lawFallbackHtml(lawtype,lawName,id,mst){
+  const url=_lawGoUrl(lawtype,lawName,id,mst);
+  return`<div style="padding:24px 16px;text-align:center"><div style="font-size:14px;color:#666;margin-bottom:16px;line-height:1.6">본문을 직접 불러오지 못했습니다.<br>아래 버튼으로 법제처 사이트에서 확인하세요.</div><a href="${escHtml(url)}" target="_blank" rel="noopener" style="display:inline-block;padding:11px 24px;background:var(--green);color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">⚖️ 법제처에서 보기 →</a></div>`;
+}
 async function openLawContent(id,lawName,lawtype,mst){
   lawtype=lawtype||'law';
   $('lawContentTitle').textContent=lawName||'본문';
@@ -1953,14 +1963,8 @@ async function openLawContent(id,lawName,lawtype,mst){
     if(id)qs.set('id',id);
     if(mst)qs.set('mst',mst);
     const data=await fetch(`${API}/api/law-content?${qs}`).then(r=>r.json());
-    if(data.error){
-      const dbg=data.debug?`<div style="padding:4px 20px;font-size:11px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
-      $('lawContentBody').innerHTML=`<div style="padding:20px;color:var(--danger);font-size:13px">${escHtml(data.error)}</div>${dbg}`;
-      return;
-    }
-    if(!data.html||!data.html.trim()){
-      const dbg=data.debug?`<div style="padding:4px 20px 12px;font-size:11px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
-      $('lawContentBody').innerHTML=`<div style="padding:20px;text-align:center;color:var(--text-hint)">내용을 불러오지 못했습니다</div>${dbg}`;
+    if(data.error||!data.html||!data.html.trim()||data.html.includes('법제처에서 보기')){
+      $('lawContentBody').innerHTML=_lawFallbackHtml(lawtype,lawName,id,mst);
       return;
     }
     const isPrecLike = (lawtype==='prec'||lawtype==='expc');
