@@ -584,7 +584,17 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
-      <button id="fontSizeBtn" class="font-size-btn" onclick="toggleFontSize()">작게</button>
+      <div style="position:relative">
+        <button id="fontSizeBtn" class="font-size-btn" onclick="toggleFontMenu(event)">
+          <span style="font-size:14px;font-weight:800">가</span><span style="font-size:8px;opacity:.8">▼</span>
+        </button>
+        <div id="fontSizeMenu" class="font-size-menu">
+          <div class="font-size-opt" onclick="setFontSize('sm')"><span>작게</span><span class="fs-check">✓</span></div>
+          <div class="font-size-opt active" onclick="setFontSize('md')"><span>중간</span><span class="fs-check">✓</span></div>
+          <div class="font-size-opt" onclick="setFontSize('lg')"><span>크게</span><span class="fs-check">✓</span></div>
+          <div class="font-size-opt" onclick="setFontSize('xl')"><span>매우크게</span><span class="fs-check">✓</span></div>
+        </div>
+      </div>
     </div>
   </div>
 
