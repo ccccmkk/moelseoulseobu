@@ -1985,7 +1985,7 @@ async function openLawContent(id,lawName,lawtype,mst){
     $('lawContentBody').appendChild(wrap);
     $('lawContentBody')._lawtype=lawtype;
     if(!isPrecLike) processLawArticles(wrap,lawName||'');
-  }catch(e){$('lawContentBody').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
+  }catch(e){$('lawContentBody').innerHTML=_lawFallbackHtml(lawtype,lawName,id,mst);}
 }
 function toggleLawArticle(el){
   const body=el.querySelector('.la-body');
