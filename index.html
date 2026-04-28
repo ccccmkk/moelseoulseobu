@@ -2827,8 +2827,17 @@ async function refreshPhotoContestDetail(){
     stEl.textContent=stLabel[contest.status]||contest.status;
     stEl.className=`pc-status ${contest.status}`;
     const descEl=$('photoContestModalDesc');
-    if(contest.description){descEl.textContent=contest.description;descEl.style.display='';}
-    else{descEl.style.display='none';}
+    const descWrap=$('photoContestModalDescWrap');
+    const descMoreBtn=$('pcDescMoreBtn');
+    if(contest.description){
+      descEl.textContent=contest.description;
+      descEl.className='pc-desc-clamped';
+      descMoreBtn.textContent='더보기 ▾';
+      descWrap.style.display='';
+      requestAnimationFrame(()=>{
+        descMoreBtn.style.display=descEl.scrollHeight>descEl.clientHeight+2?'':'none';
+      });
+    } else { descWrap.style.display='none'; }
     // 관리자 바
     const adminBar=$('photoContestAdminBar');
     if(isAdminOrSub()){
