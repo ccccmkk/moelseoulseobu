@@ -1646,7 +1646,7 @@ export default {
         let session = null, stats = { O: 0, X: 0, total: 0 }, answers = [], survivors = [];
 
         if (series) {
-          session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE series_id=? AND status IN ('waiting','active','revealed') ORDER BY stage_num DESC LIMIT 1").bind(series.id).first();
+          session = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE series_id=? AND status IN ('lobby','waiting','active','revealed') ORDER BY stage_num DESC LIMIT 1").bind(series.id).first();
           const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed' AND EXISTS (SELECT 1 FROM quiz_answers WHERE quiz_id=quiz_sessions.id AND answer=quiz_sessions.answer)").bind(series.id).first();
           const revCount = revRow?.cnt || 0;
           if (revCount > 0) {
