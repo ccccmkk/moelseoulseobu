@@ -1557,6 +1557,13 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="btn-sm" id="pcRevealBtn" onclick="revealPhotoContest()" style="justify-content:center;background:#e8f4fd;color:#1565c0;display:none">🔍 결과 공개</button>
       <button class="btn-sm danger" id="pcDeleteBtn" onclick="deletePhotoContest()" style="justify-content:center;margin-left:auto;display:none">🗑️ 행사 삭제</button>
     </div>
+    <div id="textUploadArea" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <textarea id="textEntryInput" rows="3" placeholder="내용을 입력하세요..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn-sm primary" id="textSubmitBtn" onclick="submitEventText()" style="flex:1;justify-content:center">등록</button>
+      </div>
+      <div id="textUploadMsg" style="font-size:12px;min-height:12px;color:var(--danger);text-align:center;margin-top:3px"></div>
+    </div>
     <div id="photoUploadArea" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
       <div id="photoUploadDrop" class="photo-upload-area" onclick="$('photoFileInput').click()">📷 내 사진 올리기</div>
       <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="onPhotoFileSelected(this)">
