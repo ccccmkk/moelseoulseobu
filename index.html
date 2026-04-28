@@ -4258,7 +4258,7 @@ function onLoginSuccess(d){
   currentUserDept=d.dept||'';
   userNames[d.id]=d.name||d.id;
   localStorage.setItem('session_token',d.token);
-  _applyFontSize(localStorage.getItem('fontsize_'+d.id)!=='sm');
+  _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
   showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
