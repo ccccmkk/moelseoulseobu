@@ -406,8 +406,10 @@ export default {
         if (cached) {
           try { const r = JSON.parse(cached.data); if(r.html && r.html.length > 50 && !r.error) return json(r); } catch (e) {}
         }
-        // 캐시 없으면 law.go.kr 직접 호출 없이 안내 반환 (Cloudflare IP 차단됨)
-        return json({ error: '법령 본문 데이터를 준비 중입니다. 잠시 후 다시 시도해 주세요.', html: '<div style="padding:32px 16px;text-align:center;color:#aaa;font-size:14px">📋 법령 본문 데이터를 준비 중입니다.<br>잠시 후 다시 시도해 주세요.</div>' });
+        const lawGoFallbackUrl = lawtype === 'prec'
+          ? `https://www.law.go.kr/precedInfoP.do?mode=0&precSeq=${encodeURIComponent(id)}`
+          : mst ? `https://www.law.go.kr/lsEfInfoP.do?lsiSeq=${encodeURIComponent(mst)}`
+          : id ? `https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(id)}` : '';
         const xhdr = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/xml,text/xml,*/*',
