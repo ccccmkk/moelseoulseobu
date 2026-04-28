@@ -3292,7 +3292,7 @@ async function submitEventPhoto(){
   // ::before width는 CSS로 제어, style attribute로 직접 변경
   btn.style.background=`linear-gradient(to right, rgba(0,0,0,.15) 0%, rgba(0,0,0,.15) 0%, transparent 0%)`;
   $('photoUploadMsg').textContent='';
-  const setFill=pct=>{btn.style.background=`linear-gradient(to right, rgba(255,255,255,.22) ${pct}%, var(--green) ${pct}%)`; };
+  const setFill=pct=>{btn.style.background=`linear-gradient(to right, var(--green-dark) ${pct}%, var(--green) ${pct}%)`; };
   setFill(0);
   try{
     const urls=[];
