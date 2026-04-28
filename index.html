@@ -3157,7 +3157,8 @@ async function submitCreatePhotoContest(){
   if(!title){$('pcCreateMsg').textContent='제목을 입력하세요';return;}
   const contest_group=$('pcGroup')?$('pcGroup').value:'branch';
   try{
-    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group,entry_type:_pcEntryType})});
+    const allow_vote=$('pcAllowVote').checked;
+    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group,entry_type:_pcEntryType,allow_vote})});
     const d=await r.json();
     if(d.ok){$('createPhotoContestModal').classList.remove('open');await loadPhotoContests();renderAdmPhotoContests();}
     else $('pcCreateMsg').textContent=d.error||'오류';
