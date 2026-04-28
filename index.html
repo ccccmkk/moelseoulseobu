@@ -2992,7 +2992,7 @@ async function refreshPhotoContestDetail(){
         const multiCount=entryUrls.length;
         return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
           <div class="photo-grid-img-wrap photo-img-loading" onclick="openEntryLightbox('${e.id}')">
-            <img src="${coverUrl}" alt="" loading="lazy" onload="this.parentElement.classList.remove('photo-img-loading')" onerror="this.parentElement.classList.remove('photo-img-loading')">
+            <img src="${coverUrl}" alt="" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('photo-img-loading')" onerror="this.parentElement.classList.remove('photo-img-loading')">
             ${rank1?'<div class="photo-grid-badge">🏆</div>':rank2?'<div class="photo-grid-badge">🥈</div>':''}
             ${multiCount>1?`<div class="photo-grid-count">${multiCount}장</div>`:''}
             ${isOwn?'<div class="photo-grid-mine">내 사진</div>':''}
