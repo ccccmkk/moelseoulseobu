@@ -4623,13 +4623,13 @@ function updateWaitingSurvivors(survivors){
 
 // 제출 후 실시간 참여자 현황 (active 중)
 function updateActiveParticipants(answers){
-  if(quizUserAnswer==null) return;
+  if(!answers||!answers.length) return;
   $('quizParticipantsPanel').style.display='';
   let oC=0,xC=0;
   for(const a of answers){
     const nm=a.name||'?';
-    if(a.answer==='O'){oC++;if(!quizKnownO.has(nm)){quizKnownO.add(nm);appendBadge('quizActNamesO',nm);}}
-    else{xC++;if(!quizKnownX.has(nm)){quizKnownX.add(nm);appendBadge('quizActNamesX',nm);}}
+    if(a.answer==='O'){oC++; if(quizUserAnswer!=null&&!quizKnownO.has(nm)){quizKnownO.add(nm);appendBadge('quizActNamesO',nm);}}
+    else{xC++; if(quizUserAnswer!=null&&!quizKnownX.has(nm)){quizKnownX.add(nm);appendBadge('quizActNamesX',nm);}}
   }
   $('quizActCntO').textContent=oC;
   $('quizActCntX').textContent=xC;
