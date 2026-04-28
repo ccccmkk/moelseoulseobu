@@ -2720,10 +2720,10 @@ async function refreshPhotoContestDetail(){
   finally{np.done();}
 }
 function _applyVoteDOM(prevId,newId){
-  // 이전 투표 카드에서 voted 제거 + 투표수 -1
+  // 이전 투표 카드에서 voted 제거 + 투표수 -1 + onclick 복원
   if(prevId){
     const c=document.querySelector(`[data-photo-id="${prevId}"]`);
-    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=Math.max(0,(parseInt(p.textContent.replace(/\D/g,''))||0)-1);p.className='photo-vote-pill';p.textContent=`🗳️ ${n}표`;}}
+    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=Math.max(0,(parseInt(p.textContent.replace(/\D/g,''))||0)-1);p.className='photo-vote-pill';p.textContent=`🗳️ ${n}표`;p.onclick=()=>voteForPhoto(prevId);}}
   }
   // 새 투표 카드에 voted 추가 + 투표수 +1
   if(newId){
