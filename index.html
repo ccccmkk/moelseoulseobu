@@ -2846,10 +2846,14 @@ async function refreshPhotoContestDetail(){
       $('photoContestGrid').innerHTML=`<div class="photo-grid${isText?' text-grid':''}">`+sorted.map(makeCard).join('')+'</div>';
     }
     const vm=$('photoVoteMsg');
-    if(contest.status==='open'&&my_vote){vm.textContent=`✓ 투표 완료 · 다른 ${isText?'글':'사진'}을 탭하면 변경됩니다`;vm.style.color='var(--green-dark)';}
-    else if(contest.status==='open'){vm.textContent=`마음에 드는 ${isText?'글':'사진'}의 투표 버튼을 탭하세요 (본인 ${isText?'글':'사진'} 제외)`;vm.style.color='var(--text-hint)';}
-    else if(contest.status==='closed'){vm.textContent='투표가 마감되었습니다';vm.style.color='var(--text-hint)';}
-    else {vm.textContent='';}
+    if(!allowVote){vm.textContent='';vm.style.display='none';}
+    else{
+      vm.style.display='';
+      if(contest.status==='open'&&my_vote){vm.textContent=`✓ 투표 완료 · 다른 ${isText?'글':'사진'}을 탭하면 변경됩니다`;vm.style.color='var(--green-dark)';}
+      else if(contest.status==='open'){vm.textContent=`마음에 드는 ${isText?'글':'사진'}의 투표 버튼을 탭하세요 (본인 ${isText?'글':'사진'} 제외)`;vm.style.color='var(--text-hint)';}
+      else if(contest.status==='closed'){vm.textContent='투표가 마감되었습니다';vm.style.color='var(--text-hint)';}
+      else{vm.textContent='';}
+    }
   }catch(e){}
   finally{np.done();}
 }
