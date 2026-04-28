@@ -4904,19 +4904,40 @@ function startQuizBgPoll(){
     if(!_ladderOpen) _checkLadderBg();
     if(quizModalOpen) return;
     try {
-      const d=await fetch(`${API}/api/quiz/current?group=${currentUserGroup()}`).then(r=>r.json());
+      const d=await fetch(`${API}/api/quiz/current?group=${currentUserGroup()}&token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
       const s=d.session, ser=d.series;
       const hasActivity=ser||(s&&s.status!=='closed');
       if(hasActivity){
         $('quizEventBtn').style.display='';
         if(!isAdminOrSub()){
           if(ser&&ser.finished&&!quizSeriesFinishedShown){
+            hideQuizInvite();
             openQuizModal();
-          } else if(!ser?.finished&&s&&(s.status==='lobby'||s.status==='active'||s.status==='waiting')){
-            openQuizModal();
+          } else if(!ser?.finished&&s){
+            // 세션 ID 동기화
+            quizCurrentId=s.id;
+            if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
+            else if(d.my_attendance) quizMyAttendance=true;
+            if(s.status==='lobby'){
+              if(quizMyAttendance){
+                // 이미 참석 완료 → 바로 퀴즈 모달 열기
+                hideQuizInvite();openQuizModal();
+              } else if(quizDeclinedId!==s.id){
+                // 미결정 → 초대 오버레이 표시
+                const inv=$('quizInviteOverlay');
+                if(inv&&inv.style.display!=='flex') showQuizInvite();
+              }
+              // declined는 아무 것도 안 함 (탭 버튼으로 관전 가능)
+            } else if(s.status==='waiting'||s.status==='active'){
+              hideQuizInvite();
+              // 참석자만 자동으로 모달 열림; 미참석자는 탭 버튼으로 관전
+              if(quizMyAttendance) openQuizModal();
+            }
           }
         }
       } else {
+        hideQuizInvite();
+        quizDeclinedId=null;
         $('quizEventBtn').style.display='none';
       }
     } catch(e){}
