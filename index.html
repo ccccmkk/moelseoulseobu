@@ -2066,6 +2066,18 @@ function openPrecAsk(lawName,btn){
   $('lawMainPane').scrollIntoView({behavior:'smooth',block:'end'});
 }
 let _lawAskTags=[];
+const LAW_ASK_MAX=5;
+function _lawAskCountKey(){return'law_ask_'+new Date().toISOString().slice(0,10);}
+function _lawAskUsed(){return Math.min(LAW_ASK_MAX,parseInt(localStorage.getItem(_lawAskCountKey())||'0'));}
+function updateLawAskCounter(){
+  const used=_lawAskUsed();
+  const el=$('lawAskCounter');const btn=$('lawAskBtn');
+  if(el){
+    el.textContent=`오늘 ${used}/${LAW_ASK_MAX}회`;
+    el.style.color=used>=LAW_ASK_MAX?'var(--danger)':'var(--text-hint)';
+  }
+  if(btn){btn.disabled=used>=LAW_ASK_MAX;btn.style.opacity=used>=LAW_ASK_MAX?'.45':'1';}
+}
 function lawArticleClick(label,preview){
   $('lawContentModal').classList.remove('open');
   _lawAskTags.push({label,preview});
