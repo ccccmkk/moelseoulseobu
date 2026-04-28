@@ -4292,7 +4292,7 @@ function handleQuizState(d){
     clearInterval(quizCountdownTid);
     showQuizState('Revealed');
     const rcb=$('quizRevealCloseBtn');
-    if(rcb) rcb.style.display=!quizSeriesId||currentUserRole==='admin'?'':'none';
+    if(rcb) rcb.style.display=!quizSeriesId||isAdminOrSub()?'':'none';
     $('quizRevealQuestion').textContent=s.question;
     $('quizCorrectAnswer').textContent=s.answer==='O'?'⭕ O':'❌ X';
     const answered=quizUserAnswer!=null;
