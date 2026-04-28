@@ -3101,11 +3101,6 @@ function confirmCrop(){
       const croppedFile=new File([blob],'cropped.jpg',{type:'image/jpeg'});
       closeCropModal();
       if(_cropCallback){_cropCallback(croppedFile);return;}
-      // 행사 사진 기본 동작
-      photoUploadFile=croppedFile;
-      const r=new FileReader();
-      r.onload=e=>{$('photoPreviewImg').src=e.target.result;$('photoUploadDrop').style.display='none';$('photoUploadPreview').style.display='';};
-      r.readAsDataURL(croppedFile);
     },'image/jpeg',0.78);
   };
   img2.src=_cropDataUrl;
