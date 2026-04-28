@@ -2990,15 +2990,16 @@ async function refreshPhotoContestDetail(){
   finally{np.done();}
 }
 function _applyVoteDOM(prevId,newId){
-  // 이전 투표 카드에서 voted 제거 + 투표수 -1 + onclick 복원
+  const hasNum=t=>/\d/.test(t); // 숫자 있으면 공개 상태
+  // 이전 투표 카드에서 voted 제거
   if(prevId){
     const c=document.querySelector(`[data-photo-id="${prevId}"]`);
-    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=Math.max(0,(parseInt(p.textContent.replace(/\D/g,''))||0)-1);p.className='photo-vote-pill';p.textContent=`🗳️ ${n}표`;p.onclick=()=>voteForPhoto(prevId);}}
+    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const revealed=hasNum(p.textContent);const n=Math.max(0,(parseInt(p.textContent.replace(/\D/g,''))||0)-1);p.className='photo-vote-pill';p.textContent=revealed?`🗳️ ${n}표`:'🗳️';p.onclick=()=>voteForPhoto(prevId);}}
   }
-  // 새 투표 카드에 voted 추가 + 투표수 +1
+  // 새 투표 카드에 voted 추가
   if(newId){
     const c=document.querySelector(`[data-photo-id="${newId}"]`);
-    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const n=(parseInt(p.textContent.replace(/\D/g,''))||0)+1;p.className='photo-vote-pill voted';p.textContent=`✓ ${n}표`;}}
+    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const revealed=hasNum(p.textContent);const n=(parseInt(p.textContent.replace(/\D/g,''))||0)+1;p.className='photo-vote-pill voted';p.textContent=revealed?`✓ ${n}표`:'✓';}}
   }
   const vm=$('photoVoteMsg');
   if(newId){vm.textContent='✓ 투표 완료 · 다른 사진을 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
