@@ -2638,7 +2638,7 @@ function exitPhotoGroup(){
   // Mark non-accessible cards as disabled
   const center=$('groupCardCenter'); const branch=$('groupCardBranch');
   if(center && branch){
-    if(currentUserRole==='admin'){
+    if(isAdminOrSub()){
       center.classList.remove('disabled'); branch.classList.remove('disabled');
     } else {
       center.classList.toggle('disabled',!isUserCenter());
