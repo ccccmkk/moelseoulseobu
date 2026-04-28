@@ -2812,6 +2812,17 @@ function closePhotoContestModal(){
   $('photoContestModal').classList.remove('open');
   currentPhotoContestId=null;
 }
+function togglePcDesc(){
+  const el=$('photoContestModalDesc');
+  const btn=$('pcDescMoreBtn');
+  if(el.classList.contains('pc-desc-clamped')){
+    el.classList.replace('pc-desc-clamped','pc-desc-expanded');
+    btn.textContent='접기 ▴';
+  } else {
+    el.classList.replace('pc-desc-expanded','pc-desc-clamped');
+    btn.textContent='더보기 ▾';
+  }
+}
 async function refreshPhotoContestDetail(){
   const id=currentPhotoContestId; if(!id) return;
   np.start();
