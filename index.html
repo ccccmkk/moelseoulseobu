@@ -4543,6 +4543,7 @@ function handleQuizState(d){
     else if(d.my_attendance)quizMyAttendance=true;
     const showAttend=!quizIsEliminated&&!isAdminOrSub()&&!quizSeriesId||d.series?.current_stage<=1;
     _applyAttendanceUI(quizMyAttendance,d.attendees_count);
+    _applyAttendeesNames(d.attendees_list||[]);
     const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(!showAttend||quizMyAttendance)?'none':'';
     const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&!isAdminOrSub())?'':'none';
     showQuizState(quizIsEliminated&&!isAdminOrSub()?'Eliminated':'Waiting');
