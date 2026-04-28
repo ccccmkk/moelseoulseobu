@@ -1767,8 +1767,8 @@ export default {
         const sess = await env.DB.prepare("SELECT * FROM quiz_sessions WHERE id=?").bind(qid).first();
         let autoResult = {};
         if (sess?.series_id) {
-          const revCount = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed'").bind(sess.series_id).first())?.cnt || 0;
-          const survivors = (await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(sess.series_id, revCount).all()).results || [];
+          const revCount = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed' AND EXISTS (SELECT 1 FROM quiz_answers WHERE quiz_id=quiz_sessions.id AND answer=quiz_sessions.answer)").bind(sess.series_id).first())?.cnt || 0;
+          const survivors = (await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(sess.series_id, revCount).all()).results || [];
           // 정답자 수 (이 스테이지)
           const stageCorrect = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_answers WHERE quiz_id=? AND answer=?").bind(qid, sess.answer).first())?.cnt || 0;
           if (stageCorrect === 0) {
