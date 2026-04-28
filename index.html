@@ -3150,6 +3150,7 @@ function openCreatePhotoContest(){
   $('pcTitle').value='';$('pcDesc').value='';$('pcCreateMsg').textContent='';
   if($('pcGroup') && currentPhotoGroup) $('pcGroup').value=currentPhotoGroup;
   setPcType('photo');
+  $('pcAllowVote').checked=true;
   $('createPhotoContestModal').classList.add('open');
 }
 async function submitCreatePhotoContest(){
