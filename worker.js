@@ -297,7 +297,7 @@ export default {
         const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
-        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 200);
         const rows = await env.DB.prepare('SELECT l.id, l.user_id, u.name, l.ip, l.user_agent, l.result, l.created_at FROM login_logs l LEFT JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT ?').bind(limit).all();
         return json(rows.results || []);
@@ -956,7 +956,7 @@ export default {
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
-        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
         const { title, description, contest_group } = await request.json();
         if (!title) return json({ error: '제목 필요' }, 400);
         const grpVal = contest_group === 'center' ? 'center' : 'branch';
@@ -971,7 +971,7 @@ export default {
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
-        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
         const { status } = await request.json();
         if (!['draft', 'open', 'closed'].includes(status)) return json({ error: 'invalid' }, 400);
         await env.DB.prepare("UPDATE photo_contests SET status=? WHERE id=?").bind(status, cid).run();
@@ -1051,7 +1051,7 @@ export default {
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
-        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
         await env.DB.prepare("UPDATE photo_contests SET revealed=1 WHERE id=?").bind(cid).run();
         return json({ ok: true });
       }
@@ -1062,7 +1062,7 @@ export default {
         const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
-        if (role?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
         await env.DB.prepare("DELETE FROM photo_votes WHERE contest_id=?").bind(cid).run();
         await env.DB.prepare("DELETE FROM photo_entries WHERE contest_id=?").bind(cid).run();
         await env.DB.prepare("DELETE FROM photo_contests WHERE id=?").bind(cid).run();
