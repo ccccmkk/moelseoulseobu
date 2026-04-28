@@ -2572,7 +2572,10 @@ function openLightbox(urlsOrUrl,startIdx,cap){
   $('lightbox').classList.add('open');document.body.style.overflow='hidden';
 }
 function _showLbSlide(){
-  $('lightboxImg').src=_lbUrls[_lbIdx]||'';
+  const img=$('lightboxImg');
+  img.style.opacity='0.35';
+  img.onload=()=>{img.style.opacity='1';};
+  img.src=_lbUrls[_lbIdx]||'';
   const nav=$('lbNav'),cap=$('lbCaption');
   if(_lbUrls.length>1){
     nav.style.display='flex';
