@@ -3099,12 +3099,11 @@ function confirmCrop(){
   img2.src=_cropDataUrl;
 }
 function cancelPhotoUpload(){
-  photoUploadFile=null;
-  const fi=$('photoFileInput'); if(fi) fi.value='';
-  const cap=$('photoCaption'); if(cap) cap.value='';
-  const msg=$('photoUploadMsg'); if(msg) msg.textContent='';
-  const drop=$('photoUploadDrop'); if(drop) drop.style.display='';
-  const prev=$('photoUploadPreview'); if(prev) prev.style.display='none';
+  _photoQueue=[];photoUploadFile=null;
+  _renderPhotoQueue();
+  const fi=$('photoFileInput');if(fi)fi.value='';
+  const cap=$('photoCaption');if(cap)cap.value='';
+  const msg=$('photoUploadMsg');if(msg)msg.textContent='';
 }
 async function submitEventPhoto(){
   if(!photoUploadFile){alert('사진을 선택하세요');return;}
