@@ -4217,7 +4217,7 @@ function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.
 function _applyFontSize(lg){
   document.body.classList.toggle('font-lg',!!lg);
   const btn=$('fontSizeBtn');
-  if(btn)btn.innerHTML=lg?'가<sup style="font-size:9px">-</sup>':'가<sup style="font-size:9px">+</sup>';
+  if(btn)btn.textContent=lg?'작게':'크게';
 }
 function toggleFontSize(){
   const isLg=document.body.classList.contains('font-lg');
