@@ -4478,11 +4478,12 @@ function _applyAttendanceUI(attended,count){
   if(cnt&&count!=null)cnt.textContent=`현재 ${count}명 참석 중`;
 }
 function _applyAttendeesNames(list){
-  const wrap=$('quizAttendeesNames'),nameList=$('quizAttendeesNameList');
+  const wrap=$('quizAttendeesNames'),nameList=$('quizAttendeesNameList'),lbl=$('quizAttendeesLabel');
   if(!wrap||!nameList)return;
   if(!list||list.length===0){wrap.style.display='none';return;}
   wrap.style.display='';
-  nameList.innerHTML=list.map(n=>`<span style="font-size:12px;background:var(--green-light);color:var(--green-dark);border-radius:14px;padding:4px 11px;border:1px solid var(--green);font-weight:600">${escHtml(n)}</span>`).join('');
+  if(lbl) lbl.textContent=`✋ 참가자 ${list.length}명`;
+  nameList.innerHTML=list.map(n=>`<span style="font-size:12px;background:var(--green);color:#fff;border-radius:14px;padding:4px 11px;font-weight:600">${escHtml(n)}</span>`).join('');
 }
 let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
 let adminQuizGroup='all';
