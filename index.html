@@ -3046,7 +3046,7 @@ async function refreshPhotoContestDetail(){
         if(isText){
           const badge=rank1?'🏆':rank2?'🥈':'';
           const mineTag=isOwn?'<span style="font-size:10px;font-weight:600;color:var(--green-dark);display:block;margin-top:4px">내 글</span>':'';
-          return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
+          return`<div class="photo-grid-card${isSelected?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${isVotable?' can-vote':''}" data-photo-id="${e.id}">
           <div class="text-entry-body">${escHtml(e.text_content||'')}${badge?`<span style="font-size:16px;margin-left:6px">${badge}</span>`:''}${mineTag}</div>
           ${foot}
         </div>`;
@@ -3054,7 +3054,7 @@ async function refreshPhotoContestDetail(){
         const entryUrls=window._pcEntryMap[e.id]?.urls||[];
         const coverUrl=escHtml(entryUrls[0]||imgUrl(e.img_url));
         const multiCount=entryUrls.length;
-        return`<div class="photo-grid-card${isVoted?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${canVote||changeVote?' can-vote':''}" data-photo-id="${e.id}">
+        return`<div class="photo-grid-card${isSelected?' voted':''}${rank1?' rank-1':''}${rank2?' rank-2':''}${isVotable?' can-vote':''}" data-photo-id="${e.id}">
           <div class="photo-grid-img-wrap photo-img-loading" onclick="openEntryLightbox('${e.id}')">
             <img src="${coverUrl}" alt="" loading="lazy" decoding="async" onload="this.parentElement.classList.remove('photo-img-loading')" onerror="this.parentElement.classList.remove('photo-img-loading')">
             ${rank1?'<div class="photo-grid-badge">🏆</div>':rank2?'<div class="photo-grid-badge">🥈</div>':''}
