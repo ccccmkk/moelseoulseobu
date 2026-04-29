@@ -1743,7 +1743,7 @@ export default {
             }
           }
           const safe = { ...session };
-          if (session.status !== 'revealed') delete safe.answer;
+          if (session.status !== 'revealed') { delete safe.answer; delete safe.explanation; }
           session = safe;
         }
         // active_players: 현재 게임에 남아있는 사람 목록 (이름 배열)
