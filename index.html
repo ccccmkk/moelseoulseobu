@@ -4516,7 +4516,7 @@ async function confirmAttendance(){
     const d=await r.json();
     if(d.ok){
       quizMyAttendance=true;
-      _applyAttendanceUI(true,d.count);
+      _applyAttendanceUI(true);
     } else {
       console.error('[attend] API 오류:', d.error);
       const msgEl=$('quizAttendMsg');
