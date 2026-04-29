@@ -1649,7 +1649,18 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="btn-sm danger" id="pcCloseBtn" onclick="setPhotoContestStatus('closed')" style="justify-content:center">🔒 마감</button>
       <button class="btn-sm" onclick="setPhotoContestStatus('draft')" style="justify-content:center;background:#f5f5f5">초안으로</button>
       <button class="btn-sm" id="pcRevealBtn" onclick="revealPhotoContest()" style="justify-content:center;background:#e8f4fd;color:#1565c0;display:none">🔍 결과 공개</button>
+      <button class="btn-sm" id="pcVoterBtn" onclick="toggleVoterPanel()" style="justify-content:center;background:#e3f2fd;color:#1565c0">👥 투표인원</button>
       <button class="btn-sm danger" id="pcDeleteBtn" onclick="deletePhotoContest()" style="justify-content:center;margin-left:auto;display:none">🗑️ 행사 삭제</button>
+    </div>
+    <!-- 투표 인원 관리 패널 (관리자) -->
+    <div id="photoVoterPanel" style="display:none;padding:8px 16px;border-bottom:1px solid var(--border);background:#f0f8ff;flex-shrink:0">
+      <div style="font-size:12px;font-weight:600;color:#1565c0;margin-bottom:6px">👥 투표 가능 인원 <span style="font-weight:400;color:var(--text-hint)">(비어 있으면 전체 허용)</span></div>
+      <div id="pcVoterChips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="pcVoterSearchInput" placeholder="이름 검색..." style="flex:1;height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter')searchPcVoter()">
+        <button onclick="searchPcVoter()" style="padding:0 14px;height:34px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;flex-shrink:0">검색</button>
+      </div>
+      <div id="pcVoterSearchResults" style="margin-top:6px;max-height:120px;overflow-y:auto"></div>
     </div>
     <div id="textUploadArea" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
       <textarea id="textEntryInput" rows="3" placeholder="내용을 입력하세요..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;box-sizing:border-box"></textarea>
