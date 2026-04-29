@@ -1712,8 +1712,12 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="editEntryPhotoSection" style="display:none;margin-bottom:12px">
         <div id="editPhotoThumbs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap"></div>
         <div id="editEntryPhotoOverlay" style="display:none;text-align:center;padding:6px"><div class="ptr-spinner" style="width:22px;height:22px;margin:0 auto"></div></div>
-        <button type="button" onclick="$('editPhotoFileInput').click()" id="editPhotoChangeBtn" style="width:100%;padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-sub)">🔄 선택한 사진 변경</button>
+        <div style="display:flex;gap:6px">
+          <button type="button" onclick="$('editPhotoFileInput').click()" style="flex:1;padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-sub)">🔄 교체</button>
+          <button type="button" id="editPhotoAddBtn" onclick="$('editPhotoAddInput').click()" style="flex:1;padding:9px;background:var(--bg);border:1px dashed var(--green);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--green-dark)">＋ 추가</button>
+        </div>
         <input type="file" id="editPhotoFileInput" accept="image/*" style="display:none" onchange="onEditPhotoSelected(this)">
+        <input type="file" id="editPhotoAddInput" accept="image/*" style="display:none" onchange="onEditAddPhotoSelected(this)">
       </div>
       <!-- 글 항목용 -->
       <textarea id="editEntryTextInput" style="display:none;width:100%;min-height:100px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;margin-bottom:10px;box-sizing:border-box" placeholder="내용"></textarea>
