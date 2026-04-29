@@ -1708,13 +1708,25 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="modal-close" onclick="$('editEntryModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body" style="padding:16px">
+      <!-- 사진 항목용 -->
+      <div id="editEntryPhotoSection" style="display:none;margin-bottom:12px">
+        <div style="width:100%;aspect-ratio:1/1;background:#f0f0f0;border-radius:10px;overflow:hidden;margin-bottom:8px;position:relative">
+          <img id="editEntryPhotoPreview" src="" style="width:100%;height:100%;object-fit:cover;display:block">
+          <div id="editEntryPhotoOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center">
+            <div class="ptr-spinner" style="width:24px;height:24px"></div>
+          </div>
+        </div>
+        <button type="button" onclick="$('editPhotoFileInput').click()" style="width:100%;padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-sub)">🔄 사진 변경</button>
+        <input type="file" id="editPhotoFileInput" accept="image/*" style="display:none" onchange="onEditPhotoSelected(this)">
+      </div>
+      <!-- 글 항목용 -->
       <textarea id="editEntryTextInput" style="display:none;width:100%;min-height:100px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;margin-bottom:10px;box-sizing:border-box" placeholder="내용"></textarea>
       <input type="text" id="editEntryCaptionInput" placeholder="설명 (선택)" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box">
       <div id="editEntryMsg" style="font-size:12px;color:var(--danger);min-height:14px;margin-top:6px"></div>
     </div>
     <div class="modal-footer" style="padding:10px 16px;display:flex;gap:8px">
       <button class="btn-sm" onclick="$('editEntryModal').classList.remove('open')" style="flex:1;justify-content:center">취소</button>
-      <button class="btn-sm primary" onclick="saveEntryEdit()" style="flex:2;justify-content:center">저장</button>
+      <button class="btn-sm primary" id="editEntrySaveBtn" onclick="saveEntryEdit()" style="flex:2;justify-content:center">저장</button>
     </div>
   </div>
 </div>
