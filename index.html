@@ -3085,9 +3085,22 @@ async function submitEventText(){
   }catch(e){$('textUploadMsg').textContent='오류: '+e.message;}
   finally{btn.disabled=false;btn.textContent='등록';}
 }
-let _editEntryId=null,_editContestId=null,_editNewPhotoFile=null;
+let _editEntryId=null,_editContestId=null,_editNewPhotoFile=null,_editPhotoIndex=0,_editPhotoUrls=[];
+function _renderEditThumbs(){
+  const el=$('editPhotoThumbs');if(!el)return;
+  el.innerHTML=_editPhotoUrls.map((url,i)=>`
+    <div onclick="selectEditPhoto(${i})" style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;cursor:pointer;flex-shrink:0;border:2px solid ${i===_editPhotoIndex?'var(--green)':'var(--border)'}">
+      <img id="editThumb_${i}" src="${url}" style="width:100%;height:100%;object-fit:cover;display:block">
+      ${i===_editPhotoIndex?`<div style="position:absolute;bottom:3px;right:3px;background:var(--green);color:#fff;border-radius:4px;font-size:10px;padding:1px 4px">선택</div>`:''}
+    </div>`).join('');
+}
+function selectEditPhoto(idx){
+  _editPhotoIndex=idx;
+  _editNewPhotoFile=null;
+  _renderEditThumbs();
+}
 function openEditEntryModal(entryId,contestId){
-  _editEntryId=entryId;_editContestId=contestId;_editNewPhotoFile=null;
+  _editEntryId=entryId;_editContestId=contestId;_editNewPhotoFile=null;_editPhotoIndex=0;
   const d=window._pcEntryMap[entryId]||{};
   const capEl=$('editEntryCaptionInput');if(capEl) capEl.value=d.cap||'';
   const txtEl=$('editEntryTextInput');
@@ -3096,8 +3109,8 @@ function openEditEntryModal(entryId,contestId){
   if(photoSec){
     photoSec.style.display=d.isText?'none':'';
     if(!d.isText){
-      const prev=$('editEntryPhotoPreview');
-      if(prev) prev.src=d.urls?.[0]||'';
+      _editPhotoUrls=[...(d.urls||[])];
+      _renderEditThumbs();
       const ov=$('editEntryPhotoOverlay');if(ov) ov.style.display='none';
     }
   }
@@ -3112,7 +3125,10 @@ function onEditPhotoSelected(input){
   reader.onload=e=>openCropModal(file,e.target.result,croppedFile=>{
     _editNewPhotoFile=croppedFile;
     const r2=new FileReader();
-    r2.onload=e2=>{const prev=$('editEntryPhotoPreview');if(prev) prev.src=e2.target.result;};
+    r2.onload=e2=>{
+      _editPhotoUrls[_editPhotoIndex]=e2.target.result;
+      _renderEditThumbs();
+    };
     r2.readAsDataURL(croppedFile);
   });
   reader.readAsDataURL(file);
@@ -3134,7 +3150,14 @@ async function saveEntryEdit(){
       const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
       if(ov) ov.style.display='none';
       if(!up.url){if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
-      body.img_url=up.url;
+      if(_editPhotoIndex===0){
+        body.img_url=up.url;
+      } else {
+        const edata=window._pcEntryMap[_editEntryId]||{};
+        const rawExtra=[...(edata.rawExtra||[])];
+        rawExtra[_editPhotoIndex-1]=up.url;
+        body.extra_images=rawExtra;
+      }
     }
     const r=await fetch(`${API}/api/photo-contests/${_editContestId}/entries/${_editEntryId}?token=${encodeURIComponent(sessionToken)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
