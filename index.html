@@ -1710,13 +1710,9 @@ button,a,[role="button"]{touch-action:manipulation}
     <div class="modal-body" style="padding:16px">
       <!-- 사진 항목용 -->
       <div id="editEntryPhotoSection" style="display:none;margin-bottom:12px">
-        <div style="width:100%;aspect-ratio:1/1;background:#f0f0f0;border-radius:10px;overflow:hidden;margin-bottom:8px;position:relative">
-          <img id="editEntryPhotoPreview" src="" style="width:100%;height:100%;object-fit:cover;display:block">
-          <div id="editEntryPhotoOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center">
-            <div class="ptr-spinner" style="width:24px;height:24px"></div>
-          </div>
-        </div>
-        <button type="button" onclick="$('editPhotoFileInput').click()" style="width:100%;padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-sub)">🔄 사진 변경</button>
+        <div id="editPhotoThumbs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap"></div>
+        <div id="editEntryPhotoOverlay" style="display:none;text-align:center;padding:6px"><div class="ptr-spinner" style="width:22px;height:22px;margin:0 auto"></div></div>
+        <button type="button" onclick="$('editPhotoFileInput').click()" id="editPhotoChangeBtn" style="width:100%;padding:9px;background:var(--bg);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text-sub)">🔄 선택한 사진 변경</button>
         <input type="file" id="editPhotoFileInput" accept="image/*" style="display:none" onchange="onEditPhotoSelected(this)">
       </div>
       <!-- 글 항목용 -->
