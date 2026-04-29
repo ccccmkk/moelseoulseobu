@@ -3089,7 +3089,7 @@ async function submitEventText(){
   }catch(e){$('textUploadMsg').textContent='오류: '+e.message;}
   finally{btn.disabled=false;btn.textContent='등록';}
 }
-let _editEntryId=null,_editContestId=null,_editNewPhotoFile=null,_editPhotoIndex=0,_editPhotoUrls=[];
+let _editEntryId=null,_editContestId=null,_editNewPhotoFile=null,_editPhotoIndex=0,_editPhotoUrls=[],_editAddFiles=[];
 function _renderEditThumbs(){
   const el=$('editPhotoThumbs');if(!el)return;
   el.innerHTML=_editPhotoUrls.map((url,i)=>`
