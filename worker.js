@@ -1088,17 +1088,22 @@ export default {
         const eRows = await env.DB.prepare(
           `SELECT e.*, u.name as uploader_name, COALESCE(vc.cnt,0) as vote_count
            FROM photo_entries e LEFT JOIN users u ON e.uploader=u.id
-           LEFT JOIN (SELECT photo_id, COUNT(*) as cnt FROM photo_votes WHERE contest_id=? GROUP BY photo_id) vc ON e.id=vc.photo_id
+           LEFT JOIN (SELECT photo_id, COUNT(*) as cnt FROM photo_votes_v2 WHERE contest_id=? GROUP BY photo_id) vc ON e.id=vc.photo_id
            WHERE e.contest_id=? ORDER BY e.created_at ASC`
         ).bind(cid, cid).all();
-        const myVote = userId ? (await env.DB.prepare("SELECT photo_id FROM photo_votes WHERE contest_id=? AND voter=?").bind(cid, userId).first())?.photo_id : null;
+        const myVotesRows = userId ? await env.DB.prepare("SELECT photo_id FROM photo_votes_v2 WHERE contest_id=? AND voter=?").bind(cid, userId).all() : { results: [] };
+        const myVotes = (myVotesRows.results || []).map(r => r.photo_id);
+        const voterCount = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_contest_voters WHERE contest_id=?").bind(cid).first())?.cnt || 0;
+        const myVoteAllowed = voterCount === 0 || (userId ? !!(await env.DB.prepare("SELECT 1 FROM photo_contest_voters WHERE contest_id=? AND user_id=?").bind(cid, userId).first()) : false);
+        const avRows = await env.DB.prepare("SELECT pcv.user_id, u.name FROM photo_contest_voters pcv LEFT JOIN users u ON pcv.user_id=u.id WHERE pcv.contest_id=?").bind(cid).all();
+        const allowedVoters = (avRows.results || []).map(r => ({ user_id: r.user_id, name: r.name || '?' }));
         const revealed = contest.revealed === 1;
         const entries = (eRows.results || []).map(e => ({
           ...e,
           uploader_name: revealed ? e.uploader_name : '익명',
           is_mine: userId ? e.uploader === userId : false,
         }));
-        return json({ contest, entries, my_vote: myVote });
+        return json({ contest, entries, my_votes: myVotes, my_vote_allowed: myVoteAllowed, allowed_voters: allowedVoters });
       }
 
       if (p.match(/^\/api\/photo-contests\/[^/]+\/entries$/) && m === 'POST') {
