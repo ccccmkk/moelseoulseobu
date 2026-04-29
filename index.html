@@ -3137,6 +3137,22 @@ function onEditPhotoSelected(input){
   });
   reader.readAsDataURL(file);
 }
+function onEditAddPhotoSelected(input){
+  const file=input.files[0];if(!file)return;
+  input.value='';
+  const reader=new FileReader();
+  reader.onload=e=>openCropModal(file,e.target.result,croppedFile=>{
+    const r2=new FileReader();
+    r2.onload=e2=>{
+      _editAddFiles.push(croppedFile);
+      _editPhotoUrls.push(e2.target.result);
+      _editPhotoIndex=_editPhotoUrls.length-1;
+      _renderEditThumbs();
+    };
+    r2.readAsDataURL(croppedFile);
+  });
+  reader.readAsDataURL(file);
+}
 async function saveEntryEdit(){
   if(!_editEntryId||!_editContestId)return;
   const caption=$('editEntryCaptionInput')?.value.trim()??'';
