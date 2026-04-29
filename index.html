@@ -5052,7 +5052,7 @@ function resetQuizBtns(){
 }
 
 async function submitQuizAnswer(ans){
-  if(quizUserAnswer||quizIsEliminated) return;
+  if(quizUserAnswer||quizIsEliminated||quizIsSpectator) return;
   quizUserAnswer=ans;
   $('quizBtnO').className='quiz-btn'+(ans==='O'?' picked':'');
   $('quizBtnX').className='quiz-btn'+(ans==='X'?' picked':'');
