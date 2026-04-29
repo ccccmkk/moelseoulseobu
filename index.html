@@ -4551,7 +4551,7 @@ $('logoutBtn').onclick=async function(){
 let quizPollTid=null,quizCurrentId=null,quizUserAnswer=null,quizCountdownTid=null,quizModalOpen=false;
 let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
 let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false,quizLastPreSec=-1;
-let quizMyAttendance=false,quizLastAttendId=null,quizDeclinedId=null;
+let quizMyAttendance=false,quizLastAttendId=null,quizDeclinedId=null,quizActiveId=null;
 async function confirmAttendance(){
   if(quizMyAttendance)return;
   if(!quizCurrentId){console.warn('[attend] quizCurrentId 없음');return;}
