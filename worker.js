@@ -1135,11 +1135,25 @@ export default {
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const contest = await env.DB.prepare("SELECT * FROM photo_contests WHERE id=?").bind(cid).first();
         if (!contest || contest.status !== 'open') return json({ error: '투표할 수 없는 행사입니다' }, 400);
-        const { photo_id } = await request.json();
-        const entry = await env.DB.prepare("SELECT uploader FROM photo_entries WHERE id=? AND contest_id=?").bind(photo_id, cid).first();
-        if (!entry) return json({ error: 'not found' }, 404);
-        if (entry.uploader === sess.user_id) return json({ error: '본인 항목에는 투표할 수 없습니다' }, 400);
-        await env.DB.prepare("INSERT INTO photo_votes(contest_id,voter,photo_id) VALUES(?,?,?) ON CONFLICT(contest_id,voter) DO UPDATE SET photo_id=?").bind(cid, sess.user_id, photo_id, photo_id).run();
+        const voterCnt = (await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_contest_voters WHERE contest_id=?").bind(cid).first())?.cnt || 0;
+        if (voterCnt > 0) {
+          const allowed = await env.DB.prepare("SELECT 1 FROM photo_contest_voters WHERE contest_id=? AND user_id=?").bind(cid, sess.user_id).first();
+          if (!allowed) return json({ error: '투표 권한이 없습니다' }, 403);
+        }
+        const { photo_ids } = await request.json();
+        if (!Array.isArray(photo_ids) || photo_ids.length === 0) return json({ error: '투표 항목을 선택하세요' }, 400);
+        const minV = contest.min_votes || 1, maxV = contest.max_votes || 1;
+        if (photo_ids.length < minV) return json({ error: `최소 ${minV}개를 선택해야 합니다` }, 400);
+        if (photo_ids.length > maxV) return json({ error: `최대 ${maxV}개까지 선택 가능합니다` }, 400);
+        for (const pid of photo_ids) {
+          const entry = await env.DB.prepare("SELECT uploader FROM photo_entries WHERE id=? AND contest_id=?").bind(pid, cid).first();
+          if (!entry) return json({ error: '항목을 찾을 수 없습니다' }, 404);
+          if (entry.uploader === sess.user_id) return json({ error: '본인 항목에는 투표할 수 없습니다' }, 400);
+        }
+        await env.DB.prepare("DELETE FROM photo_votes_v2 WHERE contest_id=? AND voter=?").bind(cid, sess.user_id).run();
+        for (const pid of photo_ids) {
+          await env.DB.prepare("INSERT INTO photo_votes_v2(contest_id,voter,photo_id) VALUES(?,?,?)").bind(cid, sess.user_id, pid).run();
+        }
         return json({ ok: true });
       }
 
