@@ -1606,6 +1606,13 @@ button,a,[role="button"]{touch-action:manipulation}
       <div style="font-size:20px;font-weight:800;margin-bottom:8px;color:#e53935">탈락</div>
       <div style="font-size:13px;color:var(--text-hint)">다음 라운드를 관전 중입니다</div>
     </div>
+    <!-- 관전 중 -->
+    <div id="quizStateSpectator" style="display:none;text-align:center;padding:24px 16px">
+      <div style="font-size:48px;margin-bottom:10px">👀</div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:6px;color:var(--text-sub)">관전 중</div>
+      <div id="quizSpectatorQuestion" style="font-size:15px;font-weight:600;color:var(--text);background:var(--bg);border-radius:10px;padding:14px;margin:12px 0;line-height:1.5;text-align:left"></div>
+      <div id="quizSpectCounts" style="display:none;font-size:14px;color:var(--text-hint)">⭕ <span id="quizSpectCntO">0</span>명 &nbsp;·&nbsp; ❌ <span id="quizSpectCntX">0</span>명 제출 중</div>
+    </div>
     <!-- 스테이지전 종료 - 최종 생존자 -->
     <div id="quizStateFinished" style="display:none;text-align:center;padding:20px 0">
       <div style="font-size:52px;margin-bottom:12px">🏆</div>
