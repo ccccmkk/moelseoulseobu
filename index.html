@@ -4530,12 +4530,16 @@ async function confirmAttendance(){
     if(btn){btn.disabled=false;btn.textContent='✋ 참석';}
   }
 }
-function _applyAttendanceUI(attended,count){
-  const ask=$('quizAttendAsk'),done=$('quizAttendDone'),cnt=$('quizAttendeeCount');
-  if(!ask||!done)return;
-  if(attended){ask.style.display='none';done.style.display='';}
-  else{ask.style.display='';done.style.display='none';}
-  if(cnt&&count!=null)cnt.textContent=`현재 ${count}명 참석 중`;
+function _applyAttendanceUI(attended){
+  const ask=$('quizAttendAsk');
+  if(ask) ask.style.display=attended?'none':'';
+  if(attended){
+    const titleEl=$('quizWaitingTitle'),subEl=$('quizWaitingSubtitle'),spinEl=$('quizWaitSpinner'),iconEl=$('quizWaitingIcon');
+    if(iconEl) iconEl.textContent='✅';
+    if(titleEl) titleEl.textContent='대기방 입장 완료!';
+    if(subEl) subEl.textContent='퀴즈가 곧 시작됩니다';
+    if(spinEl) spinEl.style.display='none';
+  }
 }
 function _applyAttendeesNames(list){
   const wrap=$('quizAttendeesNames'),nameList=$('quizAttendeesNameList'),lbl=$('quizAttendeesLabel');
