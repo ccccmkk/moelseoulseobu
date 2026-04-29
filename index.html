@@ -3077,6 +3077,30 @@ async function submitEventText(){
   }catch(e){$('textUploadMsg').textContent='오류: '+e.message;}
   finally{btn.disabled=false;btn.textContent='등록';}
 }
+let _editEntryId=null,_editContestId=null;
+function openEditEntryModal(entryId,contestId){
+  _editEntryId=entryId;_editContestId=contestId;
+  const d=window._pcEntryMap[entryId]||{};
+  const capEl=$('editEntryCaptionInput');if(capEl) capEl.value=d.cap||'';
+  const txtEl=$('editEntryTextInput');
+  if(txtEl){txtEl.value=d.txt||'';txtEl.style.display=d.isText?'':'none';}
+  const msg=$('editEntryMsg');if(msg) msg.textContent='';
+  $('editEntryModal').classList.add('open');
+}
+async function saveEntryEdit(){
+  if(!_editEntryId||!_editContestId)return;
+  const caption=$('editEntryCaptionInput')?.value.trim()??'';
+  const txtEl=$('editEntryTextInput');
+  const body={caption};
+  if(txtEl&&txtEl.style.display!=='none') body.text_content=txtEl.value.trim();
+  const msg=$('editEntryMsg');
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${_editContestId}/entries/${_editEntryId}?token=${encodeURIComponent(sessionToken)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.ok){$('editEntryModal').classList.remove('open');await refreshPhotoContestDetail();}
+    else{if(msg) msg.textContent=d.error||'수정 실패';}
+  }catch(e){if(msg) msg.textContent='네트워크 오류';}
+}
 async function deleteEventPhoto(evt,eid){
   evt.stopPropagation();
   if(!confirm('이 항목을 삭제할까요?'))return;
