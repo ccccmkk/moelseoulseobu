@@ -3070,39 +3070,108 @@ async function refreshPhotoContestDetail(){
   }catch(e){}
   finally{np.done();}
 }
-function _applyVoteDOM(prevId,newId){
-  const hasNum=t=>/\d/.test(t); // 숫자 있으면 공개 상태
-  // 이전 투표 카드에서 voted 제거
-  if(prevId){
-    const c=document.querySelector(`[data-photo-id="${prevId}"]`);
-    if(c){c.classList.remove('voted');c.classList.add('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const revealed=hasNum(p.textContent);const n=Math.max(0,(parseInt(p.textContent.replace(/\D/g,''))||0)-1);p.className='photo-vote-pill';p.textContent=revealed?`🗳️ ${n}표`:'🗳️';p.onclick=()=>voteForPhoto(prevId);}}
+function _toggleVoteSelect(photoId){
+  if(!_voteEnabled) return;
+  if(_voteSelections.has(photoId)){
+    _voteSelections.delete(photoId);
+  } else {
+    if(_voteSelections.size>=_voteMinMax.max){
+      const vm=$('photoVoteMsg');
+      if(vm){vm.innerHTML=`<span style="color:var(--danger)">최대 ${_voteMinMax.max}개까지 선택 가능합니다</span>`;setTimeout(()=>_updateVoteMsg(),1500);}
+      return;
+    }
+    _voteSelections.add(photoId);
   }
-  // 새 투표 카드에 voted 추가
-  if(newId){
-    const c=document.querySelector(`[data-photo-id="${newId}"]`);
-    if(c){c.classList.add('voted');c.classList.remove('can-vote');const p=c.querySelector('.photo-vote-pill');if(p){const revealed=hasNum(p.textContent);const n=(parseInt(p.textContent.replace(/\D/g,''))||0)+1;p.className='photo-vote-pill voted';p.textContent=revealed?`✓ ${n}표`:'✓';}}
+  // 카드 UI 즉시 반영
+  const card=document.querySelector(`[data-photo-id="${photoId}"]`);
+  if(card){
+    const sel=_voteSelections.has(photoId);
+    card.classList.toggle('voted',sel);
+    const pill=card.querySelector('.photo-vote-pill');
+    if(pill){
+      const hasNum=/\d/.test(pill.textContent);
+      const n=parseInt(pill.textContent.replace(/\D/g,''))||0;
+      pill.className='photo-vote-pill'+(sel?' voted':'');
+      pill.textContent=hasNum?(sel?`✓ ${n}표`:`🗳️ ${n}표`):(sel?'✓':'🗳️');
+    }
   }
-  const vm=$('photoVoteMsg');
-  if(newId){vm.textContent='✓ 투표 완료 · 다른 사진을 탭하면 변경됩니다';vm.style.color='var(--green-dark)';}
-  else{vm.textContent='마음에 드는 사진의 투표 버튼을 탭하세요 (본인 사진 제외)';vm.style.color='var(--text-hint)';}
+  _updateVoteMsg();
 }
-async function voteForPhoto(photoId){
+function _updateVoteMsg(){
+  const vm=$('photoVoteMsg');
+  if(!vm) return;
+  if(!_voteEnabled){vm.innerHTML='';vm.style.display='none';return;}
+  vm.style.display='';
+  const cnt=_voteSelections.size,{min,max}=_voteMinMax;
+  const canSubmit=cnt>=min&&cnt<=max;
+  const already=_myVotes.length>0;
+  const rangeText=min===max?`${max}회 선택 필요`:`${min}~${max}회 선택 필요`;
+  const countText=`<span style="color:${canSubmit?'var(--green-dark)':'var(--text-sub)'}">${cnt}/${max} 선택됨</span>`;
+  const hint=already?'재투표':'투표 완료';
+  vm.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <span style="font-size:12px;color:var(--text-hint)">${rangeText} · ${countText}</span>
+    <button id="pcVoteSubmitBtn" onclick="submitMultiVote()" style="flex-shrink:0;padding:6px 16px;background:${canSubmit?'var(--green)':'#ccc'};color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:${canSubmit?'pointer':'not-allowed'};font-family:inherit" ${canSubmit?'':'disabled'}>${hint}</button>
+  </div>`;
+}
+async function submitMultiVote(){
   if(!sessionToken){alert('로그인이 필요합니다');return;}
-  const prevVote=currentContestMyVote;
-  currentContestMyVote=photoId;
-  _applyVoteDOM(prevVote,photoId); // 즉시 반영
+  const btn=$('pcVoteSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='제출 중...';}
   try{
-    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/vote?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo_id:photoId})});
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/vote?token=${encodeURIComponent(sessionToken)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({photo_ids:[..._voteSelections]})
+    });
     const d=await r.json();
-    if(!d.ok){
-      currentContestMyVote=prevVote;
-      _applyVoteDOM(photoId,prevVote); // 반려
-      const vm=$('photoVoteMsg');vm.textContent=d.error||'투표 실패';vm.style.color='var(--danger)';
+    if(d.ok){await refreshPhotoContestDetail();}
+    else{
+      const vm=$('photoVoteMsg');
+      if(vm){vm.innerHTML=`<span style="color:var(--danger)">${d.error||'투표 실패'}</span>`;setTimeout(()=>_updateVoteMsg(),2000);}
+      if(btn){btn.disabled=false;btn.textContent='투표 완료';}
     }
   }catch(e){
-    currentContestMyVote=prevVote;
-    _applyVoteDOM(photoId,prevVote);
+    const vm=$('photoVoteMsg');
+    if(vm){vm.innerHTML=`<span style="color:var(--danger)">네트워크 오류</span>`;setTimeout(()=>_updateVoteMsg(),2000);}
+    if(btn){btn.disabled=false;btn.textContent='투표 완료';}
   }
+}
+function toggleVoterPanel(){
+  const p=$('photoVoterPanel');if(!p)return;
+  p.style.display=p.style.display==='none'?'':'none';
+}
+function _renderVoterPanel(voters){
+  const chips=$('pcVoterChips');if(!chips)return;
+  chips.innerHTML=voters.length?voters.map(v=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#e3f2fd;color:#1565c0;border-radius:14px;padding:3px 10px;font-size:12px;font-weight:600">${escHtml(v.name||'?')}<button onclick="removePcVoter('${v.user_id}')" style="background:none;border:none;cursor:pointer;color:#1565c0;font-size:13px;padding:0;line-height:1">×</button></span>`).join('')
+    :'<span style="font-size:12px;color:var(--text-hint)">전체 허용 (추가하면 해당 인원만 투표 가능)</span>';
+}
+async function searchPcVoter(){
+  const q=$('pcVoterSearchInput')?.value.trim();if(!q)return;
+  const res=$('pcVoterSearchResults');if(!res)return;
+  res.innerHTML='<span style="font-size:12px;color:var(--text-hint)">검색 중...</span>';
+  try{
+    const d=await fetch(`${API}/api/users/search?q=${encodeURIComponent(q)}&token=${encodeURIComponent(sessionToken)}`).then(r=>r.json());
+    if(!Array.isArray(d)||!d.length){res.innerHTML='<span style="font-size:12px;color:var(--text-hint)">검색 결과 없음</span>';return;}
+    res.innerHTML=d.map(u=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px">${escHtml(u.name)} <span style="color:var(--text-hint);font-size:11px">${escHtml(u.dept||'')}</span></span>
+      <button onclick="addPcVoter('${u.id}','${escHtml(u.name)}')" style="padding:3px 12px;background:var(--green);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">추가</button>
+    </div>`).join('');
+  }catch(e){res.innerHTML='<span style="font-size:12px;color:var(--danger)">오류</span>';}
+}
+async function addPcVoter(userId,name){
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/voters?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})});
+    const d=await r.json();
+    if(d.ok){await refreshPhotoContestDetail();$('pcVoterSearchResults').innerHTML='';}
+    else alert(d.error||'추가 실패');
+  }catch(e){alert('네트워크 오류');}
+}
+async function removePcVoter(userId){
+  try{
+    const r=await fetch(`${API}/api/photo-contests/${currentPhotoContestId}/voters/${userId}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok) await refreshPhotoContestDetail();
+    else alert(d.error||'삭제 실패');
+  }catch(e){alert('네트워크 오류');}
 }
 async function submitEventText(){
   const inp=$('textEntryInput');const txt=inp.value.trim();
