@@ -1704,10 +1704,17 @@ button,a,[role="button"]{touch-action:manipulation}
       <input type="text" id="pcTitle" placeholder="예: 워크숍 사진 투표" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-bottom:10px">
       <label style="font-size:12px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px">설명 (선택)</label>
       <textarea id="pcDesc" rows="2" placeholder="행사에 대한 간단한 설명" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;margin-bottom:10px"></textarea>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:12px">
-        <input type="checkbox" id="pcAllowVote" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="pcAllowVote" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)" onchange="$('pcVoteCountRow').style.display=this.checked?'flex':'none'">
         <span style="font-size:13px;color:var(--text)">투표 허용</span>
       </label>
+      <div id="pcVoteCountRow" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--text-sub);flex-shrink:0">투표 횟수 최소</span>
+        <input type="number" id="pcMinVotes" value="1" min="1" max="20" style="width:54px;height:34px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;text-align:center" oninput="if(+$('pcMaxVotes').value<+this.value)$('pcMaxVotes').value=this.value">
+        <span style="font-size:13px;color:var(--text-sub);flex-shrink:0">최대</span>
+        <input type="number" id="pcMaxVotes" value="1" min="1" max="20" style="width:54px;height:34px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;text-align:center" oninput="if(+this.value<+$('pcMinVotes').value)this.value=$('pcMinVotes').value">
+        <span style="font-size:13px;color:var(--text-sub);flex-shrink:0">회</span>
+      </div>
       <div id="pcCreateMsg" style="font-size:12px;min-height:14px;color:var(--danger);margin-bottom:8px"></div>
       <button class="btn-green" onclick="submitCreatePhotoContest()">행사 만들기</button>
     </div>
