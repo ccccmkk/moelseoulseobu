@@ -199,6 +199,11 @@ async function initDB(env) {
   try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN allow_vote INTEGER DEFAULT 1"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0"); } catch(e) {}
   try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN explanation TEXT DEFAULT ''"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN min_votes INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN max_votes INTEGER DEFAULT 1"); } catch(e) {}
+  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS photo_votes_v2 (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter, photo_id))"); } catch(e) {}
+  try { await env.DB.exec("INSERT OR IGNORE INTO photo_votes_v2(contest_id, voter, photo_id) SELECT contest_id, voter, photo_id FROM photo_votes"); } catch(e) {}
+  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))"); } catch(e) {}
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
