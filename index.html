@@ -4797,7 +4797,7 @@ function handleQuizState(d){
   if(s.status==='lobby'||s.status==='waiting'){
     // 참석 상태 동기화
     quizCurrentId=s.id;
-    if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizMyAttendance=d.my_attendance||false;}
+    if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizMyAttendance=d.my_attendance||false; quizIsSpectator=false;}
     else if(d.my_attendance)quizMyAttendance=true;
     _applyAttendeesNames(d.attendees_list||[]);
     const titleEl=$('quizWaitingTitle'),subEl=$('quizWaitingSubtitle'),cntEl=$('quizLobbyCount');
