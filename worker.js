@@ -1223,6 +1223,18 @@ export default {
         const rows = await env.DB.prepare('SELECT u.id, u.name, u.dept, u.status, u.created_at, up.last_seen FROM users u LEFT JOIN user_presence up ON u.id=up.user_id ORDER BY u.created_at ASC').all();
         return json(rows.results);
       }
+
+      if (p === '/api/users/search' && m === 'GET') {
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        const q = (url.searchParams.get('q') || '').trim();
+        if (!q) return json([]);
+        const rows = await env.DB.prepare("SELECT id, name, dept FROM users WHERE name LIKE ? LIMIT 20").bind(`%${q}%`).all();
+        return json(rows.results || []);
+      }
       if (p === '/api/users' && m === 'POST') {
         const { id, name, password, dept } = await request.json();
         if (!id || !/^\d{9}$/.test(id)) return json({ error: '온나라 사번은 9자리 숫자입니다.' }, 400);
