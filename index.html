@@ -2966,12 +2966,14 @@ async function refreshPhotoContestDetail(){
         const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
         const delBtn=(isOwn||isAdminOrSub())&&contest.status!=='closed'
           ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--danger)">✕</button>`:'';
+        const editBtn=isOwn&&contest.status==='open'
+          ?`<button onclick="openEditEntryModal('${e.id}','${currentPhotoContestId}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--green-dark)">✏️</button>`:'';
         const capHtml=e.caption?`<div style="font-size:11px;color:var(--text-sub);margin-bottom:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;line-height:1.4">${escHtml(e.caption)}</div>`:'';
         const foot=`<div class="photo-grid-foot">
             ${capHtml}<div class="photo-grid-author">${escHtml(e.uploader_name||'익명')}</div>
             <div style="display:flex;align-items:center;justify-content:space-between">
               ${allowVote?`<button class="${pillClass}" ${voteClick}>${pillLabel}</button>`:''}
-              ${delBtn}
+              <div style="display:flex">${editBtn}${delBtn}</div>
             </div>
           </div>`;
         if(isText){
