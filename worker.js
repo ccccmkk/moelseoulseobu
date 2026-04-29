@@ -679,10 +679,10 @@ export default {
       if (p.match(/^\/api\/quiz\/[^/]+\/post$/) && m === 'POST') {
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
         const qid = p.split('/')[3];
-        const { question, answer } = await request.json();
+        const { question, answer, explanation } = await request.json();
         if (!question || !answer) return json({ error: 'invalid' }, 400);
-        await env.DB.prepare("UPDATE quiz_sessions SET question=?, answer=?, status='waiting' WHERE id=? AND status='lobby'")
-          .bind(question, answer, qid).run();
+        await env.DB.prepare("UPDATE quiz_sessions SET question=?, answer=?, explanation=?, status='waiting' WHERE id=? AND status='lobby'")
+          .bind(question, answer, explanation || '', qid).run();
         return json({ ok: true });
       }
 
