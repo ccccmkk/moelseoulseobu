@@ -5310,6 +5310,7 @@ async function loadAdminQuizStatus(){
 
     // ── 단일 모드 ──
     adminSeriesId=null; adminSeriesNextStage=1;
+    const _cb2=$('adminQuizCreateBtn');if(_cb2){_cb2.textContent='📝 문제 게시';_cb2.onclick=adminPostQuestion;}
     $('adminStageLabel').style.display='none';
     $('adminQuizModeBar').style.display='flex';
     $('adminSeriesSetup').style.display=adminQuizMode==='series'?'':'none';
