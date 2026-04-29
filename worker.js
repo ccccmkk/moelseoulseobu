@@ -1034,6 +1034,25 @@ export default {
         return json({ ok: true });
       }
 
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/entries\/[^/]+$/) && m === 'PATCH') {
+        const parts = p.split('/');
+        const cid = parts[3], eid = parts[5];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const entry = await env.DB.prepare("SELECT * FROM photo_entries WHERE id=? AND contest_id=?").bind(eid, cid).first();
+        if (!entry) return json({ error: 'not found' }, 404);
+        if (entry.uploader !== sess.user_id) return json({ error: 'forbidden' }, 403);
+        const { caption, text_content } = await request.json();
+        const fields = [], binds = [];
+        if (caption !== undefined) { fields.push('caption=?'); binds.push(caption || ''); }
+        if (text_content !== undefined) { fields.push('text_content=?'); binds.push(text_content || ''); }
+        if (!fields.length) return json({ error: 'no changes' }, 400);
+        binds.push(eid);
+        await env.DB.prepare(`UPDATE photo_entries SET ${fields.join(',')} WHERE id=?`).bind(...binds).run();
+        return json({ ok: true });
+      }
+
       if (p.match(/^\/api\/photo-contests\/[^/]+\/entries\/[^/]+$/) && m === 'DELETE') {
         const parts = p.split('/');
         const cid = parts[3], eid = parts[5];
