@@ -4892,6 +4892,8 @@ function handleQuizState(d){
     const correct=quizUserAnswer===s.answer;
     $('quizResultBadge').textContent=!answered?'😅':correct?'🎉':'😢';
     $('quizUserResultMsg').textContent=!answered?'참여하지 않으셨네요':correct?'정답! 축하합니다 🎊':'아쉽지만 오답입니다';
+    const explBox=$('quizExplanationBox'),explTxt=$('quizExplanationText');
+    if(explBox&&explTxt){const expl=s.explanation||'';explTxt.textContent=expl;explBox.style.display=expl?'':'none';}
     populateRevealParticipants(d.answers||[], s.answer);
   }
 }
