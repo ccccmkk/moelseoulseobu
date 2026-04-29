@@ -4680,6 +4680,7 @@ async function attendFromInvite(){
 }
 function declineInvite(){
   quizDeclinedId=quizCurrentId;
+  quizIsSpectator=true;
   hideQuizInvite();
 }
 let adminQuizMode='single',adminSeriesRounds=5,adminSeriesId=null,adminSeriesNextStage=1,adminQuizCurrentId=null;
