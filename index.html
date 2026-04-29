@@ -3001,6 +3001,8 @@ async function refreshPhotoContestDetail(){
       $('photoUploadArea').style.display='none';
       $('textUploadArea').style.display='none';
     }
+    // 투표 가능 여부
+    _voteEnabled=allowVote&&contest.status==='open'&&!!sessionToken&&(my_vote_allowed!==false);
     // 항목 피드
     if(!entries.length){
       $('photoContestGrid').innerHTML=`<div class="empty-state" style="padding:2rem"><div class="ei">${isText?'✏️':'📷'}</div>아직 ${isText?'글':'사진'}이 없습니다</div>`;
