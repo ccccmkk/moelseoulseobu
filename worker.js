@@ -1,7 +1,7 @@
 // v2.1.5
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 const MAX_BYTES = 9 * 1024 * 1024 * 1024;
