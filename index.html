@@ -4779,7 +4779,8 @@ function handleQuizState(d){
     }
     showQuizState(quizIsEliminated&&!isAdminOrSub()?'Eliminated':'Waiting');
   } else if(s.status==='active'){
-    if(quizCurrentId!==s.id){
+    if(quizActiveId!==s.id){
+      quizActiveId=s.id;
       quizCurrentId=s.id; quizUserAnswer=null; quizRevealDone=false;
       quizLastPreSec=-1; quizMyAttendance=false; quizLastAttendId=null;
       quizKnownO=new Set(); quizKnownX=new Set();
