@@ -2987,7 +2987,8 @@ async function refreshPhotoContestDetail(){
       if(revBtn) revBtn.style.display=(contest.status==='closed'&&!contest.revealed)?'':'none';
       const delBtn=$('pcDeleteBtn');
       if(delBtn) delBtn.style.display=contest.status==='closed'?'':'none';
-    } else { adminBar.style.display='none'; }
+      _renderVoterPanel(allowed_voters||[]);
+    } else { adminBar.style.display='none'; $('photoVoterPanel').style.display='none'; }
     // 투표 허용 여부
     const allowVote=contest.allow_vote!==0;
     // 업로드 영역
