@@ -4883,7 +4883,7 @@ function handleQuizState(d){
 }
 
 function showQuizState(state){
-  ['Waiting','Active','Revealed','Eliminated','Finished'].forEach(s=>{
+  ['Waiting','Active','Revealed','Eliminated','Finished','Spectator'].forEach(s=>{
     const el=$('quizState'+s);
     if(el) el.style.display=s===state?'':'none';
   });
