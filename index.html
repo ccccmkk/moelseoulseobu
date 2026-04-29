@@ -5519,10 +5519,11 @@ async function adminPostQuestion(){
 async function adminCreateQuiz(){
   const q=$('quizQuestionInput').value.trim();
   const ans=document.querySelector('input[name="quizAnswer"]:checked')?.value;
+  const expl=$('quizExplanationInput')?.value.trim()||'';
   const msg=$('adminQuizMsg');
   if(!q){msg.style.color='var(--danger)';msg.textContent='문제를 입력하세요';return;}
   if(!ans){msg.style.color='var(--danger)';msg.textContent='정답을 선택하세요';return;}
-  const body={question:q,answer:ans,group_target:adminQuizGroup};
+  const body={question:q,answer:ans,explanation:expl,group_target:adminQuizGroup};
   if(adminSeriesId && adminQuizMode==='series'){body.series_id=adminSeriesId;body.stage_num=adminSeriesNextStage;}
   try {
     const r=await fetch(`${API}/api/quiz?token=${encodeURIComponent(sessionToken)}`,{
@@ -5532,6 +5533,7 @@ async function adminCreateQuiz(){
     if(d.ok){
       msg.style.color='var(--green-dark)'; msg.textContent='퀴즈 생성 완료!';
       $('quizQuestionInput').value='';
+      if($('quizExplanationInput')) $('quizExplanationInput').value='';
       document.querySelectorAll('input[name="quizAnswer"]').forEach(i=>i.checked=false);
       await loadAdminQuizStatus();
     } else { msg.style.color='var(--danger)'; msg.textContent=d.error||'오류'; }
