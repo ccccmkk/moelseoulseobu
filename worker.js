@@ -661,8 +661,8 @@ export default {
         const id = 'quiz_' + Date.now();
         const now = Math.floor(Date.now() / 1000);
         const grp = group_target || 'all';
-        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?)')
-          .bind(id, '', '', 'lobby', adm.user_id, now, series_id || null, stage_num || 1, grp).run();
+        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,had_lobby,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .bind(id, '', '', 'lobby', 1, adm.user_id, now, series_id || null, stage_num || 1, grp).run();
         return json({ ok: true, id });
       }
 
