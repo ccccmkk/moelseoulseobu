@@ -3163,22 +3163,33 @@ async function saveEntryEdit(){
   const saveBtn=$('editEntrySaveBtn');
   if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='저장 중...';}
   try{
+    const edata=window._pcEntryMap[_editEntryId]||{};
+    const rawExtra=[...(edata.rawExtra||[])];
+    const ov=$('editEntryPhotoOverlay');
+    if(_editNewPhotoFile||_editAddFiles.length){if(ov) ov.style.display='flex';}
     if(_editNewPhotoFile){
-      const ov=$('editEntryPhotoOverlay');if(ov) ov.style.display='flex';
       const compressed=await compressImage(_editNewPhotoFile);
       const fd=new FormData();fd.append('file',compressed);
       const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
-      if(ov) ov.style.display='none';
-      if(!up.url){if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
+      if(!up.url){if(ov) ov.style.display='none';if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
       if(_editPhotoIndex===0){
         body.img_url=up.url;
       } else {
-        const edata=window._pcEntryMap[_editEntryId]||{};
-        const rawExtra=[...(edata.rawExtra||[])];
         rawExtra[_editPhotoIndex-1]=up.url;
         body.extra_images=rawExtra;
       }
     }
+    if(_editAddFiles.length){
+      for(const f of _editAddFiles){
+        const compressed=await compressImage(f);
+        const fd=new FormData();fd.append('file',compressed);
+        const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+        if(!up.url){if(ov) ov.style.display='none';if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
+        rawExtra.push(up.url);
+      }
+      body.extra_images=rawExtra;
+    }
+    if(ov) ov.style.display='none';
     const r=await fetch(`${API}/api/photo-contests/${_editContestId}/entries/${_editEntryId}?token=${encodeURIComponent(sessionToken)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(d.ok){$('editEntryModal').classList.remove('open');await refreshPhotoContestDetail();}
