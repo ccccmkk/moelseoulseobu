@@ -3139,7 +3139,6 @@ async function saveEntryEdit(){
       if(ov) ov.style.display='none';
       if(!up.url){if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
       body.img_url=up.url;
-      body.extra_images=[];
     }
     const r=await fetch(`${API}/api/photo-contests/${_editContestId}/entries/${_editEntryId}?token=${encodeURIComponent(sessionToken)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
