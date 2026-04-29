@@ -4842,15 +4842,30 @@ function handleQuizState(d){
       $('quizRevNamesO').innerHTML=''; $('quizRevNamesX').innerHTML='';
       resetQuizBtns();
     }
-    showQuizState('Active');
-    $('quizQuestion').textContent=s.question;
-    if(quizIsEliminated&&!isAdminOrSub()&&!quizUserAnswer){
-      $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
-      $('quizAnswerMsg').textContent='💀 탈락 - 관전 중';
-      $('quizAnswerMsg').style.color='#e53935';
+    if(quizLastAttendId!==s.id){
+      quizLastAttendId=s.id; quizMyAttendance=d.my_attendance||false;
+      if(!d.my_attendance) quizIsSpectator=true;
+    } else if(d.my_attendance){quizMyAttendance=true;}
+    else if(!quizMyAttendance){quizIsSpectator=true;}
+    const _isSpec=quizIsSpectator&&!isAdminOrSub();
+    if(_isSpec){
+      showQuizState('Spectator');
+      $('quizSpectatorQuestion').textContent=s.question;
+      const _ans=d.answers||[];
+      $('quizSpectCntO').textContent=_ans.filter(a=>a.answer==='O').length;
+      $('quizSpectCntX').textContent=_ans.filter(a=>a.answer==='X').length;
+      $('quizSpectCounts').style.display=_ans.length?'':'none';
+    } else {
+      showQuizState('Active');
+      $('quizQuestion').textContent=s.question;
+      if(quizIsEliminated&&!isAdminOrSub()&&!quizUserAnswer){
+        $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
+        $('quizAnswerMsg').textContent='💀 탈락 - 관전 중';
+        $('quizAnswerMsg').style.color='#e53935';
+      }
+      startQuizCountdown(s.started_at);
+      updateActiveParticipants(d.answers||[]);
     }
-    startQuizCountdown(s.started_at);
-    updateActiveParticipants(d.answers||[]);
   } else if(s.status==='revealed'&&!quizRevealDone){
     quizRevealDone=true;
     clearInterval(quizCountdownTid);
