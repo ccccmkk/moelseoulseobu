@@ -1700,6 +1700,25 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 </div>
 
+<!-- ════ 사진/글 항목 수정 모달 ════ -->
+<div class="modal-overlay center" id="editEntryModal" style="z-index:600">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title">항목 수정</div>
+      <button class="modal-close" onclick="$('editEntryModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <textarea id="editEntryTextInput" style="display:none;width:100%;min-height:100px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;margin-bottom:10px;box-sizing:border-box" placeholder="내용"></textarea>
+      <input type="text" id="editEntryCaptionInput" placeholder="설명 (선택)" style="width:100%;height:38px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box">
+      <div id="editEntryMsg" style="font-size:12px;color:var(--danger);min-height:14px;margin-top:6px"></div>
+    </div>
+    <div class="modal-footer" style="padding:10px 16px;display:flex;gap:8px">
+      <button class="btn-sm" onclick="$('editEntryModal').classList.remove('open')" style="flex:1;justify-content:center">취소</button>
+      <button class="btn-sm primary" onclick="saveEntryEdit()" style="flex:2;justify-content:center">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 크롭 모달 ════ -->
 <div class="modal-overlay center" id="cropModal" style="z-index:600">
   <div class="modal" style="max-width:480px">
