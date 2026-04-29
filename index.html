@@ -5084,7 +5084,7 @@ function startQuizBgPoll(){
           } else if(!ser?.finished&&s){
             // 세션 ID 동기화
             quizCurrentId=s.id;
-            if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;}
+            if(quizLastAttendId!==s.id){quizLastAttendId=s.id;quizMyAttendance=d.my_attendance||false;quizIsSpectator=false;}
             else if(d.my_attendance) quizMyAttendance=true;
             if(s.status==='lobby'){
               if(quizMyAttendance){
