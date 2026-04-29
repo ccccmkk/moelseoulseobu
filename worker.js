@@ -1789,7 +1789,7 @@ export default {
       if (p.match(/^\/api\/quiz\/series\/[^/]+\/post-next$/) && m === 'POST') {
         const sid = p.split('/')[4];
         const adm = await quizAdminAuth(); if (!adm) return json({ error: 'unauthorized' }, 401);
-        const { question, answer } = await request.json();
+        const { question, answer, explanation } = await request.json();
         if (!question || !['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
         const ser = await env.DB.prepare('SELECT * FROM quiz_series WHERE id=? AND status=?').bind(sid, 'active').first();
         if (!ser) return json({ error: 'series not active' }, 400);
