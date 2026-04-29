@@ -3021,17 +3021,16 @@ async function refreshPhotoContestDetail(){
       });
       const makeCard=(e)=>{
         const isOwn=e.is_mine;
-        const isVoted=my_vote===e.id;
-        const canVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote===null;
-        const changeVote=allowVote&&contest.status==='open'&&!isOwn&&my_vote!==null&&!isVoted;
+        const isSelected=_voteSelections.has(e.id);
+        const isVotable=_voteEnabled&&!isOwn;
         const rank1=revealed&&e.vote_count>0&&e.vote_count===top1vc;
         const rank2=revealed&&!rank1&&e.vote_count>0&&top2vc>0&&e.vote_count===top2vc;
         let pillClass='photo-vote-pill';
         let pillLabel=revealed?`🗳️ ${e.vote_count}표`:'🗳️';
-        if(isVoted){pillClass+=' voted';pillLabel=revealed?`✓ ${e.vote_count}표`:'✓';}
+        if(isSelected){pillClass+=' voted';pillLabel=revealed?`✓ ${e.vote_count}표`:'✓';}
         else if(isOwn){pillClass+=' own';pillLabel=revealed?(isText?`✏️ ${e.vote_count}표`:`📷 ${e.vote_count}표`):(isText?'✏️':'📷');}
         else if(contest.status==='closed'){pillClass+=' closed';}
-        const voteClick=(canVote||changeVote)?`onclick="voteForPhoto('${e.id}')"`:' ';
+        const voteClick=isVotable?`onclick="_toggleVoteSelect('${e.id}')"`:' ';
         const delBtn=(isOwn||isAdminOrSub())&&contest.status!=='closed'
           ?`<button onclick="deleteEventPhoto(event,'${e.id}')" style="background:none;border:none;font-size:12px;padding:4px 6px;cursor:pointer;color:var(--danger)">✕</button>`:'';
         const editBtn=isOwn&&contest.status==='open'
