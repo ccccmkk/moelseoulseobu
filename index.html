@@ -4611,7 +4611,7 @@ async function confirmAttendance(){
     const r=await fetch(`${API}/api/quiz/${quizCurrentId}/attend?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
     const d=await r.json();
     if(d.ok){
-      quizMyAttendance=true;
+      quizMyAttendance=true;quizIsSpectator=false;
       _applyAttendanceUI(true);
     } else {
       console.error('[attend] API 오류:', d.error);
