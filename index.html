@@ -1839,7 +1839,7 @@ let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
 let newsCache=null,newsLastFetch=0;
-let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,currentContestMyVote=null;
+let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,_myVotes=[],_voteSelections=new Set(),_voteMinMax={min:1,max:1},_voteEnabled=false;
 let _photoQueue=[]; // {file, dataUrl}[]
 let _lbUrls=[],_lbIdx=0,_lbCap='',_lbTouchX=0,_lbDragDist=0;
 let currentUserDept='',currentPhotoGroup=null;
