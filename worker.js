@@ -1981,11 +1981,10 @@ export default {
         if (!s) return json({ error: 'unauthorized' }, 401);
         const { answer } = await request.json();
         if (!['O', 'X'].includes(answer)) return json({ error: 'invalid' }, 400);
-        const quiz = await env.DB.prepare('SELECT status FROM quiz_sessions WHERE id=?').bind(qid).first();
+        const quiz = await env.DB.prepare('SELECT status, had_lobby FROM quiz_sessions WHERE id=?').bind(qid).first();
         if (!quiz || quiz.status !== 'active') return json({ error: 'not active' }, 400);
-        // 참가 등록된 사람만 답변 가능 (lobby를 거친 세션에서만 강제)
-        const atCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM quiz_attendees WHERE quiz_id=?').bind(qid).first();
-        if ((atCount?.cnt || 0) > 0) {
+        // lobby를 거친 세션은 항상 참가 등록된 사람만 답변 가능
+        if (quiz.had_lobby) {
           const attended = await env.DB.prepare('SELECT 1 FROM quiz_attendees WHERE quiz_id=? AND user_id=?').bind(qid, s.user_id).first();
           if (!attended) return json({ error: 'not_attending' }, 403);
         }
