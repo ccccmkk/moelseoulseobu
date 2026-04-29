@@ -1703,6 +1703,19 @@ export default {
             const survRows = await env.DB.prepare(`SELECT u.id as user_id, u.name FROM users u WHERE u.id IN (SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?)`).bind(series.id, revCount).all();
             survivors = (survRows.results || []).map(r => ({ user_id: r.user_id, name: r.name }));
           }
+          // 동시탈락 처리: 정답자 없는 경우 마지막 라운드 참가자를 생존자로 표시
+          if (survivors.length === 0) {
+            const lastRevSess = await env.DB.prepare("SELECT id FROM quiz_sessions WHERE series_id=? AND status='revealed' ORDER BY stage_num DESC LIMIT 1").bind(series.id).first();
+            if (lastRevSess) {
+              const attRows = await env.DB.prepare("SELECT DISTINCT qa.user_id, u.name FROM quiz_attendees qa JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?").bind(lastRevSess.id).all();
+              if (attRows.results?.length) {
+                survivors = (attRows.results).map(r => ({ user_id: r.user_id, name: r.name }));
+              } else {
+                const ansRows = await env.DB.prepare("SELECT DISTINCT qa.user_id, u.name FROM quiz_answers qa JOIN users u ON qa.user_id=u.id WHERE qa.quiz_id=?").bind(lastRevSess.id).all();
+                survivors = (ansRows.results || []).map(r => ({ user_id: r.user_id, name: r.name }));
+              }
+            }
+          }
         } else {
           session = isAdminReq
             ? await env.DB.prepare("SELECT * FROM quiz_sessions WHERE status IN ('lobby','waiting','active','revealed') AND (series_id IS NULL OR series_id='') ORDER BY created_at DESC LIMIT 1").first()
