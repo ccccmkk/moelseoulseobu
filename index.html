@@ -2949,7 +2949,7 @@ async function refreshPhotoContestDetail(){
         let urls;
         try{urls=[imgUrl(e.img_url),...JSON.parse(e.extra_images||'[]').map(u=>imgUrl(u))];}
         catch{urls=[imgUrl(e.img_url)];}
-        window._pcEntryMap[e.id]={urls,cap:e.caption||''};
+        window._pcEntryMap[e.id]={urls,cap:e.caption||'',txt:e.text_content||'',isText:isText};
       });
       const makeCard=(e)=>{
         const isOwn=e.is_mine;
