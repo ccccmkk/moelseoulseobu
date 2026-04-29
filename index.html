@@ -3508,7 +3508,9 @@ async function submitCreatePhotoContest(){
   const contest_group=$('pcGroup')?$('pcGroup').value:'branch';
   try{
     const allow_vote=$('pcAllowVote').checked;
-    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group,entry_type:_pcEntryType,allow_vote})});
+    const min_votes=allow_vote?Math.max(1,parseInt($('pcMinVotes').value)||1):1;
+    const max_votes=allow_vote?Math.max(min_votes,parseInt($('pcMaxVotes').value)||min_votes):1;
+    const r=await fetch(`${API}/api/photo-contests?token=${encodeURIComponent(sessionToken)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description:$('pcDesc').value.trim(),contest_group,entry_type:_pcEntryType,allow_vote,min_votes,max_votes})});
     const d=await r.json();
     if(d.ok){$('createPhotoContestModal').classList.remove('open');await loadPhotoContests();renderAdmPhotoContests();}
     else $('pcCreateMsg').textContent=d.error||'오류';
