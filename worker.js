@@ -1780,10 +1780,24 @@ export default {
         // 생존자 계산
         const revRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM quiz_sessions WHERE series_id=? AND status='revealed' AND EXISTS (SELECT 1 FROM quiz_answers WHERE quiz_id=quiz_sessions.id AND answer=quiz_sessions.answer)").bind(sid).first();
         const revCount = revRow?.cnt || 0;
-        if (revCount === 0) return json({ error: 'first round must use lobby flow' }, 400);
-        const survRows = await env.DB.prepare(`SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?`).bind(sid, revCount).all();
-        const survivors = (survRows.results || []).map(r => r.user_id);
-        if (!survivors.length) return json({ error: 'no survivors' }, 400);
+        let survivors = [];
+        if (revCount > 0) {
+          const survRows = await env.DB.prepare(`SELECT qa.user_id FROM quiz_answers qa JOIN quiz_sessions qs ON qa.quiz_id=qs.id WHERE qs.series_id=? AND qs.status='revealed' AND qa.answer=qs.answer AND EXISTS (SELECT 1 FROM quiz_answers qa2 WHERE qa2.quiz_id=qs.id AND qa2.answer=qs.answer) GROUP BY qa.user_id HAVING COUNT(*)=?`).bind(sid, revCount).all();
+          survivors = (survRows.results || []).map(r => r.user_id);
+        }
+        // 동시탈락 처리: 정답자가 없는 경우 마지막 라운드 참가자 전원을 생존자로
+        if (survivors.length === 0) {
+          const lastRevSess = await env.DB.prepare("SELECT id FROM quiz_sessions WHERE series_id=? AND status='revealed' ORDER BY stage_num DESC LIMIT 1").bind(sid).first();
+          if (!lastRevSess) return json({ error: 'no revealed rounds found' }, 400);
+          // quiz_attendees 우선, 없으면 quiz_answers에서 참가자 추출
+          const attRows = await env.DB.prepare("SELECT DISTINCT user_id FROM quiz_attendees WHERE quiz_id=?").bind(lastRevSess.id).all();
+          survivors = (attRows.results || []).map(r => r.user_id);
+          if (survivors.length === 0) {
+            const ansRows = await env.DB.prepare("SELECT DISTINCT user_id FROM quiz_answers WHERE quiz_id=?").bind(lastRevSess.id).all();
+            survivors = (ansRows.results || []).map(r => r.user_id);
+          }
+          if (!survivors.length) return json({ error: 'no participants in last round' }, 400);
+        }
         // 다음 스테이지 번호
         const lastSess = await env.DB.prepare("SELECT stage_num FROM quiz_sessions WHERE series_id=? ORDER BY stage_num DESC LIMIT 1").bind(sid).first();
         const nextStage = (lastSess?.stage_num || 0) + 1;
