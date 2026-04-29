@@ -5303,7 +5303,8 @@ async function loadAdminQuizStatus(){
       $('adminQuizModeBar').style.display='flex';
       $('adminStageLabel').style.display='none';
       setAdminQuizMode('single');
-      $('adminQuizInputArea').style.display='';
+      $('adminQuizInputArea').style.display='none';
+      const _cb=$('adminQuizCreateBtn');if(_cb){_cb.textContent='📝 문제 게시';_cb.onclick=adminPostQuestion;}
       return;
     }
 
