@@ -1017,13 +1017,15 @@ export default {
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
         if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
-        const { title, description, contest_group, entry_type, allow_vote } = await request.json();
+        const { title, description, contest_group, entry_type, allow_vote, min_votes, max_votes } = await request.json();
         if (!title) return json({ error: '제목 필요' }, 400);
         const grpVal = contest_group === 'center' ? 'center' : 'branch';
         const eType = entry_type === 'text' ? 'text' : 'photo';
         const allowVoteVal = allow_vote === false ? 0 : 1;
+        const minV = Math.max(1, parseInt(min_votes) || 1);
+        const maxV = Math.max(minV, parseInt(max_votes) || minV);
         const id = 'pc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,contest_group,entry_type,allow_vote,created_by,created_at) VALUES(?,?,?,'draft',?,?,?,?,?)").bind(id, title, description || '', grpVal, eType, allowVoteVal, sess.user_id, Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare("INSERT INTO photo_contests(id,title,description,status,contest_group,entry_type,allow_vote,min_votes,max_votes,created_by,created_at) VALUES(?,?,?,'draft',?,?,?,?,?,?,?)").bind(id, title, description || '', grpVal, eType, allowVoteVal, minV, maxV, sess.user_id, Math.floor(Date.now() / 1000)).run();
         return json({ ok: true, id });
       }
 
