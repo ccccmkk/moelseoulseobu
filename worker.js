@@ -1821,8 +1821,8 @@ export default {
         // 새 세션 생성 (waiting 상태 - lobby 단계 없음)
         const id = 'quiz_' + Date.now();
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?)')
-          .bind(id, question, answer, 'waiting', adm.user_id, now, sid, nextStage, ser.group_target || 'all').run();
+        await env.DB.prepare('INSERT INTO quiz_sessions(id,question,answer,explanation,status,created_by,created_at,series_id,stage_num,group_target) VALUES(?,?,?,?,?,?,?,?,?,?)')
+          .bind(id, question, answer, explanation || '', 'waiting', adm.user_id, now, sid, nextStage, ser.group_target || 'all').run();
         // 생존자들을 참가자로 자동 등록
         for (const uid of survivors) {
           await env.DB.prepare('INSERT INTO quiz_attendees(quiz_id,user_id,attended_at) VALUES(?,?,?) ON CONFLICT(quiz_id,user_id) DO NOTHING').bind(id, uid, now).run();
