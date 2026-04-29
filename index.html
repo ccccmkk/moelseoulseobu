@@ -2955,9 +2955,11 @@ async function refreshPhotoContestDetail(){
   try{
     const t=sessionToken?`&token=${encodeURIComponent(sessionToken)}`:'';
     const d=await fetch(`${API}/api/photo-contests/${id}/entries?_=${Date.now()}${t}`).then(r=>r.json());
-    const {contest,entries,my_vote}=d;
+    const {contest,entries,my_votes,my_vote_allowed,allowed_voters}=d;
     if(!contest) return;
-    currentContestMyVote=my_vote||null;
+    _myVotes=my_votes||[];
+    _voteMinMax={min:contest.min_votes||1,max:contest.max_votes||1};
+    _voteSelections=new Set(_myVotes);
     const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
     $('photoContestModalTitle').textContent=contest.title;
     const stEl=$('photoContestModalStatus');
