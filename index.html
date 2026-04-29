@@ -4653,22 +4653,33 @@ function handleQuizState(d){
     quizCurrentId=s.id;
     if(quizLastAttendId!==s.id){quizLastAttendId=s.id; quizMyAttendance=d.my_attendance||false;}
     else if(d.my_attendance)quizMyAttendance=true;
-    // 참가 버튼: lobby 상태 + 첫 라운드(단판 or series 1라운드) + 비관리자 + 미탈락
-    const isFirstStage=!quizSeriesId||(s.stage_num<=1);
-    const showAttend=s.status==='lobby'&&!isAdminOrSub()&&!quizIsEliminated&&isFirstStage;
-    _applyAttendanceUI(quizMyAttendance,d.attendees_count);
     _applyAttendeesNames(d.attendees_list||[]);
-    const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=(showAttend&&!quizMyAttendance)?'':'none';
-    const doneEl=$('quizAttendDone');if(doneEl)doneEl.style.display=(quizMyAttendance&&!quizIsEliminated&&!isAdminOrSub()&&s.status==='lobby')?'':'none';
     const titleEl=$('quizWaitingTitle'),subEl=$('quizWaitingSubtitle'),cntEl=$('quizLobbyCount');
-    if(s.status==='lobby'){
-      if(titleEl) titleEl.textContent='🚪 참가 대기 중!';
-      if(subEl) subEl.textContent='참가 버튼을 눌러 입장해주세요';
-      if(cntEl) cntEl.textContent=d.attendees_count?`현재 ${d.attendees_count}명 참가 완료`:'';
+    const iconEl=$('quizWaitingIcon'),spinEl=$('quizWaitSpinner');
+    // 참석 버튼: 로비 상태 + 비관리자 + 아직 미참석 + 첫 라운드
+    const isFirstStage=!quizSeriesId||(s.stage_num<=1);
+    const showAttend=s.status==='lobby'&&!isAdminOrSub()&&!quizIsEliminated&&isFirstStage&&!quizMyAttendance;
+    const askEl=$('quizAttendAsk');if(askEl)askEl.style.display=showAttend?'':'none';
+    if(quizMyAttendance&&!isAdminOrSub()&&!quizIsEliminated){
+      // 참석 완료 → 대기방 입장 상태
+      if(iconEl) iconEl.textContent='✅';
+      if(titleEl) titleEl.textContent=s.status==='lobby'?'대기방 입장 완료!':'퀴즈가 곧 시작됩니다!';
+      if(subEl) subEl.textContent=s.status==='lobby'?`${d.attendees_count||0}명이 함께 기다리고 있어요`:'잠시 후 퀴즈가 시작됩니다';
+      if(cntEl) cntEl.textContent='';
+      if(spinEl) spinEl.style.display='none';
     } else {
-      if(titleEl) titleEl.textContent='🤚 퀴즈 준비 중!';
-      if(subEl) subEl.textContent='잠시 후 문제가 출제됩니다';
-      if(cntEl) cntEl.textContent=d.attendees_count?`참가자 ${d.attendees_count}명`:'';
+      // 미참석 or 관리자 상태
+      if(iconEl) iconEl.textContent=s.status==='lobby'?'🚪':'🤚';
+      if(s.status==='lobby'){
+        if(titleEl) titleEl.textContent='퀴즈 대기방 개설됨';
+        if(subEl) subEl.textContent=showAttend?'참석 버튼을 눌러 입장해주세요':'관전 중';
+        if(cntEl) cntEl.textContent=d.attendees_count?`현재 ${d.attendees_count}명 참가 완료`:'';
+      } else {
+        if(titleEl) titleEl.textContent='🤚 퀴즈 준비 중!';
+        if(subEl) subEl.textContent='잠시 후 문제가 출제됩니다';
+        if(cntEl) cntEl.textContent=d.attendees_count?`참가자 ${d.attendees_count}명`:'';
+      }
+      if(spinEl) spinEl.style.display='';
     }
     showQuizState(quizIsEliminated&&!isAdminOrSub()?'Eliminated':'Waiting');
   } else if(s.status==='active'){
