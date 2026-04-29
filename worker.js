@@ -1157,6 +1157,30 @@ export default {
         return json({ ok: true });
       }
 
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/voters$/) && m === 'POST') {
+        const cid = p.split('/')[3];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        const { user_id } = await request.json();
+        if (!user_id) return json({ error: 'invalid' }, 400);
+        await env.DB.prepare("INSERT INTO photo_contest_voters(contest_id,user_id,added_by,added_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING").bind(cid, user_id, sess.user_id, Math.floor(Date.now()/1000)).run();
+        return json({ ok: true });
+      }
+
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/voters\/[^/]+$/) && m === 'DELETE') {
+        const parts = p.split('/'); const cid = parts[3], uid = parts[5];
+        const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare("DELETE FROM photo_contest_voters WHERE contest_id=? AND user_id=?").bind(cid, uid).run();
+        return json({ ok: true });
+      }
+
       if (p.match(/^\/api\/photo-contests\/[^/]+\/reveal$/) && m === 'POST') {
         const cid = p.split('/')[3];
         const t = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
