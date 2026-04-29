@@ -4664,7 +4664,7 @@ async function attendFromInvite(){
     const r=await fetch(`${API}/api/quiz/${quizCurrentId}/attend?token=${encodeURIComponent(sessionToken)}`,{method:'POST'});
     const d=await r.json();
     if(d.ok){
-      quizMyAttendance=true;
+      quizMyAttendance=true;quizIsSpectator=false;
       hideQuizInvite();
       openQuizModal();
     } else {
