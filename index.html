@@ -1551,7 +1551,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div id="quizStateActive" style="display:none">
       <!-- Phase 1: 3초 사전 카운트다운 -->
       <div id="quizPreCountdown" style="padding:16px 0">
-        <div id="quizPreNum" style="font-size:88px;font-weight:900;color:var(--green);line-height:1;transition:transform .1s">7</div>
+        <div id="quizPreNum" style="font-size:88px;font-weight:900;color:var(--green);line-height:1;transition:transform .1s">5</div>
         <div style="font-size:13px;color:var(--text-hint);margin-top:12px">잠시 후 시작됩니다</div>
       </div>
       <!-- Phase 2: 퀴즈 진행 -->
@@ -5110,7 +5110,7 @@ function launchFireworks(duration=4500){
 function startQuizCountdown(startedAt){
   clearInterval(quizCountdownTid);
   quizTimerEnded=false;
-  const PRE=7000;
+  const PRE=5000;
   const startMs=startedAt*1000;
   const quizEndMs=startMs+PRE+QUIZ_DURATION;
   const circ=2*Math.PI*29;
@@ -5156,7 +5156,7 @@ function resetQuizBtns(){
   o.className='quiz-btn'; x.className='quiz-btn';
   $('quizAnswerMsg').textContent='';
   $('quizAnswerMsg').style.color='var(--text-hint)';
-  $('quizPreNum').textContent='7';
+  $('quizPreNum').textContent='5';
   $('quizPreCountdown').style.display='';
   $('quizQuizPhase').style.display='none';
   $('quizTimerNum').textContent='7';
