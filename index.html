@@ -1561,7 +1561,7 @@ button,a,[role="button"]{touch-action:manipulation}
             <circle cx="34" cy="34" r="29" fill="none" stroke="#e8e8e8" stroke-width="7"/>
             <circle id="quizTimerCircle" cx="34" cy="34" r="29" fill="none" stroke="#0a808f" stroke-width="7" stroke-dasharray="182.2" stroke-dashoffset="0" stroke-linecap="round"/>
           </svg>
-          <div class="quiz-timer-num" id="quizTimerNum">5</div>
+          <div class="quiz-timer-num" id="quizTimerNum">7</div>
         </div>
         <div class="quiz-question" id="quizQuestion"></div>
         <div class="quiz-btns">
@@ -4701,6 +4701,7 @@ let quizKnownO=new Set(),quizKnownX=new Set(),quizRevealDone=false;
 let quizSeriesId=null,quizIsEliminated=false,quizSeriesFinishedShown=false,quizLastPreSec=-1;
 let quizMyAttendance=false,quizLastAttendId=null,quizDeclinedId=null,quizActiveId=null,quizIsSpectator=false;
 let quizClockOffset=0; // 서버-클라이언트 시계 오차 (ms), 양수 = 서버가 앞섬
+let quizTimerEnded=false;
 async function confirmAttendance(){
   if(quizMyAttendance)return;
   if(!quizCurrentId){console.warn('[attend] quizCurrentId 없음');return;}
@@ -4790,7 +4791,7 @@ function setAdminQuizGroup(g){
   ['all','center','branch'].forEach(k=>{const b=$('quizGrpBtn-'+k);if(b)b.className='btn-sm'+(g===k?' primary':'');});
 }
 function currentUserGroup(){return isUserCenter()?'center':'branch';}
-const QUIZ_DURATION=5000;
+const QUIZ_DURATION=7000;
 
 function openQuizModal(){
   $('quizOverlay').classList.add('open');
@@ -5012,15 +5013,18 @@ function updateWaitingSurvivors(activePlayers, hasRevealedRounds){
 // 제출 후 실시간 참여자 현황 (active 중)
 function updateActiveParticipants(answers){
   if(!answers||!answers.length) return;
-  $('quizParticipantsPanel').style.display='';
   let oC=0,xC=0;
   for(const a of answers){
     const nm=a.name||'?';
-    if(a.answer==='O'){oC++; if(quizUserAnswer!=null&&!quizKnownO.has(nm)){quizKnownO.add(nm);appendBadge('quizActNamesO',nm);}}
-    else{xC++; if(quizUserAnswer!=null&&!quizKnownX.has(nm)){quizKnownX.add(nm);appendBadge('quizActNamesX',nm);}}
+    if(a.answer==='O'){oC++;
+      if(quizTimerEnded&&!quizKnownO.has(nm)){quizKnownO.add(nm);appendBadge('quizActNamesO',nm);}
+    } else {xC++;
+      if(quizTimerEnded&&!quizKnownX.has(nm)){quizKnownX.add(nm);appendBadge('quizActNamesX',nm);}
+    }
   }
   $('quizActCntO').textContent=oC;
   $('quizActCntX').textContent=xC;
+  if(quizTimerEnded) $('quizParticipantsPanel').style.display='';
 }
 
 function appendBadge(parentId, name){
@@ -5105,6 +5109,7 @@ function launchFireworks(duration=4500){
 
 function startQuizCountdown(startedAt){
   clearInterval(quizCountdownTid);
+  quizTimerEnded=false;
   const PRE=7000;
   const startMs=startedAt*1000;
   const quizEndMs=startMs+PRE+QUIZ_DURATION;
@@ -5133,8 +5138,10 @@ function startQuizCountdown(startedAt){
       $('quizTimerCircle').style.strokeDashoffset=circ*(1-prog);
       if(left<=0){
         clearInterval(quizCountdownTid);
+        quizTimerEnded=true;
         $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
         if(!quizUserAnswer) $('quizAnswerMsg').textContent='시간 초과';
+        $('quizParticipantsPanel').style.display='';
       }
     }
   }
@@ -5152,17 +5159,16 @@ function resetQuizBtns(){
   $('quizPreNum').textContent='7';
   $('quizPreCountdown').style.display='';
   $('quizQuizPhase').style.display='none';
-  $('quizTimerNum').textContent='5';
+  $('quizTimerNum').textContent='7';
   $('quizTimerCircle').style.strokeDashoffset='0';
 }
 
 async function submitQuizAnswer(ans){
-  if(quizUserAnswer||quizIsEliminated||quizIsSpectator) return;
+  if(quizIsEliminated||quizIsSpectator||quizTimerEnded) return;
   quizUserAnswer=ans;
   $('quizBtnO').className='quiz-btn'+(ans==='O'?' picked':'');
   $('quizBtnX').className='quiz-btn'+(ans==='X'?' picked':'');
-  $('quizBtnO').disabled=true; $('quizBtnX').disabled=true;
-  $('quizAnswerMsg').textContent='✅ 답변 제출됨!';
+  $('quizAnswerMsg').textContent=ans==='O'?'⭕ 선택됨 (변경 가능)':'❌ 선택됨 (변경 가능)';
   $('quizAnswerMsg').style.color='var(--text-hint)';
   try {
     await fetch(`${API}/api/quiz/${quizCurrentId}/answer?token=${encodeURIComponent(sessionToken)}`,{
