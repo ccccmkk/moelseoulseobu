@@ -1812,7 +1812,7 @@ export default {
         const active_players = series && survivors.length > 0
           ? survivors.map(sv => sv.name)
           : attendees_list;
-        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, attendees_list: attendees_list || [], my_attendance, active_players });
+        return json({ session, series: series ? { ...series, finished: series.status === 'finished' } : null, stats, answers, survivors, attendees_count, attendees_list: attendees_list || [], my_attendance, active_players, server_now: Math.floor(Date.now() / 1000) });
       }
 
       // 스테이지전 생성
