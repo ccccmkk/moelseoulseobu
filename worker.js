@@ -1005,7 +1005,7 @@ export default {
         for (const c of list) {
           const ec = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_entries WHERE contest_id=?").bind(c.id).first();
           c.entry_count = ec?.cnt || 0;
-          const vc = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_votes WHERE contest_id=?").bind(c.id).first();
+          const vc = await env.DB.prepare("SELECT COUNT(*) as cnt FROM photo_votes_v2 WHERE contest_id=?").bind(c.id).first();
           c.vote_count = vc?.cnt || 0;
         }
         return json(list);
