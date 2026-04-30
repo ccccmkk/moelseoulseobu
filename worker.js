@@ -173,37 +173,39 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS photo_votes (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter))`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
-  // 마이그레이션: name 컬럼이 없는 기존 DB 대응 (INSERT 전에 실행)
-  try { await env.DB.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE posts ADD COLUMN mode TEXT DEFAULT 'normal'"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_admin INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN show_badge_top INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_admin INTEGER DEFAULT 0"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE kudos ADD COLUMN user_target TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE events ADD COLUMN tagged_user TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN series_id TEXT"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN stage_num INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN group_target TEXT DEFAULT 'all'"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_series ADD COLUMN group_target TEXT DEFAULT 'all'"); } catch(e) {}
-  try { await env.DB.exec(`CREATE TABLE IF NOT EXISTS ladder_games (id TEXT PRIMARY KEY, series_id TEXT, participants TEXT NOT NULL, structure TEXT NOT NULL, picks TEXT DEFAULT '{}', winner_id TEXT, status TEXT DEFAULT 'picking', pick_deadline INTEGER, created_at INTEGER, created_by TEXT)`); } catch(e) {}
-  try { await env.DB.exec(`CREATE TABLE IF NOT EXISTS quiz_attendees (quiz_id TEXT NOT NULL, user_id TEXT NOT NULL, attended_at INTEGER, PRIMARY KEY(quiz_id, user_id))`); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN had_lobby INTEGER DEFAULT 0"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN contest_group TEXT DEFAULT 'branch'"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN revealed INTEGER DEFAULT 0"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN entry_type TEXT DEFAULT 'photo'"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_entries ADD COLUMN text_content TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_entries ADD COLUMN extra_images TEXT DEFAULT '[]'"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN allow_vote INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE quiz_sessions ADD COLUMN explanation TEXT DEFAULT ''"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN min_votes INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("ALTER TABLE photo_contests ADD COLUMN max_votes INTEGER DEFAULT 1"); } catch(e) {}
-  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS photo_votes_v2 (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter, photo_id))"); } catch(e) {}
-  try { await env.DB.exec("INSERT OR IGNORE INTO photo_votes_v2(contest_id, voter, photo_id) SELECT contest_id, voter, photo_id FROM photo_votes"); } catch(e) {}
-  try { await env.DB.exec("CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))"); } catch(e) {}
+  // 마이그레이션: 모든 ALTER TABLE을 병렬 실행해 cold start 지연 최소화
+  await Promise.all([
+    "ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN dept TEXT DEFAULT ''",
+    "ALTER TABLE posts ADD COLUMN mode TEXT DEFAULT 'normal'",
+    "ALTER TABLE user_profiles ADD COLUMN show_badge_admin INTEGER DEFAULT 1",
+    "ALTER TABLE user_profiles ADD COLUMN show_badge_top INTEGER DEFAULT 1",
+    "ALTER TABLE user_profiles ADD COLUMN granted_badge_admin INTEGER DEFAULT 0",
+    "ALTER TABLE user_profiles ADD COLUMN granted_badge_top INTEGER DEFAULT 0",
+    "ALTER TABLE kudos ADD COLUMN user_target TEXT DEFAULT ''",
+    "ALTER TABLE events ADD COLUMN tagged_user TEXT DEFAULT ''",
+    "CREATE TABLE IF NOT EXISTS gemini_usage_daily (date TEXT, type TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, calls INTEGER DEFAULT 0, PRIMARY KEY(date, type))",
+    "ALTER TABLE quiz_sessions ADD COLUMN series_id TEXT",
+    "ALTER TABLE quiz_sessions ADD COLUMN stage_num INTEGER DEFAULT 1",
+    "ALTER TABLE quiz_sessions ADD COLUMN group_target TEXT DEFAULT 'all'",
+    "ALTER TABLE quiz_series ADD COLUMN group_target TEXT DEFAULT 'all'",
+    `CREATE TABLE IF NOT EXISTS ladder_games (id TEXT PRIMARY KEY, series_id TEXT, participants TEXT NOT NULL, structure TEXT NOT NULL, picks TEXT DEFAULT '{}', winner_id TEXT, status TEXT DEFAULT 'picking', pick_deadline INTEGER, created_at INTEGER, created_by TEXT)`,
+    `CREATE TABLE IF NOT EXISTS quiz_attendees (quiz_id TEXT NOT NULL, user_id TEXT NOT NULL, attended_at INTEGER, PRIMARY KEY(quiz_id, user_id))`,
+    "ALTER TABLE quiz_sessions ADD COLUMN had_lobby INTEGER DEFAULT 0",
+    "ALTER TABLE photo_contests ADD COLUMN contest_group TEXT DEFAULT 'branch'",
+    "ALTER TABLE photo_contests ADD COLUMN revealed INTEGER DEFAULT 0",
+    "ALTER TABLE photo_contests ADD COLUMN entry_type TEXT DEFAULT 'photo'",
+    "ALTER TABLE photo_entries ADD COLUMN text_content TEXT DEFAULT ''",
+    "ALTER TABLE photo_entries ADD COLUMN extra_images TEXT DEFAULT '[]'",
+    "ALTER TABLE photo_contests ADD COLUMN allow_vote INTEGER DEFAULT 1",
+    "ALTER TABLE posts ADD COLUMN views INTEGER DEFAULT 0",
+    "ALTER TABLE quiz_sessions ADD COLUMN explanation TEXT DEFAULT ''",
+    "ALTER TABLE photo_contests ADD COLUMN min_votes INTEGER DEFAULT 1",
+    "ALTER TABLE photo_contests ADD COLUMN max_votes INTEGER DEFAULT 1",
+    "CREATE TABLE IF NOT EXISTS photo_votes_v2 (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter, photo_id))",
+    "INSERT OR IGNORE INTO photo_votes_v2(contest_id, voter, photo_id) SELECT contest_id, voter, photo_id FROM photo_votes",
+    "CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))",
+  ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
   // 관리자 계정 문자열 ID → 숫자 ID 마이그레이션
@@ -1330,8 +1332,8 @@ export default {
           } catch(e) {}
         };
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
-        if (!user || user.password !== password) { await logResult(id, 'fail'); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
-        if (user.status === 'pending') { await logResult(id, 'pending'); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
+        if (!user || user.password !== password) { ctx.waitUntil(logResult(id, 'fail')); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
+        if (user.status === 'pending') { ctx.waitUntil(logResult(id, 'pending')); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
         const token = crypto.randomUUID();
         await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, now).run();
         ctx.waitUntil(Promise.all([

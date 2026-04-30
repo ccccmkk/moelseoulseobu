@@ -4638,6 +4638,34 @@ async function openUserProfile(userId){
   }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
 }
 
+// ── 뒤로가기(Android 물리 버튼 / 브라우저 back) 모달 닫기 ──
+(function(){
+  // 모달 셀렉터: modal-overlay, quizOverlay, ladderOverlay
+  const MODAL_SEL = '.modal-overlay, #quizOverlay, #ladderOverlay';
+  function getOpenModals(){ return [...document.querySelectorAll(MODAL_SEL)].filter(el=>el.classList.contains('open')); }
+
+  // 모달이 열릴 때마다 히스토리 항목 추가
+  const _obs = new MutationObserver(muts => {
+    for(const m of muts){
+      if(m.type==='attributes' && m.attributeName==='class' && m.target.classList.contains('open')){
+        history.pushState({modal:true}, '');
+      }
+    }
+  });
+  document.querySelectorAll(MODAL_SEL).forEach(el => _obs.observe(el, {attributes:true}));
+
+  // 뒤로가기 → 열려있는 모달 중 마지막 것 닫기
+  window.addEventListener('popstate', () => {
+    const open = getOpenModals();
+    if(!open.length) return;
+    const top = open[open.length-1];
+    // 전용 close 함수가 있으면 사용
+    if(top.id==='quizOverlay') closeQuizModal();
+    else if(top.id==='photoContestModal') closePhotoContestModal();
+    else top.classList.remove('open');
+  });
+})();
+
 // ── 로그인 / 세션 ──
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');}
 const _fsSizes=['sm','md','lg','xl'];
