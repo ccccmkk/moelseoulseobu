@@ -350,10 +350,10 @@ export default {
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
         const queries = {
-          labor: '고용노동부 채용 취업 실업급여',
-          local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
-          health: '질병관리청 보건복지부 건강',
-          law: '근로기준법 노동법 산업재해',
+          labor: '고용|노동|취업|일자리|채용|실업급여|근로자|임금|노동부',
+          local: '마포|용산|서대문|은평|합정|홍대|이태원|공덕|연남|망원',
+          health: '건강|보건|의료|질병|복지부|예방접종|전염병|만성질환',
+          law: '근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
@@ -364,28 +364,41 @@ export default {
         // 네이버 뉴스 API 사용 (원본 URL 직접 제공)
         if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
           try {
-            const naverUrl = 'https://openapi.naver.com/v1/search/news.json?query=' + encodeURIComponent(queries[cat]) + '&display=30&sort=date';
-            const resp = await fetchTimeout(naverUrl, {
-              headers: {
-                'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
-                'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
-                'Referer': 'https://band-archive-api.cm99i.workers.dev',
-                'Origin': 'https://band-archive-api.cm99i.workers.dev',
-              }
-            }, 8000);
-            if (!resp.ok) throw new Error(`Naver API HTTP ${resp.status}`);
-            const data = await resp.json();
+            const naverHeaders = {
+              'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
+              'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
+              'Referer': 'https://band-archive-api.cm99i.workers.dev',
+            };
             const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim() : '';
-            const items = (data.items || []).map(item => ({
-              title: decode(item.title),
-              link: item.originallink || item.link,
-              pubDate: item.pubDate,
-              source: (() => { try { return new URL(item.originallink||item.link).hostname.replace(/^www\./,''); } catch(e){ return ''; } })(),
-            }));
+            const fetchNaver = async (q, display=30) => {
+              const r = await fetchTimeout('https://openapi.naver.com/v1/search/news.json?query='+encodeURIComponent(q)+'&display='+display+'&sort=date', { headers: naverHeaders }, 8000);
+              if (!r.ok) throw new Error(`Naver API HTTP ${r.status}`);
+              const d = await r.json();
+              return (d.items||[]).map(item=>({
+                title: decode(item.title),
+                link: item.originallink||item.link,
+                pubDate: item.pubDate,
+                source: (()=>{try{return new URL(item.originallink||item.link).hostname.replace(/^www\./,'');}catch(e){return '';}})(),
+              }));
+            };
+            let items;
+            if (cat === 'local') {
+              // 지역뉴스: 자치구 키워드 + 지역 핫플레이스 두 쿼리 병렬로 합산
+              const [r1, r2] = await Promise.all([
+                fetchNaver('마포구|용산구|서대문구|은평구', 20),
+                fetchNaver('마포|용산|서대문|은평|합정|홍대|연남|망원|이태원|공덕', 20),
+              ]);
+              const seen = new Set();
+              items = [...r1, ...r2].filter(i => { if(seen.has(i.link))return false; seen.add(i.link); return true; })
+                .sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0)).slice(0,30);
+            } else {
+              items = await fetchNaver(queries[cat], 30);
+            }
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
-            ctx.waitUntil(env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET calls=calls+1').bind(today).run().catch(()=>{}));
+            const naverCalls = cat==='local' ? 2 : 1;
+            ctx.waitUntil(env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,?) ON CONFLICT(date) DO UPDATE SET calls=calls+?').bind(today,naverCalls,naverCalls).run().catch(()=>{}));
             return json(items);
           } catch (e) {
             if (cached) return json(JSON.parse(cached.data));
