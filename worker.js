@@ -413,11 +413,8 @@ export default {
       }
 
       // ── OG 링크 프리뷰 ──
-      // ── 네이버 API 연결 테스트 (관리자용 임시) ──
+      // ── 네이버 API 연결 테스트 (임시, 인증 없음) ──
       if (p === '/api/debug/naver' && m === 'GET') {
-        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
-        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
-        if (!sess) return json({ error: 'unauthorized' }, 401);
         if (!env.NAVER_CLIENT_ID || !env.NAVER_CLIENT_SECRET) return json({ error: 'NAVER 키 없음', has_id: !!env.NAVER_CLIENT_ID, has_secret: !!env.NAVER_CLIENT_SECRET });
         try {
           const naverUrl = 'https://openapi.naver.com/v1/search/news.json?query=고용노동&display=1&sort=date';
