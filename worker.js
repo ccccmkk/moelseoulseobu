@@ -649,8 +649,9 @@ export default {
       // ── 조회수 증가 ──
       if (p.match(/^\/api\/posts\/[^/]+\/view$/) && m === 'POST') {
         const postId = p.split('/')[3];
-        ctx.waitUntil(env.DB.prepare('UPDATE posts SET views=views+1 WHERE id=?').bind(postId).run());
-        return json({ ok: true });
+        await env.DB.prepare('UPDATE posts SET views=views+1 WHERE id=?').bind(postId).run();
+        const row = await env.DB.prepare('SELECT views FROM posts WHERE id=?').bind(postId).first();
+        return json({ ok: true, views: row?.views || 0 });
       }
 
       // ── OX 퀴즈 관리자 인증 헬퍼 ──
