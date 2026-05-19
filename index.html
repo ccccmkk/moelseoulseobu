@@ -4966,6 +4966,7 @@ function onLoginSuccess(d){
   currentUserDept=d.dept||'';
   userNames[d.id]=d.name||d.id;
   localStorage.setItem('session_token',d.token);
+  localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
   showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
@@ -5014,13 +5015,42 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
   if(autoLogin&&autoPw){$('autoLoginChk').checked=true;$('upw').value=atob(autoPw);}
   else if(savedId){$('upw').focus();}
   const token=localStorage.getItem('session_token');
+  const userCache=JSON.parse(localStorage.getItem('user_cache')||'null');
+  if(token&&userCache){
+    // 캐시된 유저 정보로 즉시 앱 표시 (세션 검증은 백그라운드)
+    currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
+    userNames[userCache.id]=userCache.name;
+    _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
+    showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
+    try{
+      const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+      const d=await r.json();
+      if(!d.ok){
+        currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
+        $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';$('nlAddBtn').style.display='none';
+        localStorage.removeItem('session_token');localStorage.removeItem('user_cache');
+        showPage('loginPage');return;
+      }
+      // 유저 정보 최신화
+      if(d.name&&d.name!==currentUserName){currentUserName=d.name;userNames[currentUser]=d.name;}
+      if(d.dept)currentUserDept=d.dept;
+      localStorage.setItem('user_cache',JSON.stringify({id:currentUser,name:currentUserName,dept:currentUserDept}));
+      if(d.must_change_password){
+        $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
+        $('cpOld').value='1234';$('cpNew').value='';$('cpNew2').value='';$('cpErr').textContent='';
+        $('changePwModal').classList.add('open');
+      }
+    }catch(e){/* 네트워크 오류 시 캐시 기반으로 계속 사용 */}
+    return;
+  }
   if(token){
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
       const d=await r.json();
       if(d.ok){onLoginSuccess({...d,token});return;}
     }catch(e){}
-    localStorage.removeItem('session_token');
+    localStorage.removeItem('session_token');localStorage.removeItem('user_cache');
   }
   // 자동 로그인
   if(autoLogin&&savedId&&autoPw){
@@ -5045,6 +5075,7 @@ $('logoutBtn').onclick=async function(){
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';
   $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';$('nlAddBtn').style.display='none';
+  localStorage.removeItem('user_cache');
   showPage('loginPage');
 };
 
