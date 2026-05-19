@@ -2560,8 +2560,8 @@ async function submitNewsletter(){
       if(!r.url)throw new Error('이미지 업로드 실패');
       pages.push(r.url);
     }
-    const res=await fetch(`${API}/api/newsletters`,{
-      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sessionToken},
+    const res=await fetch(`${API}/api/newsletters?token=${encodeURIComponent(sessionToken)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({title,pages})
     }).then(r=>r.json());
     if(!res.ok)throw new Error(res.error||'등록 실패');
@@ -2572,7 +2572,7 @@ async function submitNewsletter(){
 }
 async function deleteNewsletter(id){
   if(!confirm('소식지를 삭제할까요?'))return;
-  await fetch(`${API}/api/newsletters/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+sessionToken}});
+  await fetch(`${API}/api/newsletters/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
   await loadNewsletters();
 }
 

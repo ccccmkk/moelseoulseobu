@@ -2117,7 +2117,7 @@ export default {
         return json({ newsletters });
       }
       if (p === '/api/newsletters' && m === 'POST') {
-        const authToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
         const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
@@ -2130,7 +2130,7 @@ export default {
         return json({ ok: true, id });
       }
       if (p.match(/^\/api\/newsletters\/[^/]+$/) && m === 'DELETE') {
-        const authToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
         const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
