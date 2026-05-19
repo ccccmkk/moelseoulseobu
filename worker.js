@@ -392,25 +392,8 @@ export default {
             let items = [];
             let naverCalls = 1;
             if (cat === 'labor') {
-              // 네이버 뉴스 노동 섹션 RSS: 257(경제>고용/노동) + 251(사회>노동)
-              try {
-                const [r1, r2] = await Promise.allSettled([
-                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=257'),
-                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=251'),
-                ]);
-                const merged = [
-                  ...(r1.status==='fulfilled'?r1.value:[]),
-                  ...(r2.status==='fulfilled'?r2.value:[]),
-                ];
-                const seen = new Set();
-                items = merged.filter(x=>{ if(seen.has(x.link))return false; seen.add(x.link);return true; });
-                naverCalls = 0; // RSS는 API 쿼터 소모 없음
-              } catch(e) { /* 아래 폴백으로 */ }
-              // RSS 결과가 없으면 검색 API 폴백
-              if (!items.length) {
-                items = await fetchNaverSearch('고용|노동|취업|일자리|채용|실업급여|근로자|노동부');
-                naverCalls = 1;
-              }
+              // 네이버 뉴스 검색 API — 고용/노동 분야 직접 검색
+              items = await fetchNaverSearch('고용노동|근로기준|최저임금|실업급여|노동부|노동법|취업지원|산업재해');
             } else if (cat === 'local') {
               // 지역뉴스: 우리 지역 4개 자치구 정확히 타겟
               items = await fetchNaverSearch('마포구|용산구|서대문구|은평구');
