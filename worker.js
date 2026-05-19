@@ -353,16 +353,9 @@ export default {
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
-        // 캐시 유효: 10분 이내 AND 캐시된 기사 중 최신이 3일 이내
+        // 캐시 유효: 10분 이내
         if (cached && (now - cached.cached_at) < 600) {
-          const cachedItems = JSON.parse(cached.data);
-          const newest = cachedItems.reduce((mx, x) => {
-            const t = x.pubDate ? new Date(x.pubDate).getTime() : 0;
-            return t > mx ? t : mx;
-          }, 0);
-          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-          if (newest > threeDaysAgo) return json(cachedItems);
-          // 캐시가 오래된 기사만 담고 있으면 강제 갱신
+          return json(JSON.parse(cached.data));
         }
         // 네이버 뉴스 API
         if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
@@ -403,28 +396,31 @@ export default {
               const seen = new Set();
               return arr.filter(x => { if(seen.has(x.link)) return false; seen.add(x.link); return true; });
             };
+            const fetchNaverSearchRaw = async (q, display=100) => {
+              const r = await fetchTimeout(
+                `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(q)}&display=${display}&sort=date`,
+                { headers: naverHeaders }, 8000);
+              if (!r.ok) throw new Error(`Naver API ${r.status}`);
+              const d = await r.json();
+              return (d.items||[]).map(item=>({
+                title: decode(item.title),
+                link: item.originallink||item.link,
+                pubDate: item.pubDate,
+                source: (()=>{try{return new URL(item.originallink||item.link).hostname.replace(/^www\./,'');}catch(e){return '';}})(),
+              }));
+            };
             if (cat === 'labor') {
-              // 두 쿼리 병렬: 고용부 공식·정책 + 노동 현장·근로자
-              naverCalls = 2;
-              const [r1, r2] = await Promise.allSettled([
-                fetchNaverSearch('고용노동부 OR 실업급여 OR 최저임금 OR 고용보험'),
-                fetchNaverSearch('근로자 OR 노동조합 OR 취업 OR 채용 OR 해고'),
-              ]);
-              const merged = [
-                ...(r1.status==='fulfilled'?r1.value:[]),
-                ...(r2.status==='fulfilled'?r2.value:[]),
-              ];
-              // 날짜 기준 정렬 후 중복 제거
-              merged.sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0));
-              items = dedup(merged);
+              // 단순하게: "노동" 단일 키워드 100개, sort=date
+              // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
+              items = await fetchNaverSearchRaw('노동', 100);
             } else if (cat === 'local') {
-              items = await fetchNaverSearch('마포구 OR 용산구 OR 서대문구 OR 은평구');
+              items = await fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 100);
             } else if (cat === 'health') {
-              items = await fetchNaverSearch('건강 OR 보건 OR 의료 OR 질병관리청 OR 복지부');
+              items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
-              items = await fetchNaverSearch('근로기준법 OR 노동법 OR 산업재해 OR 직장내괴롭힘 OR 해고 OR 퇴직금');
+              items = await fetchNaverSearchRaw('근로기준법 OR 노동법 OR 산업재해', 100);
             }
-            items = items.slice(0, 100);
+            items = dedup(items).slice(0, 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
