@@ -1585,6 +1585,16 @@ export default {
         ).bind(tokens_in, tokens_out, Math.floor(Date.now()/1000), tokens_in, tokens_out, Math.floor(Date.now()/1000)).run();
         return json({ ok: true });
       }
+      if (p === '/api/admin/news-cache' && m === 'DELETE') {
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('DELETE FROM news_cache').run();
+        return json({ ok: true, message: '뉴스 캐시가 초기화되었습니다.' });
+      }
+
       if (p === '/api/admin/law-cache' && m === 'POST') {
         const tok = request.headers.get('X-Cache-Token');
         if (!env.LAW_CACHE_TOKEN || tok !== env.LAW_CACHE_TOKEN) return json({ error: 'unauthorized' }, 401);

@@ -1418,6 +1418,11 @@ button,a,[role="button"]{touch-action:manipulation}
             <span id="claudeToggleThumb" style="position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
           </label>
         </div>
+        <!-- 뉴스 캐시 초기화 -->
+        <div style="background:#fff3e0;border-radius:10px;padding:12px;margin-top:10px">
+          <div style="font-size:12px;color:#e65100;font-weight:600;margin-bottom:8px">뉴스 캐시</div>
+          <button class="btn-sm" onclick="clearNewsCache()" style="width:100%;justify-content:center;background:#e65100;color:#fff">뉴스 캐시 초기화</button>
+        </div>
         <div id="agentMsg" style="font-size:12px;margin-top:10px;min-height:16px;color:var(--green-dark)"></div>
       </div>
 
@@ -4677,6 +4682,17 @@ async function toggleClaude(on){
   thumb.style.left=on?'19px':'3px';
   lbl.textContent=on?'Gemini 실패 시 Claude 자동 사용':'꺼짐 (Gemini까지만 사용)';
   await fetch(`${API}/api/settings/claude_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
+}
+
+async function clearNewsCache(){
+  const msg=$('agentMsg');
+  msg.textContent='초기화 중...';
+  try{
+    const r=await fetch(`${API}/api/admin/news-cache?token=${encodeURIComponent(currentToken)}`,{method:'DELETE'});
+    const d=await r.json();
+    msg.style.color='var(--green-dark)';
+    msg.textContent=d.ok?'뉴스 캐시가 초기화되었습니다. 뉴스탭 새로고침 시 최신 뉴스가 바로 로딩됩니다.':'오류: '+(d.error||'알 수 없음');
+  }catch(e){msg.style.color='red';msg.textContent='오류: '+e.message;}
 }
 
 // ── 관리자 탭 전환 ──
