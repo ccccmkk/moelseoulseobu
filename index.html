@@ -3115,13 +3115,14 @@ function openWriteModal(prefillUrl){
   $('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';
   updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
   $('postKeyword').value='';$('blogModeToggle').checked=false;
-  editorBlocks=[{type:'text',content:''}];
+  editorBlocks=[{type:'text',content:prefillUrl||''}];
   renderSimpleEditor();
   $('writeModal').classList.add('open');
   _modalJustOpened=true;setTimeout(()=>{_modalJustOpened=false;},400);
   if(prefillUrl){
     if(!$('tabFeed').classList.contains('active'))switchTab('Feed');
-    setTimeout(()=>{_detectAndFetchOG(prefillUrl);},200);
+    // textarea에 URL이 들어간 상태로 OG 자동 감지
+    setTimeout(()=>{_detectAndFetchOG(prefillUrl);},300);
   }
 }
 function editPost(key){
