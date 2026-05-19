@@ -133,23 +133,36 @@ function parseRSS(xml) {
 
 async function fetchOG(targetUrl, env) {
   const cached = await env.DB.prepare('SELECT * FROM og_cache WHERE url=?').bind(targetUrl).first().catch(()=>null);
-  if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400) {
-    return { title: cached.title, description: cached.description, image: cached.image, site_name: cached.site_name };
+  const isGoogleUrl = /news\.google\.com/i.test(targetUrl);
+  if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400
+      && (!isGoogleUrl || cached.final_url)) {
+    return { title: cached.title, description: cached.description, image: cached.image, site_name: cached.site_name, finalUrl: cached.final_url || null };
   }
-  const res = await fetchTimeout(targetUrl, {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+  // Google News redirect URL → 실제 기사 URL 해결 (3단계)
+  let fetchUrl = targetUrl;
+  if (/news\.google\.com/i.test(targetUrl)) {
+    // 1단계: manual redirect로 Location 헤더 확인 (HTTP 301/302)
+    try {
+      const r = await fetchTimeout(targetUrl, { headers:{'User-Agent':UA}, redirect:'manual' }, 4000);
+      const loc = r.headers.get('location');
+      if (loc && /^https?:\/\//i.test(loc) && !/google\.com/i.test(loc)) fetchUrl = loc;
+    } catch(e) {}
+  }
+
+  const res = await fetchTimeout(fetchUrl, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'User-Agent': UA,
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'ko-KR,ko;q=0.9',
     },
     redirect: 'follow',
   }, 8000);
   if (!res.ok) return null;
-  const finalUrl = res.url || targetUrl;
   const html = await res.text();
   const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim() : null;
   const getMeta = (prop) => {
-    // 속성 순서 두 가지 모두 시도, 큰따옴표·작은따옴표 모두 허용
     const pats = [
       new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"'<>]*)["']`,'i'),
       new RegExp(`<meta[^>]+content=["']([^"'<>]*)["'][^>]+(?:property|name)=["']${prop}["']`,'i'),
@@ -161,12 +174,23 @@ async function fetchOG(targetUrl, env) {
   if (!title) return null;
   const description = (getMeta('og:description') || getMeta('twitter:description') || getMeta('description') || '').slice(0,300) || null;
   let image = getMeta('og:image') || getMeta('twitter:image') || null;
+
+  // 2단계: og:url 또는 canonical로 실제 기사 URL 추출 (Google 도메인이 아닐 때만)
+  const resUrl = res.url || fetchUrl;
+  const ogUrl = getMeta('og:url');
+  const canonical = decode(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"'<>]+)["']/i.exec(html)?.[1] ||
+                           /<link[^>]+href=["']([^"'<>]+)["'][^>]+rel=["']canonical["']/i.exec(html)?.[1] || null);
+  let finalUrl = (/google\.com/i.test(resUrl) ? null : resUrl)
+              || (ogUrl && !/google\.com/i.test(ogUrl) ? ogUrl : null)
+              || (canonical && !/google\.com/i.test(canonical) ? canonical : null)
+              || resUrl;
+
   // 상대 경로 이미지를 절대 경로로 변환
   if (image && image.startsWith('/')) {
-    try { const u = new URL(targetUrl); image = u.origin + image; } catch(e) {}
+    try { const u = new URL(finalUrl); image = u.origin + image; } catch(e) {}
   }
   const site_name = getMeta('og:site_name') || null;
-  env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at) VALUES(?,?,?,?,?,?)').bind(targetUrl, title, description, image, site_name, Math.floor(Date.now()/1000)).run().catch(()=>{});
+  env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at,final_url) VALUES(?,?,?,?,?,?,?)').bind(targetUrl, title, description, image, site_name, Math.floor(Date.now()/1000), finalUrl).run().catch(()=>{});
   return { title, description, image, site_name, finalUrl };
 }
 
@@ -246,6 +270,7 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))",
     "CREATE TABLE IF NOT EXISTS newsletters (id TEXT PRIMARY KEY, title TEXT NOT NULL, pages TEXT NOT NULL, created_by TEXT, created_at INTEGER)",
     "CREATE TABLE IF NOT EXISTS og_cache (url TEXT PRIMARY KEY, title TEXT, description TEXT, image TEXT, site_name TEXT, cached_at INTEGER)",
+    "ALTER TABLE og_cache ADD COLUMN final_url TEXT",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
