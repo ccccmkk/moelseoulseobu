@@ -413,6 +413,29 @@ export default {
       }
 
       // ── OG 링크 프리뷰 ──
+      // ── 네이버 API 연결 테스트 (관리자용 임시) ──
+      if (p === '/api/debug/naver' && m === 'GET') {
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        if (!env.NAVER_CLIENT_ID || !env.NAVER_CLIENT_SECRET) return json({ error: 'NAVER 키 없음', has_id: !!env.NAVER_CLIENT_ID, has_secret: !!env.NAVER_CLIENT_SECRET });
+        try {
+          const naverUrl = 'https://openapi.naver.com/v1/search/news.json?query=고용노동&display=1&sort=date';
+          const resp = await fetchTimeout(naverUrl, {
+            headers: {
+              'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
+              'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
+              'Referer': 'https://band-archive-api.cm99i.workers.dev',
+              'Origin': 'https://band-archive-api.cm99i.workers.dev',
+            }
+          }, 8000);
+          const text = await resp.text();
+          return json({ status: resp.status, ok: resp.ok, body: text.slice(0, 500) });
+        } catch(e) {
+          return json({ error: e.message });
+        }
+      }
+
       if (p === '/api/og-preview' && m === 'GET') {
         const targetUrl = url.searchParams.get('url') || '';
         if (!targetUrl.match(/^https?:\/\/.+/)) return json({ error: 'invalid url' }, 400);
