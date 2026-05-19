@@ -368,6 +368,8 @@ export default {
               headers: {
                 'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
+                'Referer': 'https://band-archive-api.cm99i.workers.dev',
+                'Origin': 'https://band-archive-api.cm99i.workers.dev',
               }
             }, 8000);
             if (!resp.ok) throw new Error(`Naver API HTTP ${resp.status}`);
