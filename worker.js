@@ -1,4 +1,4 @@
-// v2.1.8
+// v2.1.9
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -508,7 +508,7 @@ export default {
         const LAW_HEADERS = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json, text/plain, */*',
-          'Referer': 'https://www.law.go.kr/',
+          'Referer': 'https://moelseoulseobu.cloud/',
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const lawFetch = (t, params) =>
@@ -598,7 +598,7 @@ export default {
         const xhdr = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/xml,text/xml,*/*',
-          'Referer': 'https://www.law.go.kr/',
+          'Referer': 'https://moelseoulseobu.cloud/',
           'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         // XML 오류/무결과 판별
@@ -740,7 +740,7 @@ export default {
         const ASK_HEADERS = {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json, text/plain, */*',
-          'Referer': 'https://www.law.go.kr/', 'Accept-Language': 'ko-KR,ko;q=0.9'
+          'Referer': 'https://moelseoulseobu.cloud/', 'Accept-Language': 'ko-KR,ko;q=0.9'
         };
         const [lawRes, precRes, expcRes] = await Promise.allSettled([
           fetchTimeout(`https://www.law.go.kr/DRF/lawSearch.do?OC=${OC}&target=eflaw&type=JSON&query=${enc}&nw=3&display=5&sort=efYd`, { headers: ASK_HEADERS }, 9000),
