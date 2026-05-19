@@ -114,16 +114,16 @@ body.font-xl .modal{max-height:65dvh!important}
 .act-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;transition:.2s}
 .act-btn.liked{color:#ff4d6d}.act-btn.liked svg{fill:#ff4d6d;stroke:#ff4d6d}
 /* 라이트박스 */
-#lightbox{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:1000;align-items:center;justify-content:center;overflow:hidden;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;backface-visibility:hidden}
-#lightbox.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .18s ease,visibility 0s}
+#lightbox{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:1000;align-items:center;justify-content:center;overflow:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease;backface-visibility:hidden;transform:translateZ(0)}
+#lightbox.open{opacity:1;pointer-events:auto}
 #lbTrack{display:flex;align-items:center;justify-content:center;width:100%;height:100%;will-change:transform;transition:transform .28s cubic-bezier(0.25,0.46,0.45,0.94)}
 #lightboxImg{max-width:100%;max-height:calc(100dvh - 80px);object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;transition:opacity .2s}
 @keyframes lbSlideLeft{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes lbSlideRight{from{transform:translateX(-60px);opacity:0}to{transform:translateX(0);opacity:1}}
 .lb-close{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001}
-/* 모달 공통 — display:none 대신 visibility+opacity로 GPU 레이어 항상 유지 */
-.modal-overlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .22s ease,visibility 0s linear .22s;backface-visibility:hidden}
-.modal-overlay.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .22s ease,visibility 0s}
+/* 모달 공통 — opacity만으로 GPU 레이어 유지, visibility 미사용 */
+.modal-overlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .22s ease;backface-visibility:hidden;transform:translateZ(0)}
+.modal-overlay.open{opacity:1;pointer-events:auto}
 .modal-overlay.open .modal{animation:modalSlideUp .28s cubic-bezier(0.34,1.56,0.64,1) forwards}
 @keyframes modalSlideUp{from{transform:translateY(36px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-overlay.center{align-items:center;padding:1rem}
@@ -353,8 +353,8 @@ body.font-xl .modal{max-height:65dvh!important}
 .badge-admin{background:#e8f4ff;color:#1565c0}
 .badge-top{background:#fff3e0;color:#e65100}
 /* ── 업로드 진행 오버레이 ── */
-#uploadOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;backface-visibility:hidden}
-#uploadOverlay.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .18s ease,visibility 0s}
+#uploadOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s ease;backface-visibility:hidden;transform:translateZ(0)}
+#uploadOverlay.open{opacity:1;pointer-events:auto}
 #uploadOverlay.open .upload-box{animation:modalFadeIn .2s ease forwards}
 .upload-box{background:#fff;border-radius:var(--radius);padding:28px 32px;min-width:200px;text-align:center}
 .upload-label{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text)}
@@ -433,8 +433,8 @@ button,a,[role="button"]{touch-action:manipulation}
 .law-ask-tag-del{background:none;border:none;color:var(--green-dark);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;opacity:.7}
 .law-ask-tag-del:hover{opacity:1}
 /* OX 퀴즈 */
-#quizOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:800;align-items:center;justify-content:center;padding:20px;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;backface-visibility:hidden}
-#quizOverlay.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .18s ease,visibility 0s}
+#quizOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:800;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .18s ease;backface-visibility:hidden;transform:translateZ(0)}
+#quizOverlay.open{opacity:1;pointer-events:auto}
 .quiz-card{background:#fff;border-radius:20px;width:100%;max-width:380px;padding:28px 22px 22px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3);position:relative}
 .quiz-timer{width:68px;height:68px;position:relative;margin:0 auto 18px}
 .quiz-timer svg{transform:rotate(-90deg);display:block}
@@ -532,8 +532,8 @@ button,a,[role="button"]{touch-action:manipulation}
 .crop-ratio-btn{padding:5px 14px;border:1.5px solid var(--border);border-radius:20px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;color:var(--text-sub)}
 .crop-ratio-btn.active{border-color:var(--green);background:var(--green-light);color:var(--green-dark)}
 /* 사다리타기 */
-#ladderOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:900;align-items:center;justify-content:center;padding:16px;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s;backface-visibility:hidden}
-#ladderOverlay.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .2s ease,visibility 0s}
+#ladderOverlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:900;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s ease;backface-visibility:hidden;transform:translateZ(0)}
+#ladderOverlay.open{opacity:1;pointer-events:auto}
 .ladder-card{background:#1a1a2e;border-radius:20px;width:100%;max-width:440px;padding:22px 18px 24px;color:#fff;position:relative;max-height:90dvh;overflow-y:auto}
 .ladder-title{font-size:17px;font-weight:800;text-align:center;margin-bottom:4px;letter-spacing:.02em}
 .ladder-subtitle{font-size:12px;color:rgba(255,255,255,.5);text-align:center;margin-bottom:16px}
@@ -579,8 +579,8 @@ button,a,[role="button"]{touch-action:manipulation}
 .editor-link-preview-site{font-size:11px;color:var(--text-hint);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .editor-link-preview-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 /* 소식지 뷰어 */
-#nlViewer{display:flex;position:fixed;inset:0;background:#111;z-index:950;flex-direction:column;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s}
-#nlViewer.open{visibility:visible;opacity:1;pointer-events:auto;transition:opacity .18s ease,visibility 0s}
+#nlViewer{display:flex;position:fixed;inset:0;background:#111;z-index:950;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .18s ease;transform:translateZ(0)}
+#nlViewer.open{opacity:1;pointer-events:auto}
 .nlv-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top,0px));background:rgba(0,0,0,.92);color:#fff;flex-shrink:0}
 .nlv-title{font-size:15px;font-weight:700;flex:1;text-align:center}
 .nlv-close{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;font-family:inherit}
@@ -1022,7 +1022,7 @@ button,a,[role="button"]{touch-action:manipulation}
 
 <!-- ════ 라이트박스 ════ -->
 <!-- 사진 선택 시트 -->
-<div id="photoPickerSheet" style="display:flex;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.45);visibility:hidden;opacity:0;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s" onclick="closePhotoPicker()">
+<div id="photoPickerSheet" style="display:flex;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .18s ease;transform:translateZ(0)" onclick="closePhotoPicker()">
   <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom,0px))" onclick="event.stopPropagation()">
     <div style="width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px"></div>
     <button onclick="closePhotoPicker();$('imgCameraInput').click()" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 24px;background:none;border:none;font-size:16px;cursor:pointer;font-family:inherit;color:var(--text)">
@@ -3119,8 +3119,6 @@ function openWriteModal(prefillUrl){
   $('writeModal').classList.add('open');
   _modalJustOpened=true;setTimeout(()=>{_modalJustOpened=false;},400);
   if(prefillUrl){
-    if(!$('tabFeed').classList.contains('active'))switchTab('Feed');
-    // textarea에 URL이 들어간 상태로 OG 자동 감지
     setTimeout(()=>{_detectAndFetchOG(prefillUrl);},300);
   }
 }
@@ -3151,8 +3149,8 @@ async function compressImage(file,maxPx=1200,quality=0.78){
     img.src=URL.createObjectURL(file);
   });
 }
-function openPhotoPicker(){const s=$('photoPickerSheet').style;s.visibility='visible';s.opacity='1';s.pointerEvents='auto';s.transition='opacity .18s ease,visibility 0s';}
-function closePhotoPicker(){const s=$('photoPickerSheet').style;s.visibility='hidden';s.opacity='0';s.pointerEvents='none';s.transition='opacity .18s ease,visibility 0s linear .18s';}
+function openPhotoPicker(){const s=$('photoPickerSheet').style;s.opacity='1';s.pointerEvents='auto';}
+function closePhotoPicker(){const s=$('photoPickerSheet').style;s.opacity='0';s.pointerEvents='none';}
 $('addImgBtn').onclick=openPhotoPicker;
 async function _handleImgFiles(files){
   if(!files.length)return;
