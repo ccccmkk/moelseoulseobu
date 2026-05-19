@@ -2480,7 +2480,7 @@ function postCardHtml(p){
   const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${isMine?`<button onclick="editPost('${key}')">수정</button>`:''}<button class="danger" onclick="deletePost('${key}')">삭제</button></div></div>`:'';
   const isBlog=p.mode==='blog';
   return`<div class="post-card" id="pc-${key}">
-    <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
+    <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}</div>
     ${isBlog?`<div style="cursor:pointer" onclick="openFullPost('${key}')">${renderBlocksInCard(p,true)}</div>`:renderBlocksInCard(p,false)}
     ${isBlog?`<button class="btn-more" onclick="openFullPost('${key}')">더보기 →</button>`:''}
     ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
@@ -3087,7 +3087,7 @@ function renderSimpleEditor(){
   }
 }
 function renderEditor(){$('blogModeToggle').checked?renderBlogEditor():renderSimpleEditor();}
-function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];_ogFetching=false;clearTimeout(_ogFetchTid);$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderSimpleEditor();$('writeModal').classList.add('open');setTimeout(()=>$('blockEditor').querySelector('textarea')?.focus(),100);}
+function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];_ogFetching=false;clearTimeout(_ogFetchTid);$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderSimpleEditor();$('writeModal').classList.add('open');}
 function editPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
   editingKey=key;editorBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
