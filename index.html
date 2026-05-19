@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.json"/>
 <title>STEP</title>
 <style>
-html,body{overscroll-behavior-y:none}
+html{background:#f5f5f5}html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --green:#0a808f;--green-dark:#076672;--green-light:#e0f4f6;
@@ -564,7 +564,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .nl-card-title{font-size:15px;font-weight:600;color:var(--text)}
 .nl-card-sub{font-size:12px;color:var(--text-hint);margin-top:3px}
 /* 링크 프리뷰 */
-.link-preview{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fff;margin:4px 14px 8px;transition:box-shadow .15s;padding:10px 12px}
+.link-preview{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fafafa;margin:0 14px 10px;transition:box-shadow .15s;padding:10px 12px}
 .link-preview:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .link-preview-img{width:56px;height:56px;object-fit:cover;display:block;flex-shrink:0;border-radius:6px}
 .link-preview-body{flex:1;min-width:0}
@@ -3048,30 +3048,21 @@ function _detectAndFetchOG(text){
   clearTimeout(_ogFetchTid);
   if(editorBlocks.some(b=>b.type==='link'))return;
   const raw=text.match(/https?:\/\/[^\s）)）\]]+/);
-  if(!raw){_setOgStatus('');return;}
-  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,''); // 끝 구두점 제거
-  _setOgStatus('loading');
+  if(!raw)return;
+  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,'');
   _ogFetchTid=setTimeout(async()=>{
     if(_ogFetching)return;
-    if(editorBlocks.some(b=>b.type==='link')){_setOgStatus('');return;}
+    if(editorBlocks.some(b=>b.type==='link'))return;
     _ogFetching=true;
     try{
       const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(targetUrl)}`).then(r=>r.json());
       if(d.ok&&d.title){
         editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();
-      } else {
-        _setOgStatus('');
       }
-    }catch(e){_setOgStatus('');}
+    }catch(e){}
     _ogFetching=false;
   },800);
-}
-function _setOgStatus(s){
-  const el=document.getElementById('_ogStatus');
-  if(!el)return;
-  el.textContent=s==='loading'?'링크 미리보기 불러오는 중...':'';
-  el.style.display=s?'':'none';
 }
 function renderSimpleEditor(){
   const editor=$('blockEditor');editor.innerHTML='';
@@ -3084,10 +3075,6 @@ function renderSimpleEditor(){
   ta.addEventListener('paste',e=>{setTimeout(()=>{textBlock.content=ta.value;_detectAndFetchOG(ta.value);},0);});
   ta.style.height='auto';ta.style.height=(ta.scrollHeight||80)+'px';
   editor.appendChild(textDiv);
-  // OG 로딩 상태 표시
-  const ogStatus=document.createElement('div');
-  ogStatus.id='_ogStatus';ogStatus.style.cssText='display:none;font-size:12px;color:var(--text-hint);padding:4px 2px';
-  editor.appendChild(ogStatus);
   // 링크 프리뷰 블록
   const linkBlock=editorBlocks.find(b=>b.type==='link');
   if(linkBlock){
