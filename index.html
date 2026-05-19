@@ -2556,14 +2556,18 @@ async function submitNewsletter(){
     for(let i=0;i<_nlFiles.length;i++){
       btn.textContent=`업로드 중... (${i+1}/${_nlFiles.length})`;
       const fd=new FormData();fd.append('file',_nlFiles[i]);
-      const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
-      if(!r.url)throw new Error('이미지 업로드 실패');
+      let r;
+      try{r=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(res=>res.json());}
+      catch(e){throw new Error(`이미지 업로드 실패 (${i+1}번째): ${e.message}`);}
+      if(!r.url)throw new Error(`이미지 업로드 실패 (${i+1}번째): ${r.error||'알 수 없는 오류'}`);
       pages.push(r.url);
     }
-    const res=await fetch(`${API}/api/newsletters?token=${encodeURIComponent(sessionToken)}`,{
+    let res;
+    try{res=await fetch(`${API}/api/newsletters?token=${encodeURIComponent(sessionToken)}`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({title,pages})
-    }).then(r=>r.json());
+    }).then(r=>r.json());}
+    catch(e){throw new Error(`소식지 등록 실패: ${e.message}`);}
     if(!res.ok)throw new Error(res.error||'등록 실패');
     $('nlUploadModal').classList.remove('open');
     await loadNewsletters();
