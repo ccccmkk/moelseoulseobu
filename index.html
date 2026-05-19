@@ -2256,7 +2256,26 @@ function lawSkeleton(){
 }
 let _lawCache=[];
 function _lawIdx(item){const i=_lawCache.length;_lawCache.push(item);return i;}
-function openLawCached(i){const it=_lawCache[i];if(it)openLawContent(it.id,it.name,it.lawtype,it.mst||'');}
+function openLawCached(i){
+  const it=_lawCache[i];if(!it)return;
+  // 기본 법령(id 없음): 검색으로 최신 ID 먼저 획득
+  if(!it.id&&it.lawtype==='law'){searchAndOpenLaw(it.name,it.mst||'');}
+  else{openLawContent(it.id,it.name,it.lawtype,it.mst||'');}
+}
+async function searchAndOpenLaw(lawName,fallbackMst){
+  $('lawContentTitle').textContent=lawName;
+  $('lawContentBody').innerHTML=lawSkeleton();
+  $('lawContentModal').classList.add('open');
+  try{
+    const data=await fetch(`${API}/api/law-search?q=${encodeURIComponent(lawName)}&target=law`).then(r=>r.json());
+    const match=(data.laws||[]).find(l=>l.name===lawName)||(data.laws||[])[0];
+    if(match&&(match.id||match.mst)){
+      await openLawContent(match.id||'',lawName,'law',match.mst||fallbackMst);
+    }else{
+      $('lawContentBody').innerHTML=_lawFallbackHtml('law',lawName,'',fallbackMst);
+    }
+  }catch(e){$('lawContentBody').innerHTML=_lawFallbackHtml('law',lawName,'',fallbackMst);}
+}
 function expandLawSection(btn,cls){
   document.querySelectorAll('.'+cls).forEach(el=>el.style.display='');
   btn.style.display='none';
@@ -2300,10 +2319,15 @@ async function lawSearch(){
     }
     if(data.expcs&&data.expcs.length){
       html+=`<div style="padding:12px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📋 해석례</div>`;
-      html+=data.expcs.map((e,idx)=>`<a class="news-card ${idx>=3?'expc-extra-item':''}" ${idx>=3?'style="display:none"':''}  href="https://www.law.go.kr/해석례/${encodeURIComponent(e.name)}" target="_blank" rel="noopener">
-        <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(e.name)}</div>
-        <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
-      </a>`).join('');
+      html+=data.expcs.map((e,idx)=>{
+        const ci=_lawIdx({id:e.id||'',name:e.name,lawtype:'expc',mst:''});
+        const hidden=idx>=3?'expc-extra-item':'';
+        return`<div class="law-result-card ${hidden}" ${idx>=3?'style="display:none"':''} onclick="openLawCached(${ci})">
+          <div style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:3px;color:var(--text)">${escHtml(e.name)}</div>
+          <div style="font-size:12px;color:var(--text-hint)">${escHtml(e.dept)}${e.date?' · '+escHtml(e.date):''}</div>
+          <div style="font-size:11px;color:var(--green-dark);margin-top:5px">내용 보기 →</div>
+        </div>`;
+      }).join('');
       if(data.expcs.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'expc-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">해석례 ${data.expcs.length-3}개 더 보기 ▾</button>`;
     }
     const dbgHtml=data.debug&&data.debug.length?`<div style="padding:4px 12px 8px;font-size:10px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
@@ -2317,6 +2341,7 @@ async function lawSearch(){
 }
 function _lawGoUrl(lawtype,lawName,id,mst){
   if(lawtype==='prec') return`https://www.law.go.kr/판례/${encodeURIComponent(lawName||'')}`;
+  if(lawtype==='expc') return id?`https://www.law.go.kr/expcInfoR.do?expcSeq=${encodeURIComponent(id)}`:`https://www.law.go.kr/해석례/${encodeURIComponent(lawName||'')}`;
   if(lawName) return`https://www.law.go.kr/법령/${encodeURIComponent(lawName)}`;
   if(mst) return`https://www.law.go.kr/lsEfInfoP.do?lsiSeq=${encodeURIComponent(mst)}`;
   return`https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(id)}`;

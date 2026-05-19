@@ -666,6 +666,8 @@ export default {
         }
         const lawGoFallbackUrl = lawtype === 'prec'
           ? `https://www.law.go.kr/precedInfoP.do?mode=0&precSeq=${encodeURIComponent(id)}`
+          : lawtype === 'expc'
+          ? `https://www.law.go.kr/expcInfoR.do?expcSeq=${encodeURIComponent(id)}`
           : mst ? `https://www.law.go.kr/lsEfInfoP.do?lsiSeq=${encodeURIComponent(mst)}`
           : id ? `https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(id)}` : '';
         const xhdr = {
@@ -680,13 +682,35 @@ export default {
         const stripCdata = (s) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
         const strip = (s) => stripCdata(s).replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim();
         const xtag = (xml, t) => { const m = xml.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)<\\/${t}>`, 'i')); return m ? m[1] : ''; };
+        // EUC-KR 인코딩 감지 후 디코딩 (law.go.kr DRF XML은 EUC-KR 반환)
+        const decodeXml = async (res) => {
+          const buf = await res.arrayBuffer();
+          const peek = new TextDecoder('ascii', {fatal:false}).decode(new Uint8Array(buf).subarray(0, 300));
+          const encMatch = peek.match(/encoding=["']([^"']+)["']/i);
+          const encName = (encMatch?.[1] || 'utf-8').toLowerCase().replace(/[_\-]/g, '');
+          const isEucKr = ['euckr','ksc5601','ksc56011987','cp949'].includes(encName);
+          return isEucKr
+            ? new TextDecoder('euc-kr', {fatal:false}).decode(buf)
+            : new TextDecoder('utf-8', {fatal:false}).decode(buf);
+        };
         // XML → HTML 변환
         const xmlToHtml = (xml) => {
           // 판례
-          if (/<PrecService|<판시사항|<판결요지/i.test(xml)) {
+          if (/<PrecService|<판시사항|<판결요지|<사건번호/i.test(xml)) {
             const fields = [['사건명','사건명'],['사건번호','사건번호'],['선고일자','선고'],['법원명','법원'],
               ['판시사항','판시사항'],['판결요지','판결요지'],['참조조문','참조 조문'],
               ['참조판례','참조 판례'],['판결이유','판결이유'],['주문','주문']];
+            let h = '';
+            for (const [t, label] of fields) {
+              const v = strip(xtag(xml, t));
+              if (v) h += `<div style="margin:12px 0 0"><strong style="font-size:13px;color:#555">${label}</strong><div style="margin-top:4px;line-height:1.8;white-space:pre-wrap;font-size:14px">${v}</div></div><hr style="border:none;border-top:1px solid #eee;margin:12px 0 0">`;
+            }
+            return h;
+          }
+          // 해석례
+          if (/<ExpCService|<질의요지|<회신내용|<해석례/i.test(xml)) {
+            const fields = [['제목','제목'],['회신기관','회신기관'],['회신일자','회신일자'],['관련법령','관련법령'],
+              ['질의요지','질의 요지'],['회신내용','회신 내용'],['이유','이유']];
             let h = '';
             for (const [t, label] of fields) {
               const v = strip(xtag(xml, t));
@@ -753,6 +777,8 @@ export default {
         const attempts = [];
         if (lawtype === 'prec') {
           if (id) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=prec&ID=${id}&type=XML`);
+        } else if (lawtype === 'expc') {
+          if (id) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=expc&ID=${id}&type=XML`);
         } else {
           if (mst) attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&MST=${mst}&type=XML`);
           if (id)  attempts.push(`https://www.law.go.kr/DRF/lawService.do?OC=${OC}&target=law&ID=${id}&type=XML`);
@@ -763,7 +789,7 @@ export default {
         for (const apiUrl of attempts) {
           try {
             const res = await fetchTimeout(apiUrl, { headers: xhdr }, 12000);
-            // 대형 법령 XML 타임아웃 방지: 500KB 이상이면 앞부분만 사용
+            // 대형 법령 XML 타임아웃 방지: 1.5MB 이상이면 앞부분만 사용
             const MAX_XML = 1500 * 1024;
             let raw;
             const ct = res.headers.get('content-length');
@@ -776,9 +802,17 @@ export default {
                 chunks.push(value); total += value.length;
               }
               reader.cancel();
-              raw = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+              // EUC-KR 감지: 첫 청크 앞부분으로 인코딩 확인
+              const firstBuf = await new Blob(chunks).arrayBuffer();
+              const peek = new TextDecoder('ascii',{fatal:false}).decode(new Uint8Array(firstBuf).subarray(0,200));
+              const encM = peek.match(/encoding=["']([^"']+)["']/i);
+              const encN = (encM?.[1]||'utf-8').toLowerCase().replace(/[_\-]/g,'');
+              raw = ['euckr','ksc5601','cp949'].includes(encN)
+                ? new TextDecoder('euc-kr',{fatal:false}).decode(firstBuf)
+                : new TextDecoder('utf-8',{fatal:false}).decode(firstBuf);
             } else {
-              raw = await res.text();
+              // EUC-KR 자동 감지 디코딩
+              raw = await decodeXml(res);
             }
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
             debug.push(`${tgt}:${res.status}:${raw.length}chars`);
