@@ -696,6 +696,13 @@ button,a,[role="button"]{touch-action:manipulation}
         <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
         <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역뉴스</button>
       </div>
+      <div id="localDistrictFilter" style="display:none;padding:8px 14px 4px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="sub-tab active" id="ld-all"   onclick="switchLocalDistrict('all')"   style="font-size:12px;padding:3px 10px">전체</button>
+        <button class="sub-tab"        id="ld-eunpyeong" onclick="switchLocalDistrict('은평')" style="font-size:12px;padding:3px 10px">은평</button>
+        <button class="sub-tab"        id="ld-sdm"   onclick="switchLocalDistrict('서대문')" style="font-size:12px;padding:3px 10px">서대문</button>
+        <button class="sub-tab"        id="ld-mapo"  onclick="switchLocalDistrict('마포')"   style="font-size:12px;padding:3px 10px">마포</button>
+        <button class="sub-tab"        id="ld-yongsan" onclick="switchLocalDistrict('용산')" style="font-size:12px;padding:3px 10px">용산</button>
+      </div>
       <div id="newsContent"></div>
     </div>
     <!-- 법률 -->
@@ -2197,12 +2204,21 @@ async function initApp(){
 }
 
 // ── 뉴스 ──
-let newsCat='labor', lawLoaded=false, lunchLoaded=false;
+let newsCat='labor', lawLoaded=false, lunchLoaded=false, localDistrict='all';
 function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
+  const ldf=$('localDistrictFilter');
+  if(ldf) ldf.style.display=cat==='local'?'flex':'none';
   newsCache=null;newsPage=1;loadNews();
+}
+const DISTRICT_IDS={'all':'ld-all','은평':'ld-eunpyeong','서대문':'ld-sdm','마포':'ld-mapo','용산':'ld-yongsan'};
+function switchLocalDistrict(d){
+  localDistrict=d;
+  Object.entries(DISTRICT_IDS).forEach(([k,id])=>{const el=$(id);if(el)el.className='sub-tab'+(k===d?' active':'');});
+  newsPage=1;
+  if(newsCache) renderNews(newsCache);
 }
 let lawTarget='law';
 function switchLawTarget(t){
@@ -2585,10 +2601,16 @@ function newsCardHtml(n){
 }
 function renderNews(items){
   if(!items||!items.length){$('newsContent').innerHTML='<div class="empty-state"><div class="ei">📰</div>뉴스 기사를 찾지 못했습니다.</div>';return;}
-  const visible=items.slice(0,newsPage*NEWS_PER_PAGE);
-  const hasMore=visible.length<items.length;
+  // 지역뉴스 구별 필터
+  let filtered=items;
+  if(newsCat==='local'&&localDistrict!=='all'){
+    filtered=items.filter(n=>n.district===localDistrict);
+    if(!filtered.length){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">📰</div>${localDistrict}구 기사를 찾지 못했습니다.</div>`;return;}
+  }
+  const visible=filtered.slice(0,newsPage*NEWS_PER_PAGE);
+  const hasMore=visible.length<filtered.length;
   $('newsContent').innerHTML=visible.map(newsCardHtml).join('')
-    +(hasMore?`<div id="newsMoreBtn" style="text-align:center;padding:14px 0"><button class="btn-sm" onclick="newsPage++;renderNews(newsCache)">더 보기 (${items.length-visible.length}개 남음)</button></div>`:'');
+    +(hasMore?`<div id="newsMoreBtn" style="text-align:center;padding:14px 0"><button class="btn-sm" onclick="newsPage++;renderNews(newsCache)">더 보기 (${filtered.length-visible.length}개 남음)</button></div>`:'');
 }
 
 // ── 피드 ──

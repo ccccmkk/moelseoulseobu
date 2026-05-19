@@ -124,7 +124,7 @@ function parseRSS(xml) {
   const isAtom = /<entry[\s>]/i.test(xml);
   if (isAtom) {
     const entries = xml.match(/<entry[\s>]([\s\S]*?)<\/entry>/gi) || [];
-    for (const e of entries.slice(0, 40)) {
+    for (const e of entries.slice(0, 60)) {
       const tag = (t) => {
         const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(e);
         if (cd) return cd[1].trim();
@@ -143,7 +143,7 @@ function parseRSS(xml) {
   }
   // RSS feed (<item>)
   const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
-  for (const b of blocks.slice(0, 40)) {
+  for (const b of blocks.slice(0, 60)) {
     const tag = (t) => {
       const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(b);
       if (cd) return cd[1].trim();
@@ -505,15 +505,23 @@ export default {
                 'yongsannews.kr',
                 'mapo.go.kr','sdm.go.kr','yongsan.go.kr','ep.go.kr',
               ]);
+              // 언론사 → 구별 매핑
+              const OUTLET_DISTRICT = {
+                '마포타임즈':'마포','마포시민신문':'마포','마포신문':'마포','마포구청':'마포',
+                '서부신문':'서대문','서대문자치신문':'서대문','서대문인터넷뉴스':'서대문','서대문신문':'서대문','서대문구청':'서대문',
+                '은평신문':'은평','은평시민신문':'은평','은평구청':'은평',
+                '새용산신문':'용산','용산구청':'용산',
+              };
               // 각 언론사/구청별로 URL 순서대로 시도, 첫 성공 반환
               const fetchOutletRSS = async ({ name, urls, isGov }) => {
+                const district = OUTLET_DISTRICT[name] || '';
                 for (const feedUrl of urls) {
                   try {
                     const r = await fetchTimeout(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }, 6000);
                     if (!r.ok) continue;
                     const xml = await r.text();
                     const arts = parseRSS(xml);
-                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov }));
+                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov, district }));
                   } catch(e) { /* 다음 URL 시도 */ }
                 }
                 return [];
@@ -547,7 +555,7 @@ export default {
             } else if (cat === 'law') {
               items = await fetchNaverSearchRaw('근로기준법 OR 노동법 OR 산업재해', 100);
             }
-            items = dedup(items).slice(0, 100);
+            items = dedup(items).slice(0, cat === 'local' ? 200 : 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
