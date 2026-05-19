@@ -392,9 +392,19 @@ export default {
             let items = [];
             let naverCalls = 1;
             if (cat === 'labor') {
-              // 네이버 뉴스 노동 섹션 RSS (sid=252) — 편집된 노동/고용 기사
+              // 네이버 뉴스 노동 섹션 RSS: 257(경제>고용/노동) + 251(사회>노동)
               try {
-                items = await fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=252');
+                const [r1, r2] = await Promise.allSettled([
+                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=257'),
+                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=251'),
+                ]);
+                const merged = [
+                  ...(r1.status==='fulfilled'?r1.value:[]),
+                  ...(r2.status==='fulfilled'?r2.value:[]),
+                ];
+                // 중복 제거 (link 기준)
+                const seen = new Set();
+                items = merged.filter(x=>{ if(seen.has(x.link))return false; seen.add(x.link);return true; });
                 naverCalls = 0; // RSS는 API 쿼터 소모 없음
               } catch(e) {
                 // RSS 실패 시 검색 API 폴백
