@@ -1,4 +1,4 @@
-// v2.1.7
+// v2.1.8
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -709,6 +709,7 @@ export default {
             }
             const tgt = apiUrl.match(/target=(\w+)/)?.[1] || '?';
             debug.push(`${tgt}:${res.status}:${raw.length}chars`);
+            if (raw.includes('not in allowlist') || raw.includes('OC코드')) { debug.push('oc_invalid'); continue; }
             if (raw.length < 100 || isXmlError(raw)) { debug.push(`filtered:${raw.slice(0,60)}`); continue; }
             const converted = xmlToHtml(raw);
             if (converted.length > 50) { html = converted; break; }

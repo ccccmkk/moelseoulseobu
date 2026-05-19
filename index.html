@@ -2122,7 +2122,7 @@ function switchNewsMainTab(sub){
   newsMainTab=sub;
   ['news','law','lunch'].forEach(t=>{
     $(`sub-${t}`).className='sub-tab'+(sub===t?' active':'');
-    $(`${t}MainPane`).style.display=sub===t?'':'none';
+    $(`${t}MainPane`).style.display=sub===t?'block':'none';
   });
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
@@ -2204,7 +2204,17 @@ let lawTarget='law';
 function switchLawTarget(t){
   lawTarget=t;
   ['law','prec','expc'].forEach(x=>$('lt-'+x).className='sub-tab'+(t===x?' active':''));
-  lawSearch();
+  const q=($('lawSearchInput').value||'').trim();
+  if(q){
+    lawSearch();
+  } else if(t==='law'){
+    const box=$('lawSearchResult');
+    if(box){box.innerHTML='';_lawCache=[];}
+    loadLaw();
+  } else {
+    const box=$('lawSearchResult');
+    if(box) box.innerHTML=`<div style="padding:28px 16px;text-align:center;color:var(--text-hint)"><div style="font-size:28px;margin-bottom:8px">${t==='prec'?'⚖️':'📋'}</div><div style="font-size:13px">${t==='prec'?'판례':'해석례'} 검색어를 입력 후 검색하세요</div></div>`;
+  }
 }
 const LAW_DEFAULTS=[
   {name:'근로기준법',mst:'226223',dept:'고용노동부'},
@@ -2222,7 +2232,8 @@ const LAW_DEFAULTS=[
 ];
 async function loadLaw(){
   const box=$('lawSearchResult');
-  if(!box||box.innerHTML.trim())return;
+  if(!box)return;
+  _lawCache=[];
   let html='<div style="padding:10px 16px 4px;font-size:12px;font-weight:700;color:var(--text-hint);letter-spacing:.04em">📋 주요 노동 법령</div>';
   html+=LAW_DEFAULTS.map(l=>{
     const i=_lawIdx({id:'',name:l.name,lawtype:'law',mst:l.mst});
@@ -2308,7 +2319,13 @@ function _lawGoUrl(lawtype,lawName,id,mst){
 }
 function _lawFallbackHtml(lawtype,lawName,id,mst){
   const url=_lawGoUrl(lawtype,lawName,id,mst);
-  return`<div style="padding:24px 16px;text-align:center"><div style="font-size:14px;color:#666;margin-bottom:16px;line-height:1.6">본문을 직접 불러오지 못했습니다.<br>아래 버튼으로 법제처 사이트에서 확인하세요.</div><a href="${escHtml(url)}" target="_blank" rel="noopener" style="display:inline-block;padding:11px 24px;background:var(--green);color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">⚖️ 법제처에서 보기 →</a></div>`;
+  const label=lawtype==='prec'?'판례':lawtype==='expc'?'해석례':'법령';
+  return`<div style="padding:28px 16px;text-align:center">
+    <div style="font-size:28px;margin-bottom:10px">⚖️</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">${escHtml(lawName||label)} 본문</div>
+    <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px;line-height:1.6">앱 내에서 직접 표시하지 못했습니다.<br>법제처에서 전문을 확인하세요.</div>
+    <a href="${escHtml(url)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;background:var(--green);color:#fff;border-radius:10px;font-size:15px;font-weight:700;text-decoration:none">법제처에서 열기 →</a>
+  </div>`;
 }
 async function openLawContent(id,lawName,lawtype,mst){
   lawtype=lawtype||'law';
