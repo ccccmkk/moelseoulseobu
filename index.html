@@ -1969,7 +1969,8 @@ let editingKey=null,editorBlocks=[],commentRepliesCache={};
 let commentingPostId=null;
 let nominatingContestId=null,selectedNominee=null;
 let voteMsgContestId=null;
-let newsCache=null,newsLastFetch=0;
+let newsCache=null,newsLastFetch=0,newsPage=1;
+const NEWS_PER_PAGE=10;
 let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,_myVotes=[],_voteSelections=new Set(),_voteMinMax={min:1,max:1},_voteEnabled=false;
 let _photoQueue=[]; // {file, dataUrl}[]
 let _lbUrls=[],_lbIdx=0,_lbCap='',_lbTouchX=0,_lbDragDist=0;
@@ -2149,7 +2150,7 @@ function switchNewsCat(cat){
   newsCat=cat;
   $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
   $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
-  newsCache=null;loadNews();
+  newsCache=null;newsPage=1;loadNews();
 }
 let lawTarget='law';
 function switchLawTarget(t){
@@ -2434,8 +2435,9 @@ async function lawAsk(){
     </div>`;
   }catch(e){box.innerHTML=`<div style="padding:12px;color:var(--danger);font-size:13px">오류가 발생했습니다.</div>`;}
 }
-async function loadNews(){
+async function loadNews(reset){
   const now=Date.now();
+  if(reset){newsPage=1;}
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
   $('newsContent').innerHTML='<div class="empty-state"><div class="ei">📡</div>뉴스를 불러오는 중...</div>';
   np.start();
@@ -2445,23 +2447,27 @@ async function loadNews(){
     const data=await r.json();
     if(data.error)throw new Error(data.error);
     if(!Array.isArray(data))throw new Error('잘못된 응답');
-    newsCache=data;newsLastFetch=now;renderNews(newsCache);
+    newsCache=data;newsLastFetch=now;newsPage=1;renderNews(newsCache);
   }catch(e){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'뉴스를 불러오지 못했습니다.')}<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>`;}
   finally{np.done();}
 }
+function newsCardHtml(n){
+  const d=n.pubDate?new Date(n.pubDate):null;
+  const dateStr=d&&!isNaN(d)?d.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const link=n.link||'#';
+  return`<div class="news-card" onclick="window.open('${escHtml(link)}','_blank','noopener')">
+    <span class="news-source">${escHtml(n.source||'')}</span>
+    <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
+    ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
+    <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}')">피드 공유</button>
+  </div>`;
+}
 function renderNews(items){
   if(!items||!items.length){$('newsContent').innerHTML='<div class="empty-state"><div class="ei">📰</div>뉴스 기사를 찾지 못했습니다.</div>';return;}
-  $('newsContent').innerHTML=items.map(n=>{
-    const d=n.pubDate?new Date(n.pubDate):null;
-    const dateStr=d&&!isNaN(d)?d.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    const link=n.link||'#';
-    return`<div class="news-card" onclick="window.open('${escHtml(link)}','_blank','noopener')">
-      <span class="news-source">${escHtml(n.source||'')}</span>
-      <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
-      ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
-      <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}')">피드 공유</button>
-    </div>`;
-  }).join('');
+  const visible=items.slice(0,newsPage*NEWS_PER_PAGE);
+  const hasMore=visible.length<items.length;
+  $('newsContent').innerHTML=visible.map(newsCardHtml).join('')
+    +(hasMore?`<div id="newsMoreBtn" style="text-align:center;padding:14px 0"><button class="btn-sm" onclick="newsPage++;renderNews(newsCache)">더 보기 (${items.length-visible.length}개 남음)</button></div>`:'');
 }
 
 // ── 피드 ──
