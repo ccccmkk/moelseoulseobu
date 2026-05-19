@@ -119,13 +119,36 @@ async function addMileageDB(env, userId, delta) {
 // RSS 파싱
 function parseRSS(xml) {
   const out = [];
+  const decode = s => s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
+  // Atom feed (<entry>) 지원
+  const isAtom = /<entry[\s>]/i.test(xml);
+  if (isAtom) {
+    const entries = xml.match(/<entry[\s>]([\s\S]*?)<\/entry>/gi) || [];
+    for (const e of entries.slice(0, 40)) {
+      const tag = (t) => {
+        const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(e);
+        if (cd) return cd[1].trim();
+        const pl = new RegExp(`<${t}[^>]*>([^<]*)<\\/${t}>`, 'i').exec(e);
+        return pl ? decode(pl[1]) : '';
+      };
+      const title = tag('title');
+      const pubDate = tag('published') || tag('updated');
+      // Atom link: <link href="..." /> or <link>url</link>
+      const hrefM = /<link[^>]+href=["']([^"']+)["']/i.exec(e);
+      const linkM = /<link[^>]*>([^<]+)<\/link>/i.exec(e);
+      const link = hrefM ? decode(hrefM[1]) : linkM ? decode(linkM[1]) : tag('id');
+      if (title) out.push({ title, link, pubDate, source: '' });
+    }
+    return out;
+  }
+  // RSS feed (<item>)
   const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
   for (const b of blocks.slice(0, 40)) {
     const tag = (t) => {
       const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(b);
       if (cd) return cd[1].trim();
       const pl = new RegExp(`<${t}[^>]*>([^<]*)<\\/${t}>`, 'i').exec(b);
-      return pl ? pl[1].trim() : '';
+      return pl ? decode(pl[1]) : '';
     };
     let link = '';
     const lm = /<link>([\s\S]*?)<\/link>/i.exec(b);
@@ -439,69 +462,72 @@ export default {
               // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
               items = await fetchNaverSearchRaw('노동 OR 고용', 100);
             } else if (cat === 'local') {
-              // 지역언론사 RSS + 네이버 검색 병렬 집계
-              // 언론사별로 시도할 URL 목록 (앞에서부터 첫 성공 URL 사용)
+              // 지역언론사 RSS + 구청 공지 + 네이버 검색 병렬 집계
               const mkUrls = (domain) => [
                 `https://www.${domain}/rss/allArticle.xml`,
                 `https://${domain}/rss/allArticle.xml`,
+                `http://www.${domain}/rss/allArticle.xml`,
                 `https://www.${domain}/feed/`,
                 `https://${domain}/feed/`,
-                `http://www.${domain}/rss/allArticle.xml`,
               ];
               const LOCAL_OUTLETS = [
                 // 마포 권역
-                { name: '마포타임즈',    urls: mkUrls('mapotimes.co.kr') },
-                { name: '마포시민신문',  urls: mkUrls('maponews.kr') },
-                { name: '마포저널',      urls: mkUrls('mapojournal.com') },
+                { name: '마포타임즈',      urls: ['http://www.mapotimes.co.kr/rss/allArticle.xml', ...mkUrls('mapotimes.co.kr')] },
+                { name: '마포시민신문',    urls: mkUrls('maponews.kr') },
+                { name: '마포신문',        urls: mkUrls('maposhinmoon.com') },
                 // 서대문 권역
-                { name: '서부신문',      urls: mkUrls('seobunews.co.kr') },
-                { name: '서대문자치신문', urls: mkUrls('newsjj.net') },
-                { name: '서대문사람들',  urls: mkUrls('esdmnews.com') },
-                { name: '서대문신문',    urls: mkUrls('sdmsinmun.com') },
+                { name: '서부신문',        urls: mkUrls('seobunews.co.kr') },
+                { name: '서대문자치신문',  urls: mkUrls('newsjj.net') },
+                { name: '서대문인터넷뉴스',urls: mkUrls('sdminews.co.kr') },
+                { name: '서대문신문',      urls: ['http://www.sdmsinmun.com/rss/allArticle.xml', ...mkUrls('sdmsinmun.com')] },
                 // 은평 권역
-                { name: '온평타임즈',    urls: mkUrls('eptimes.co.kr') },
-                { name: '온평신문',      urls: mkUrls('ieps.co.kr') },
-                { name: '은평시민신문',  urls: [
+                { name: '은평신문',        urls: mkUrls('ieps.co.kr') },
+                { name: '은평시민신문',    urls: [
                   'https://www.epnews.net/rss/allArticle.xml',
                   'https://epnews.net/rss/allArticle.xml',
                   'https://www.epnews.net/rss/S1N1.xml',
                 ]},
                 // 용산 권역
-                { name: '새용산신문',    urls: [
-                  'http://www.yongsannews.kr/rss/allArticle.xml',
-                  'https://www.yongsannews.kr/rss/allArticle.xml',
-                  ...mkUrls('yongsannews.kr'),
-                ]},
+                { name: '새용산신문',      urls: ['http://m.yongsannews.kr/rss/allArticle.xml', 'http://www.yongsannews.kr/rss/allArticle.xml', ...mkUrls('yongsannews.kr')] },
+              ];
+              // 구청 공지사항 피드 (서울시 구청 공통 Atom 패턴)
+              const GOV_FEEDS = [
+                { name: '마포구청',   urls: ['https://www.mapo.go.kr/user/atom_rss.do','https://www.mapo.go.kr/cms/news/rss.do','https://www.mapo.go.kr/rss/rssInfo.do'] },
+                { name: '서대문구청', urls: ['https://www.sdm.go.kr/user/atom_rss.do','https://www.sdm.go.kr/rss/rssInfo.do'] },
+                { name: '용산구청',   urls: ['https://www.yongsan.go.kr/user/atom_rss.do','https://www.yongsan.go.kr/rss/rssInfo.do'] },
+                { name: '은평구청',   urls: ['https://www.ep.go.kr/user/atom_rss.do','https://www.ep.go.kr/rss/rssInfo.do'] },
               ];
               const domainOf = u => { try { return new URL(u).hostname.replace(/^(?:www|m)\./,''); } catch(e) { return ''; } };
               const localDomains = new Set([
-                'mapotimes.co.kr','maponews.kr','mapojournal.com',
-                'seobunews.co.kr','newsjj.net','esdmnews.com','sdmsinmun.com',
-                'eptimes.co.kr','ieps.co.kr','epnews.net',
+                'mapotimes.co.kr','maponews.kr','maposhinmoon.com',
+                'seobunews.co.kr','newsjj.net','sdminews.co.kr','sdmsinmun.com',
+                'ieps.co.kr','epnews.net',
                 'yongsannews.kr',
+                'mapo.go.kr','sdm.go.kr','yongsan.go.kr','ep.go.kr',
               ]);
-              // 각 언론사별로 URL 순서대로 시도, 첫 성공 반환
-              const fetchOutletRSS = async ({ name, urls }) => {
+              // 각 언론사/구청별로 URL 순서대로 시도, 첫 성공 반환
+              const fetchOutletRSS = async ({ name, urls, isGov }) => {
                 for (const feedUrl of urls) {
                   try {
                     const r = await fetchTimeout(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }, 6000);
                     if (!r.ok) continue;
                     const xml = await r.text();
                     const arts = parseRSS(xml);
-                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true }));
+                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov }));
                   } catch(e) { /* 다음 URL 시도 */ }
                 }
                 return [];
               };
-              // 모든 언론사 + 네이버 검색 2건 병렬 실행
-              const naverOutletQuery = '마포타임즈 OR 서부신문 OR 서대문자치신문 OR 서대문사람들 OR 서대문신문 OR 온평타임즈 OR 온평신문 OR 은평시민신문 OR 새용산신문';
+              // 모든 언론사 + 구청 + 네이버 검색 병렬 실행
+              const naverOutletQuery = '마포타임즈 OR 서부신문 OR 서대문자치신문 OR 서대문인터넷뉴스 OR 서대문신문 OR 마포신문 OR 은평신문 OR 은평시민신문 OR 새용산신문';
               const rssResults = await Promise.allSettled([
                 ...LOCAL_OUTLETS.map(o => fetchOutletRSS(o)),
+                ...GOV_FEEDS.map(o => fetchOutletRSS({ ...o, isGov: true })),
                 fetchNaverSearchRaw(naverOutletQuery, 50),
                 fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
               ]);
               naverCalls = 2;
-              const numOutlets = LOCAL_OUTLETS.length;
+              const numOutlets = LOCAL_OUTLETS.length + GOV_FEEDS.length;
               // RSS 기사 (성공한 언론사만)
               const rssArts = rssResults.slice(0, numOutlets)
                 .filter(r => r.status === 'fulfilled')
