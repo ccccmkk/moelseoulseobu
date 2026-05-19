@@ -615,7 +615,7 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 
   <!-- 피드 탭 -->
-  <div id="tabFeed" class="tab-page">
+  <div id="tabFeed" class="tab-page active">
     <div id="ptrIndicator"><div class="ptr-spinner" id="ptrSpinner"></div><span class="ptr-text" id="ptrText">당겨서 새로고침</span></div>
     <div id="feed"></div>
     <div id="feedSentinel" style="height:1px;margin-top:8px"></div>
@@ -731,63 +731,65 @@ button,a,[role="button"]{touch-action:manipulation}
 
   <!-- 칭찬합니다 탭 (3섹션) -->
   <div id="tabChal" class="tab-page">
-    <!-- 섹션 1: 이달의 서부인 -->
-    <div class="section-hd">
-      <span class="section-title">이달의 서부인</span>
-      <button class="btn-sm primary" id="contestAddBtn" style="display:none" onclick="openContestModal()">+ 만들기</button>
-    </div>
-    <!-- 서부인 서브탭 -->
+    <!-- 서브탭 -->
     <div style="display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px">
       <button class="sub-tab active" id="chalSub-contest" onclick="switchChalSub('contest')" style="flex:1">현황</button>
       <button class="sub-tab" id="chalSub-awards" onclick="switchChalSub('awards')" style="flex:1">수상기록</button>
-    </div>
-    <div id="chalPane-contest">
-      <div id="contestList"></div>
-    </div>
-    <div id="chalPane-awards" style="display:none">
-      <div id="awardsList"></div>
-      <div id="awardsKudosList" style="margin-top:12px"></div>
+      <button class="sub-tab" id="chalSub-event" onclick="switchChalSub('event')" style="flex:1">행사</button>
     </div>
 
-    <!-- 섹션 2: 친절스타 -->
-    <div class="section-hd">
-      <span class="section-title">친절스타</span>
-      <button class="btn-sm primary" id="kudosAddBtn" style="display:none" onclick="openKudosModal()">+ 추가</button>
-    </div>
-    <div id="kudosList"></div>
+    <!-- 이달의 서부인 + 친절스타 + 경조사 (행사 탭이 아닐 때만 표시) -->
+    <div id="chalNonEvent">
+      <div class="section-hd">
+        <span class="section-title">이달의 서부인</span>
+        <button class="btn-sm primary" id="contestAddBtn" style="display:none" onclick="openContestModal()">+ 만들기</button>
+      </div>
+      <div id="chalPane-contest">
+        <div id="contestList"></div>
+      </div>
+      <div id="chalPane-awards" style="display:none">
+        <div id="awardsList"></div>
+        <div id="awardsKudosList" style="margin-top:12px"></div>
+      </div>
 
-    <!-- 섹션 3: 경조사 소식 -->
-    <div class="section-hd">
-      <span class="section-title">경조사 소식</span>
-      <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
-    </div>
-    <div id="chalEventsList"></div>
-  </div>
+      <!-- 섹션 2: 친절스타 -->
+      <div class="section-hd">
+        <span class="section-title">친절스타</span>
+        <button class="btn-sm primary" id="kudosAddBtn" style="display:none" onclick="openKudosModal()">+ 추가</button>
+      </div>
+      <div id="kudosList"></div>
 
-  <!-- 이벤트 탭 -->
-  <div id="tabEvent" class="tab-page active">
-    <!-- 그룹 선택 화면 -->
-    <div id="eventGroupSelect">
-      <div class="section-hd"><span class="section-title">사진 투표</span></div>
-      <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
-        <div class="group-card" id="groupCardCenter" onclick="enterPhotoGroup('center')">
-          <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
-          <div><div class="group-card-label">센터</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">센터 소속 행사</div></div>
-        </div>
-        <div class="group-card" id="groupCardBranch" onclick="enterPhotoGroup('branch')">
-          <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
-          <div><div class="group-card-label">지청</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">지청 소속 행사</div></div>
+      <!-- 섹션 3: 경조사 소식 -->
+      <div class="section-hd">
+        <span class="section-title">경조사 소식</span>
+        <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
+      </div>
+      <div id="chalEventsList"></div>
+    </div>
+
+    <!-- 행사 서브탭 내용 -->
+    <div id="chalPane-event" style="display:none">
+      <div id="eventGroupSelect">
+        <div class="section-hd"><span class="section-title">사진 투표</span></div>
+        <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
+          <div class="group-card" id="groupCardCenter" onclick="enterPhotoGroup('center')">
+            <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
+            <div><div class="group-card-label">센터</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">센터 소속 행사</div></div>
+          </div>
+          <div class="group-card" id="groupCardBranch" onclick="enterPhotoGroup('branch')">
+            <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
+            <div><div class="group-card-label">지청</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">지청 소속 행사</div></div>
+          </div>
         </div>
       </div>
-    </div>
-    <!-- 그룹별 행사 목록 -->
-    <div id="eventGroupContent" style="display:none">
-      <div class="section-hd" style="gap:6px">
-        <button class="btn-sm" onclick="exitPhotoGroup()" style="font-size:12px;padding:4px 10px">← 뒤로</button>
-        <span class="section-title" id="eventGroupTitle">센터</span>
-        <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
+      <div id="eventGroupContent" style="display:none">
+        <div class="section-hd" style="gap:6px">
+          <button class="btn-sm" onclick="exitPhotoGroup()" style="font-size:12px;padding:4px 10px">← 뒤로</button>
+          <span class="section-title" id="eventGroupTitle">센터</span>
+          <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
+        </div>
+        <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
       </div>
-      <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
     </div>
   </div>
 
@@ -885,10 +887,7 @@ button,a,[role="button"]{touch-action:manipulation}
 
   <!-- 하단 네비 -->
   <nav class="bottom-nav">
-    <button class="nav-btn active" id="nav-event" onclick="switchTab('Event')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>이벤트
-    </button>
-    <button class="nav-btn" id="nav-feed" onclick="switchTab('Feed')">
+    <button class="nav-btn active" id="nav-feed" onclick="switchTab('Feed')">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>피드
     </button>
     <button class="nav-btn" id="nav-chal" onclick="switchTab('Chal')">
@@ -1834,12 +1833,20 @@ const np=(()=>{
 const EVT_TYPE_COLOR={결혼:'#e91e8c',출산:'#2196f3',생일:'#ff9800',상:'#607d8b',승진:'#4caf50',기타:'#9e9e9e'};
 function evtDot(type){return`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></span>`;}
 function switchChalSub(tab){
+  const isEvent=tab==='event';
   ['contest','awards'].forEach(t=>{
     const btn=$('chalSub-'+t),pane=$('chalPane-'+t);
     if(!btn||!pane)return;
     btn.classList.toggle('active',t===tab);
     pane.style.display=t===tab?'':'none';
   });
+  $('chalSub-event').classList.toggle('active',isEvent);
+  $('chalPane-event').style.display=isEvent?'':'none';
+  $('chalNonEvent').style.display=isEvent?'none':'';
+  if(isEvent){
+    if(currentPhotoGroup) loadPhotoContests();
+    else exitPhotoGroup();
+  }
 }
 const TROPHY_SVG=`<svg viewBox="0 0 24 24"><path d="M6 9H5a2 2 0 000 4h1m12 0h1a2 2 0 000-4h-1M8 21h8M12 17v4M5 3h14l-2 9a5 5 0 01-10 0L5 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function updateNotiBadges(hasNew){
@@ -1937,10 +1944,12 @@ function switchTab(tab){
   $('fab').className='fab'+(tab==='Feed'?' show':'');
   if(tab==='News')loadNews();
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
-  if(tab==='Chal'){renderChal().catch(()=>{});}
-  if(tab==='Event'){
-    if(currentPhotoGroup) loadPhotoContests();
-    else exitPhotoGroup();
+  if(tab==='Chal'){
+    renderChal().catch(()=>{});
+    if($('chalSub-event')?.classList.contains('active')){
+      if(currentPhotoGroup) loadPhotoContests();
+      else exitPhotoGroup();
+    }
   }
   if(tab==='More'){
     updateAvatarEl($('moreUserAvatar'),currentUser);
