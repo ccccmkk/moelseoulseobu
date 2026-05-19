@@ -402,13 +402,14 @@ export default {
                   ...(r1.status==='fulfilled'?r1.value:[]),
                   ...(r2.status==='fulfilled'?r2.value:[]),
                 ];
-                // 중복 제거 (link 기준)
                 const seen = new Set();
                 items = merged.filter(x=>{ if(seen.has(x.link))return false; seen.add(x.link);return true; });
                 naverCalls = 0; // RSS는 API 쿼터 소모 없음
-              } catch(e) {
-                // RSS 실패 시 검색 API 폴백
+              } catch(e) { /* 아래 폴백으로 */ }
+              // RSS 결과가 없으면 검색 API 폴백
+              if (!items.length) {
                 items = await fetchNaverSearch('고용|노동|취업|일자리|채용|실업급여|근로자|노동부');
+                naverCalls = 1;
               }
             } else if (cat === 'local') {
               // 지역뉴스: 우리 지역 4개 자치구 정확히 타겟

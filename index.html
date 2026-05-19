@@ -2484,7 +2484,8 @@ async function loadNews(reset){
   const now=Date.now();
   if(reset){newsPage=1;}
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
-  $('newsContent').innerHTML='<div class="empty-state"><div class="ei">📡</div>뉴스를 불러오는 중...</div>';
+  const _skNews=()=>`<div class="sk-card" style="padding:12px 14px"><div class="sk sk-line" style="width:80%;margin-bottom:8px"></div><div class="sk sk-line" style="width:50%;height:10px;margin-bottom:6px"></div><div class="sk sk-line" style="width:30%;height:10px;margin-bottom:0"></div></div>`;
+  $('newsContent').innerHTML=Array(6).fill(0).map(_skNews).join('');
   np.start();
   try{
     const r=await fetch(`${API}/api/news?category=${newsCat}`);
@@ -2504,7 +2505,7 @@ function newsCardHtml(n){
     <span class="news-source">${escHtml(n.source||'')}</span>
     <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
     ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
-    <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}')">피드 공유</button>
+    <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}','${escHtml(n.title)}','${escHtml(n.source||'')}')">피드 공유</button>
   </div>`;
 }
 function renderNews(items){
@@ -2607,6 +2608,8 @@ function appendFeedCards(newPosts){
 // ── 소식지 ──
 let _nlData=[];
 async function loadNewsletters(){
+  const el=$('nlList');
+  if(el){const _skNl=()=>`<div class="sk-card" style="display:flex;align-items:center;gap:12px;padding:14px 16px"><div class="sk" style="width:40px;height:40px;min-width:40px;border-radius:10px"></div><div style="flex:1"><div class="sk sk-line" style="width:65%;margin-bottom:7px"></div><div class="sk sk-line" style="width:30%;height:10px;margin-bottom:0"></div></div></div>`;el.innerHTML=Array(4).fill(0).map(_skNl).join('');}
   try{
     const d=await fetch(`${API}/api/newsletters`).then(r=>r.json());
     _nlData=d.newsletters||[];
@@ -3399,16 +3402,16 @@ function exitPhotoGroup(){
   }
 }
 async function loadPhotoContests(){
+  const c=$('photoContestList');if(!c)return;
+  const _skPc=()=>`<div class="sk-card" style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="sk sk-line" style="width:55%"></div><div class="sk" style="width:48px;height:20px;border-radius:10px"></div></div><div class="sk sk-line" style="width:80%;height:10px;margin-bottom:6px"></div><div class="sk sk-line" style="width:40%;height:10px;margin-bottom:0"></div></div>`;
+  c.innerHTML=Array(3).fill(0).map(_skPc).join('');
   np.start();
   try{
-    const params=[];
-    if(sessionToken) params.push(`token=${encodeURIComponent(sessionToken)}`);
-    if(currentPhotoGroup) params.push(`group=${encodeURIComponent(currentPhotoGroup)}`);
-    const qs=params.length?'?'+params.join('&'):'';
+    const qs=sessionToken?`?token=${encodeURIComponent(sessionToken)}`:'';
     const d=await fetch(`${API}/api/photo-contests${qs}`).then(r=>r.json());
     photoContests=Array.isArray(d)?d:[];
     renderPhotoContestList();
-  }catch(e){}
+  }catch(e){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>불러오지 못했습니다</div>';}
   finally{np.done();}
 }
 function renderPhotoContestList(){
@@ -3416,10 +3419,16 @@ function renderPhotoContestList(){
   if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
   if(!photoContests.length){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';return;}
   const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+  const grpColor={center:'#1565c0',branch:'#2e7d32'};
+  const grpBg={center:'#e3f2fd',branch:'#e8f5e9'};
+  const grpLabel={center:'센터',branch:'지청'};
   c.innerHTML=photoContests.map(pc=>`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
-      <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
+        ${pc.contest_group?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${grpBg[pc.contest_group]||'#f5f5f5'};color:${grpColor[pc.contest_group]||'#555'}">${grpLabel[pc.contest_group]||pc.contest_group}</span>`:''}
+      </div>
+      <span class="pc-status ${pc.status}" style="flex-shrink:0">${stLabel[pc.status]||pc.status}</span>
     </div>
     ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
     <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
@@ -4661,6 +4670,8 @@ async function agentHealthReply(){
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 async function loadRestaurants(){
   const box=$('restaurantList');
+  const _skRest=()=>`<div class="sk-card" style="padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="flex:1"><div class="sk sk-line" style="width:55%;margin-bottom:7px"></div><div class="sk sk-line" style="width:35%;height:10px;margin-bottom:0"></div></div><div class="sk" style="width:40px;height:40px;border-radius:8px"></div></div><div class="sk sk-line" style="width:90%;height:10px;margin-bottom:5px"></div><div class="sk sk-line" style="width:70%;height:10px;margin-bottom:0"></div></div>`;
+  box.innerHTML=Array(4).fill(0).map(_skRest).join('');
   try{
     const res=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -4768,7 +4779,7 @@ async function loadClaudeSetting(){
       lbl.textContent=on?onLabel:offLabel;
     };
     applyToggle('gemini', s.gemini_fallback_enabled!=='false',
-      'MOEL 실패 시 Gemini 자동 사용', '꺼짐 (MOEL만 사용)');
+      'Workers AI 실패 시 Gemini 자동 사용', '꺼짐 (Workers AI만 사용)');
     applyToggle('claude', s.claude_enabled!=='false',
       'Gemini 실패 시 Claude 자동 사용', '꺼짐 (Gemini까지만 사용)');
   }catch(e){}
@@ -4777,7 +4788,7 @@ async function toggleGeminiFallback(on){
   const track=$('geminiToggleTrack'),thumb=$('geminiToggleThumb'),lbl=$('geminiToggleLabel');
   track.style.background=on?'var(--green)':'#ccc';
   thumb.style.left=on?'19px':'3px';
-  lbl.textContent=on?'MOEL 실패 시 Gemini 자동 사용':'꺼짐 (MOEL만 사용)';
+  lbl.textContent=on?'Workers AI 실패 시 Gemini 자동 사용':'꺼짐 (Workers AI만 사용)';
   await fetch(`${API}/api/settings/gemini_fallback_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
 }
 async function toggleClaude(on){
