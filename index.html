@@ -2444,7 +2444,8 @@ async function loadNews(reset){
   const now=Date.now();
   if(reset){newsPage=1;}
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
-  $('newsContent').innerHTML='<div class="empty-state"><div class="ei">📡</div>뉴스를 불러오는 중...</div>';
+  const _skNews=()=>`<div class="sk-card" style="padding:12px 14px"><div class="sk sk-line" style="width:80%;margin-bottom:8px"></div><div class="sk sk-line" style="width:50%;height:10px;margin-bottom:6px"></div><div class="sk sk-line" style="width:30%;height:10px;margin-bottom:0"></div></div>`;
+  $('newsContent').innerHTML=Array(6).fill(0).map(_skNews).join('');
   np.start();
   try{
     const r=await fetch(`${API}/api/news?category=${newsCat}`);
@@ -4557,6 +4558,8 @@ async function agentHealthReply(){
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 async function loadRestaurants(){
   const box=$('restaurantList');
+  const _skRest=()=>`<div class="sk-card" style="padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="flex:1"><div class="sk sk-line" style="width:55%;margin-bottom:7px"></div><div class="sk sk-line" style="width:35%;height:10px;margin-bottom:0"></div></div><div class="sk" style="width:40px;height:40px;border-radius:8px"></div></div><div class="sk sk-line" style="width:90%;height:10px;margin-bottom:5px"></div><div class="sk sk-line" style="width:70%;height:10px;margin-bottom:0"></div></div>`;
+  box.innerHTML=Array(4).fill(0).map(_skRest).join('');
   try{
     const res=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
