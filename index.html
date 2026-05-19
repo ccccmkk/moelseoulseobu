@@ -2497,12 +2497,29 @@ async function loadNews(reset){
   }catch(e){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'뉴스를 불러오지 못했습니다.')}<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>`;}
   finally{np.done();}
 }
+function newsRelDate(pubDate){
+  if(!pubDate)return'';
+  const d=new Date(pubDate);if(isNaN(d))return'';
+  const diff=Date.now()-d.getTime();
+  const min=Math.floor(diff/60000);
+  if(min<60)return min<=1?'방금':min+'분 전';
+  const hr=Math.floor(min/60);
+  if(hr<24)return hr+'시간 전';
+  const day=Math.floor(hr/24);
+  if(day<7)return day+'일 전';
+  if(day<30)return Math.floor(day/7)+'주 전';
+  return d.toLocaleDateString('ko-KR',{month:'long',day:'numeric'});
+}
 function newsCardHtml(n){
   const d=n.pubDate?new Date(n.pubDate):null;
-  const dateStr=d&&!isNaN(d)?d.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const isToday=d&&!isNaN(d)&&(Date.now()-d.getTime()<86400000);
+  const dateStr=newsRelDate(n.pubDate);
   const link=n.link||'#';
   return`<div class="news-card" onclick="window.open('${escHtml(link)}','_blank','noopener')">
-    <span class="news-source">${escHtml(n.source||'')}</span>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <span class="news-source">${escHtml(n.source||'')}</span>
+      ${isToday?'<span style="font-size:10px;font-weight:700;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:8px">NEW</span>':''}
+    </div>
     <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
     ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
     <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}','${escHtml(n.title)}','${escHtml(n.source||'')}')">피드 공유</button>

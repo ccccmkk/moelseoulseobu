@@ -353,8 +353,16 @@ export default {
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
+        // 캐시 유효: 10분 이내 AND 캐시된 기사 중 최신이 3일 이내
         if (cached && (now - cached.cached_at) < 600) {
-          return json(JSON.parse(cached.data));
+          const cachedItems = JSON.parse(cached.data);
+          const newest = cachedItems.reduce((mx, x) => {
+            const t = x.pubDate ? new Date(x.pubDate).getTime() : 0;
+            return t > mx ? t : mx;
+          }, 0);
+          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+          if (newest > threeDaysAgo) return json(cachedItems);
+          // 캐시가 오래된 기사만 담고 있으면 강제 갱신
         }
         // 네이버 뉴스 API
         if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
@@ -392,25 +400,8 @@ export default {
             let items = [];
             let naverCalls = 1;
             if (cat === 'labor') {
-              // 네이버 뉴스 노동 섹션 RSS: 257(경제>고용/노동) + 251(사회>노동)
-              try {
-                const [r1, r2] = await Promise.allSettled([
-                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=257'),
-                  fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=251'),
-                ]);
-                const merged = [
-                  ...(r1.status==='fulfilled'?r1.value:[]),
-                  ...(r2.status==='fulfilled'?r2.value:[]),
-                ];
-                const seen = new Set();
-                items = merged.filter(x=>{ if(seen.has(x.link))return false; seen.add(x.link);return true; });
-                naverCalls = 0; // RSS는 API 쿼터 소모 없음
-              } catch(e) { /* 아래 폴백으로 */ }
-              // RSS 결과가 없으면 검색 API 폴백
-              if (!items.length) {
-                items = await fetchNaverSearch('고용|노동|취업|일자리|채용|실업급여|근로자|노동부');
-                naverCalls = 1;
-              }
+              // 네이버 뉴스 검색 API — 고용/노동 분야 직접 검색
+              items = await fetchNaverSearch('고용노동|근로기준|최저임금|실업급여|노동부|노동법|취업지원|산업재해');
             } else if (cat === 'local') {
               // 지역뉴스: 우리 지역 4개 자치구 정확히 타겟
               items = await fetchNaverSearch('마포구|용산구|서대문구|은평구');
@@ -419,7 +410,15 @@ export default {
             } else if (cat === 'law') {
               items = await fetchNaverSearch('근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금');
             }
-            items = items.slice(0, 100);
+            // 날짜 필터: 30일 이내 기사 우선, 부족하면 90일까지 확장
+            const filterByDays = (arr, days) => {
+              const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+              return arr.filter(x => x.pubDate && new Date(x.pubDate).getTime() > cutoff);
+            };
+            let fresh = filterByDays(items, 30);
+            if (fresh.length < 10) fresh = filterByDays(items, 90);
+            if (fresh.length < 5) fresh = items; // 그래도 없으면 전체
+            items = fresh.slice(0, 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
