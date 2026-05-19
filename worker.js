@@ -315,19 +315,25 @@ export default {
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
         const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(queries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
-        if (cached && (Math.floor(Date.now() / 1000) - cached.cached_at) < 600) {
+        const now = Math.floor(Date.now() / 1000);
+        if (cached && (now - cached.cached_at) < 600) {
           return json(JSON.parse(cached.data));
         }
-        const resp = await fetch(feedUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
-        const xml = await resp.text();
-        const items = parseRSS(xml).sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
-        const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
-          .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run();
-        return json(items);
+        try {
+          const resp = await fetchTimeout(feedUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+          }, 8000);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const xml = await resp.text();
+          const items = parseRSS(xml).sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+          ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
+          return json(items);
+        } catch (e) {
+          // fetch 실패 시 stale 캐시라도 반환
+          if (cached) return json(JSON.parse(cached.data));
+          return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
+        }
       }
 
       // ── OG 링크 프리뷰 ──
