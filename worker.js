@@ -110,6 +110,21 @@ async function addMileageDB(env, userId, delta) {
 }
 
 // RSS 파싱
+// Google News RSS 링크(CBMi...base64)에서 실제 기사 URL 추출
+function decodeGNewsUrl(link) {
+  if (!link || !link.includes('news.google.com')) return link;
+  try {
+    const m = link.match(/\/articles\/([A-Za-z0-9_-]+)/);
+    if (!m) return link;
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((4 - m[1].length % 4) % 4);
+    const bin = atob(b64);
+    const idx = bin.indexOf('https://');
+    if (idx < 0) return link;
+    const url = bin.slice(idx).match(/https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/)?.[0];
+    return url || link;
+  } catch(e) { return link; }
+}
+
 function parseRSS(xml) {
   const out = [];
   const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
@@ -123,10 +138,11 @@ function parseRSS(xml) {
     let link = '';
     const lm = /<link>([\s\S]*?)<\/link>/i.exec(b);
     if (lm) link = lm[1].replace(/<!\[CDATA\[/, '').replace(/\]\]>/, '').trim().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    link = decodeGNewsUrl(link) || decodeGNewsUrl(tag('guid')) || link || tag('guid');
     const title = tag('title');
     const pubDate = tag('pubDate');
     const source = tag('source') || '';
-    if (title) out.push({ title, link: link || tag('guid'), pubDate, source });
+    if (title) out.push({ title, link, pubDate, source });
   }
   return out;
 }
