@@ -122,7 +122,7 @@ function parseRSS(xml) {
     };
     let link = '';
     const lm = /<link>([\s\S]*?)<\/link>/i.exec(b);
-    if (lm) link = lm[1].replace(/<!\[CDATA\[/, '').replace(/\]\]>/, '').trim();
+    if (lm) link = lm[1].replace(/<!\[CDATA\[/, '').replace(/\]\]>/, '').trim().replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
     const title = tag('title');
     const pubDate = tag('pubDate');
     const source = tag('source') || '';
