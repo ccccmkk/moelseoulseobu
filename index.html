@@ -821,27 +821,11 @@ button,a,[role="button"]{touch-action:manipulation}
 
     <!-- 행사 서브탭 내용 -->
     <div id="chalPane-event" style="display:none">
-      <div id="eventGroupSelect">
-        <div class="section-hd"><span class="section-title">사진 투표</span></div>
-        <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
-          <div class="group-card" id="groupCardCenter" onclick="enterPhotoGroup('center')">
-            <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
-            <div><div class="group-card-label">센터</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">센터 소속 행사</div></div>
-          </div>
-          <div class="group-card" id="groupCardBranch" onclick="enterPhotoGroup('branch')">
-            <img src="govt-logo.svg" alt="" style="width:40px;height:40px;flex-shrink:0;object-fit:contain">
-            <div><div class="group-card-label">지청</div><div style="font-size:12px;color:var(--text-hint);margin-top:2px">지청 소속 행사</div></div>
-          </div>
-        </div>
+      <div class="section-hd">
+        <span class="section-title">사진 투표 행사</span>
+        <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
       </div>
-      <div id="eventGroupContent" style="display:none">
-        <div class="section-hd" style="gap:6px">
-          <button class="btn-sm" onclick="exitPhotoGroup()" style="font-size:12px;padding:4px 10px">← 뒤로</button>
-          <span class="section-title" id="eventGroupTitle">센터</span>
-          <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
-        </div>
-        <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
-      </div>
+      <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
     </div>
   </div>
 
@@ -1955,10 +1939,7 @@ function switchChalSub(tab){
   $('chalPane-awards').style.display=tab==='awards'?'':'none';
   $('chalPane-event').style.display=isEvent?'':'none';
   $('chalNonEvent').style.display=isEvent?'none':'';
-  if(isEvent){
-    if(currentPhotoGroup) loadPhotoContests();
-    else exitPhotoGroup();
-  }
+  if(isEvent) loadPhotoContests();
   if(tab==='awards') loadNewsletters();
 }
 const TROPHY_SVG=`<svg viewBox="0 0 24 24"><path d="M6 9H5a2 2 0 000 4h1m12 0h1a2 2 0 000-4h-1M8 21h8M12 17v4M5 3h14l-2 9a5 5 0 01-10 0L5 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -2066,8 +2047,7 @@ function switchTab(tab){
   if(tab==='Chal'){
     renderChal().catch(()=>{});
     if($('chalSub-event')?.classList.contains('active')){
-      if(currentPhotoGroup) loadPhotoContests();
-      else exitPhotoGroup();
+      loadPhotoContests();
     }
   }
   if(tab==='More'){
@@ -3271,45 +3251,20 @@ async function renderSearch(q){
 
 // ── 사진 투표 행사 ──
 function isUserCenter(){ return (currentUserDept||'').includes('센터'); }
-function canEnterGroup(group){
-  if(isAdminOrSub()) return true;
-  return group==='center' ? isUserCenter() : !isUserCenter();
-}
-function enterPhotoGroup(group){
-  if(!canEnterGroup(group)){alert('본인 소속 그룹만 이용할 수 있습니다');return;}
-  currentPhotoGroup=group;
-  $('eventGroupSelect').style.display='none';
-  $('eventGroupContent').style.display='';
-  $('eventGroupTitle').textContent=group==='center'?'센터':'지청';
-  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
-  loadPhotoContests();
-}
-function exitPhotoGroup(){
-  currentPhotoGroup=null;
-  const sel=$('eventGroupSelect'); if(sel) sel.style.display='';
-  const cnt=$('eventGroupContent'); if(cnt) cnt.style.display='none';
-  // Mark non-accessible cards as disabled
-  const center=$('groupCardCenter'); const branch=$('groupCardBranch');
-  if(center && branch){
-    if(isAdminOrSub()){
-      center.classList.remove('disabled'); branch.classList.remove('disabled');
-    } else {
-      center.classList.toggle('disabled',!isUserCenter());
-      branch.classList.toggle('disabled',isUserCenter());
-    }
-  }
-}
+function enterPhotoGroup(group){ currentPhotoGroup=group; loadPhotoContests(); }
+function exitPhotoGroup(){ currentPhotoGroup=null; }
 async function loadPhotoContests(){
+  const c=$('photoContestList'); if(!c) return;
+  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
+  const _skPc=()=>`<div class="sk-card" style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="sk sk-line" style="width:55%"></div><div class="sk" style="width:48px;height:20px;border-radius:10px"></div></div><div class="sk sk-line" style="width:80%;height:10px;margin-bottom:6px"></div><div class="sk sk-line" style="width:40%;height:10px;margin-bottom:0"></div></div>`;
+  c.innerHTML=Array(3).fill(0).map(_skPc).join('');
   np.start();
   try{
-    const params=[];
-    if(sessionToken) params.push(`token=${encodeURIComponent(sessionToken)}`);
-    if(currentPhotoGroup) params.push(`group=${encodeURIComponent(currentPhotoGroup)}`);
-    const qs=params.length?'?'+params.join('&'):'';
+    const qs=sessionToken?`?token=${encodeURIComponent(sessionToken)}`:'';
     const d=await fetch(`${API}/api/photo-contests${qs}`).then(r=>r.json());
     photoContests=Array.isArray(d)?d:[];
     renderPhotoContestList();
-  }catch(e){}
+  }catch(e){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>불러오지 못했습니다</div>';}
   finally{np.done();}
 }
 function renderPhotoContestList(){
@@ -3317,10 +3272,16 @@ function renderPhotoContestList(){
   if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
   if(!photoContests.length){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';return;}
   const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+  const grpLabel={center:'센터',branch:'지청'};
+  const grpColor={center:'#1565c0',branch:'#2e7d32'};
+  const grpBg={center:'#e3f2fd',branch:'#e8f5e9'};
   c.innerHTML=photoContests.map(pc=>`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
-      <span class="pc-status ${pc.status}">${stLabel[pc.status]||pc.status}</span>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
+        ${pc.contest_group?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${grpBg[pc.contest_group]||'#f5f5f5'};color:${grpColor[pc.contest_group]||'#555'}">${grpLabel[pc.contest_group]||pc.contest_group}</span>`:''}
+      </div>
+      <span class="pc-status ${pc.status}" style="flex-shrink:0">${stLabel[pc.status]||pc.status}</span>
     </div>
     ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
     <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
@@ -5113,7 +5074,7 @@ function onLoginSuccess(d){
   localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
-  showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+  showPage('appPage');$('fab').className='fab';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -5165,7 +5126,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
     currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
     userNames[userCache.id]=userCache.name;
     _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
-    showPage('appPage');$('fab').className='fab';initApp();exitPhotoGroup();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+    showPage('appPage');$('fab').className='fab';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
