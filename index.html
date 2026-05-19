@@ -2546,6 +2546,8 @@ function appendFeedCards(newPosts){
 // ── 소식지 ──
 let _nlData=[];
 async function loadNewsletters(){
+  const el=$('nlList');
+  if(el){const _skNl=()=>`<div class="sk-card" style="display:flex;align-items:center;gap:12px;padding:14px 16px"><div class="sk" style="width:40px;height:40px;min-width:40px;border-radius:10px"></div><div style="flex:1"><div class="sk sk-line" style="width:65%;margin-bottom:7px"></div><div class="sk sk-line" style="width:30%;height:10px;margin-bottom:0"></div></div></div>`;el.innerHTML=Array(4).fill(0).map(_skNl).join('');}
   try{
     const d=await fetch(`${API}/api/newsletters`).then(r=>r.json());
     _nlData=d.newsletters||[];
