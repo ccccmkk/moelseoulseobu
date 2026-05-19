@@ -5488,7 +5488,6 @@ async function _checkLadderBg(){
     const d=await fetch(`${API}/api/ladder/current`).then(r=>r.json());
     const g=d.game;
     if(g&&!_ladderOpen&&g.status==='picking'){_ladderMyPick=null;_ladderRevealed=false;openLadderModal();}
-    if(g&&g.status==='revealed'&&!_ladderRevealed&&!_ladderOpen){_ladderRevealed=false;openLadderModal();}
   }catch(e){}
 }
 
