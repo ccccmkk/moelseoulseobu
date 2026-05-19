@@ -440,51 +440,69 @@ export default {
               items = await fetchNaverSearchRaw('노동 OR 고용', 100);
             } else if (cat === 'local') {
               // 지역언론사 RSS + 네이버 검색 병렬 집계
-              // 지역언론사 RSS 목록 (마포/용산/서대문/은평 권역)
-              const LOCAL_RSS_FEEDS = [
-                { url: 'https://www.epnews.net/rss/allArticle.xml',    name: '은평시민신문' },
-                { url: 'https://www.epnews.net/rss/S1N1.xml',          name: '은평시민신문' },
-                { url: 'https://maponews.kr/feed/',                     name: '마포시민신문' },
-                { url: 'https://www.maponews.kr/feed/',                 name: '마포시민신문' },
-                { url: 'https://www.sdmnews.com/rss/allArticle.xml',   name: '서대문신문' },
-                { url: 'https://www.yongsannews.co.kr/rss/allArticle.xml', name: '용산신문' },
-                { url: 'https://www.yongsan.tv/rss/allArticle.xml',    name: '용산TV' },
-                { url: 'https://m.epnews.net/rss/allArticle.xml',      name: '은평시민신문' },
+              // 언론사별로 시도할 URL 목록 (앞에서부터 첫 성공 URL 사용)
+              const LOCAL_OUTLETS = [
+                { name: '은평시민신문', urls: [
+                  'https://www.epnews.net/rss/allArticle.xml',
+                  'https://epnews.net/rss/allArticle.xml',
+                  'https://www.epnews.net/rss/S1N1.xml',
+                ]},
+                { name: '마포시민신문', urls: [
+                  'https://www.maponews.kr/rss/allArticle.xml',
+                  'https://maponews.kr/rss/allArticle.xml',
+                  'https://www.maponews.kr/feed/',
+                  'https://maponews.kr/feed/',
+                ]},
+                { name: '서대문신문', urls: [
+                  'https://www.sdmnews.com/rss/allArticle.xml',
+                  'https://sdmnews.com/rss/allArticle.xml',
+                  'https://www.sdmnews.com/feed/',
+                ]},
+                { name: '용산신문', urls: [
+                  'https://www.yongsannews.co.kr/rss/allArticle.xml',
+                  'https://yongsannews.co.kr/rss/allArticle.xml',
+                  'https://www.yongsannews.co.kr/feed/',
+                ]},
+                { name: '용산TV', urls: [
+                  'https://www.yongsan.tv/rss/allArticle.xml',
+                  'https://yongsan.tv/rss/allArticle.xml',
+                ]},
               ];
-              const domainOf = url => { try { return new URL(url).hostname.replace(/^www\.|^m\./,''); } catch(e) { return ''; } };
+              const domainOf = u => { try { return new URL(u).hostname.replace(/^(?:www|m)\./,''); } catch(e) { return ''; } };
               const localDomains = new Set(['epnews.net','maponews.kr','sdmnews.com','yongsannews.co.kr','yongsan.tv']);
-              const fetchLocalRSS = async ({ url, name }) => {
-                const r = await fetchTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 6000);
-                if (!r.ok) throw new Error(`${r.status}`);
-                const xml = await r.text();
-                return parseRSS(xml).map(item => ({
-                  title: item.title,
-                  link: item.link,
-                  pubDate: item.pubDate,
-                  source: name,
-                  isLocal: true,
-                }));
+              // 각 언론사별로 URL 순서대로 시도, 첫 성공 반환
+              const fetchOutletRSS = async ({ name, urls }) => {
+                for (const feedUrl of urls) {
+                  try {
+                    const r = await fetchTimeout(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }, 6000);
+                    if (!r.ok) continue;
+                    const xml = await r.text();
+                    const arts = parseRSS(xml);
+                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true }));
+                  } catch(e) { /* 다음 URL 시도 */ }
+                }
+                return [];
               };
-              // 병렬: 지역언론사 RSS + 네이버 검색 2건
-              const [rssFeed, n1, n2] = await Promise.allSettled([
-                Promise.any(LOCAL_RSS_FEEDS.map(feed => fetchLocalRSS(feed)
-                  .then(arts => arts.length > 0 ? arts : Promise.reject(new Error('empty'))))),
+              // 모든 언론사 + 네이버 검색 2건 병렬 실행
+              const rssResults = await Promise.allSettled([
+                ...LOCAL_OUTLETS.map(o => fetchOutletRSS(o)),
                 fetchNaverSearchRaw('은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문', 50),
                 fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
               ]);
               naverCalls = 2;
-              const rssArts = rssFeed.status === 'fulfilled' ? rssFeed.value : [];
-              // 네이버 결과에서 지역언론사 도메인 기사만 우선 추출
-              const na1 = n1.status === 'fulfilled' ? n1.value : [];
-              const na2 = n2.status === 'fulfilled' ? n2.value : [];
+              const numOutlets = LOCAL_OUTLETS.length;
+              // RSS 기사 (성공한 언론사만)
+              const rssArts = rssResults.slice(0, numOutlets)
+                .filter(r => r.status === 'fulfilled')
+                .flatMap(r => r.value);
+              // 네이버 결과 분리
+              const na1 = rssResults[numOutlets]?.status === 'fulfilled' ? rssResults[numOutlets].value : [];
+              const na2 = rssResults[numOutlets+1]?.status === 'fulfilled' ? rssResults[numOutlets+1].value : [];
               const naverLocalArts = [...na1, ...na2].filter(a => localDomains.has(domainOf(a.link)));
-              // 나머지 네이버 기사 (구 이름 포함 일반 기사)
               const naverGeneral = na2.filter(a => !localDomains.has(domainOf(a.link)));
-              // 우선순위: 지역언론사(RSS > 네이버필터) → 일반 구 이름 기사
-              const markLocal = a => ({ ...a, isLocal: true });
               items = [
-                ...rssArts.map(markLocal),
-                ...naverLocalArts.map(markLocal),
+                ...rssArts,
+                ...naverLocalArts.map(a => ({ ...a, isLocal: true })),
                 ...naverGeneral,
               ].sort((a, b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
             } else if (cat === 'health') {
