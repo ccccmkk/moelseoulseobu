@@ -272,6 +272,7 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS newsletters (id TEXT PRIMARY KEY, title TEXT NOT NULL, pages TEXT NOT NULL, created_by TEXT, created_at INTEGER)",
     "CREATE TABLE IF NOT EXISTS og_cache (url TEXT PRIMARY KEY, title TEXT, description TEXT, image TEXT, site_name TEXT, cached_at INTEGER)",
     "ALTER TABLE og_cache ADD COLUMN final_url TEXT",
+    "CREATE TABLE IF NOT EXISTS naver_usage (date TEXT PRIMARY KEY, calls INTEGER DEFAULT 0)",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -383,6 +384,8 @@ export default {
             }));
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
+            const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+            ctx.waitUntil(env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET calls=calls+1').bind(today).run().catch(()=>{}));
             return json(items);
           } catch (e) {
             if (cached) return json(JSON.parse(cached.data));
@@ -1611,9 +1614,11 @@ export default {
         ));
         return json({ ok: true, count: items.length });
       }
-      if (p === '/api/moel-usage' && m === 'GET') {
-        const row = await env.DB.prepare('SELECT * FROM moel_usage WHERE id=1').first();
-        return json(row || { tokens_in: 0, tokens_out: 0, calls: 0 });
+      if (p === '/api/naver-usage' && m === 'GET') {
+        const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+        const todayRow = await env.DB.prepare('SELECT calls FROM naver_usage WHERE date=?').bind(today).first();
+        const totalRow = await env.DB.prepare('SELECT SUM(calls) as total FROM naver_usage').first();
+        return json({ today: todayRow?.calls||0, total: totalRow?.total||0, limit: 25000 });
       }
       if (p === '/api/test-ai' && m === 'GET') {
         const result = { binding: !!env.AI };
@@ -1629,28 +1634,6 @@ export default {
         }
       }
 
-      if (p === '/api/test-moel' && m === 'GET') {
-        if (!env.MOEL_LLM_TOKEN) return json({ error: 'MOEL_LLM_TOKEN 미설정' }, 400);
-        try {
-          const mRes = await fetchTimeout('https://ai.moel.go.kr/gpt/api/llm', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${env.MOEL_LLM_TOKEN}`,
-              'Content-Type': 'application/json',
-              ...(env.MOEL_ORG_CODE ? { 'OrgCode': env.MOEL_ORG_CODE } : {}),
-            },
-            body: JSON.stringify({
-              model: '빠른 모델 플러스',
-              messages: [{ role: 'user', content: '안녕' }],
-              stream: false, max_tokens: 50,
-            }),
-          }, 25000);
-          const rawText = await mRes.text();
-          return json({ status: mRes.status, ok: mRes.ok, body: rawText.slice(0, 500) });
-        } catch (e) {
-          return json({ error: e.message });
-        }
-      }
 
       // ── 프레즌스 ──
       if (p === '/api/presence' && m === 'POST') {

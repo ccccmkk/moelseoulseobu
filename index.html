@@ -1495,6 +1495,8 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
         <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일</span></div>
+        <div id="naverUsageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Workers AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주 (무료)</span></div>
         <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px">Cloudflare 내장 AI (llama-3.3-70b) · 무료 10,000토큰/일</div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:#5c6bc0;background:#e8eaf6;padding:2px 8px;border-radius:10px">폴백1</span></div>
@@ -4669,7 +4671,7 @@ async function loadClaudeSetting(){
       lbl.textContent=on?onLabel:offLabel;
     };
     applyToggle('gemini', s.gemini_fallback_enabled!=='false',
-      'MOEL 실패 시 Gemini 자동 사용', '꺼짐 (MOEL만 사용)');
+      'Workers AI 실패 시 Gemini 자동 사용', '꺼짐 (Workers AI만 사용)');
     applyToggle('claude', s.claude_enabled!=='false',
       'Gemini 실패 시 Claude 자동 사용', '꺼짐 (Gemini까지만 사용)');
   }catch(e){}
@@ -4678,7 +4680,7 @@ async function toggleGeminiFallback(on){
   const track=$('geminiToggleTrack'),thumb=$('geminiToggleThumb'),lbl=$('geminiToggleLabel');
   track.style.background=on?'var(--green)':'#ccc';
   thumb.style.left=on?'19px':'3px';
-  lbl.textContent=on?'MOEL 실패 시 Gemini 자동 사용':'꺼짐 (MOEL만 사용)';
+  lbl.textContent=on?'Workers AI 실패 시 Gemini 자동 사용':'꺼짐 (Workers AI만 사용)';
   await fetch(`${API}/api/settings/gemini_fallback_enabled`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:String(on)})});
 }
 async function toggleClaude(on){
@@ -4776,15 +4778,17 @@ async function openAdminModal(){
       <div class="storage-bar-wrap"><div class="storage-bar" style="width:${pct}%"></div></div>
       <div style="font-size:11px;color:var(--text-hint);margin-top:4px">${pct}% 사용 중</div>`;
   }).catch(()=>{$('storageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
-  // MOEL AI 사용량
-  fetch(`${API}/api/moel-usage`).then(r=>r.json()).then(d=>{
-    const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
-    $('moelStats').innerHTML=`
-      <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
-      <div class="admin-stat-row"><span class="admin-stat-label">입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
-      <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
-      <div class="admin-stat-row"><span class="admin-stat-label">비용</span><span class="admin-stat-val" style="color:#2e7d32">무료</span></div>`;
-  }).catch(()=>{$('moelStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
+  // 네이버 뉴스 API 사용량
+  fetch(`${API}/api/naver-usage`).then(r=>r.json()).then(d=>{
+    const today=d.today||0;const total=d.total||0;const limit=d.limit||25000;
+    const pct=Math.min(100,Math.round(today/limit*100));
+    const color=pct>80?'var(--danger)':pct>60?'#f57f17':'var(--green-dark)';
+    $('naverUsageStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">오늘 사용</span><span class="admin-stat-val" style="color:${color}">${today.toLocaleString()}회 / ${limit.toLocaleString()}회</span></div>
+      <div class="storage-bar-wrap" style="margin:6px 0"><div class="storage-bar" style="width:${pct}%;background:${color}"></div></div>
+      <div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">${pct}% 사용 중</div>
+      <div class="admin-stat-row"><span class="admin-stat-label">누적 총 호출</span><span class="admin-stat-val">${total.toLocaleString()}회</span></div>`;
+  }).catch(()=>{if($('naverUsageStats'))$('naverUsageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
   // Gemini API 사용량 (폴백1)
   fetch(`${API}/api/gemini-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;
