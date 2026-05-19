@@ -346,22 +346,17 @@ export default {
         return json({ url: `${new URL(request.url).origin}/${key}` });
       }
 
-      // ── 뉴스 (네이버 뉴스 API + D1 캐시 10분) ──
+      // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
-        const queries = {
-          labor: '고용|노동|취업|일자리|채용|실업급여|근로자|임금|노동부',
-          local: '마포|용산|서대문|은평|합정|홍대|이태원|공덕|연남|망원',
-          health: '건강|보건|의료|질병|복지부|예방접종|전염병|만성질환',
-          law: '근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금',
-        };
-        if (!queries[cat]) return json({ error: 'unknown' }, 400);
+        const validCats = ['labor','local','health','law'];
+        if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
         if (cached && (now - cached.cached_at) < 600) {
           return json(JSON.parse(cached.data));
         }
-        // 네이버 뉴스 API 사용 (원본 URL 직접 제공)
+        // 네이버 뉴스 API
         if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
           try {
             const naverHeaders = {
@@ -370,8 +365,21 @@ export default {
               'Referer': 'https://band-archive-api.cm99i.workers.dev',
             };
             const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim() : '';
-            const fetchNaver = async (q, display=30) => {
-              const r = await fetchTimeout('https://openapi.naver.com/v1/search/news.json?query='+encodeURIComponent(q)+'&display='+display+'&sort=date', { headers: naverHeaders }, 8000);
+            // 네이버 뉴스 섹션 RSS 파서 (검색 API보다 편집 기사 품질 우수)
+            const fetchNaverRSS = async (rssUrl) => {
+              const r = await fetchTimeout(rssUrl, { headers:{'User-Agent':'Mozilla/5.0'} }, 8000);
+              if (!r.ok) throw new Error(`RSS ${r.status}`);
+              const xml = await r.text();
+              return parseRSS(xml).map(item => ({
+                title: item.title,
+                link: item.link,
+                pubDate: item.pubDate,
+                source: (()=>{try{return new URL(item.link).hostname.replace(/^www\./,'');}catch(e){return 'naver.com';}})(),
+              }));
+            };
+            // 네이버 검색 API (지역/법령 등 키워드 기반)
+            const fetchNaverSearch = async (q) => {
+              const r = await fetchTimeout('https://openapi.naver.com/v1/search/news.json?query='+encodeURIComponent(q)+'&display=100&sort=date', { headers: naverHeaders }, 8000);
               if (!r.ok) throw new Error(`Naver API HTTP ${r.status}`);
               const d = await r.json();
               return (d.items||[]).map(item=>({
@@ -381,24 +389,32 @@ export default {
                 source: (()=>{try{return new URL(item.originallink||item.link).hostname.replace(/^www\./,'');}catch(e){return '';}})(),
               }));
             };
-            let items;
-            if (cat === 'local') {
-              // 지역뉴스: 자치구 키워드 + 지역 핫플레이스 두 쿼리 병렬로 합산
-              const [r1, r2] = await Promise.all([
-                fetchNaver('마포구|용산구|서대문구|은평구', 20),
-                fetchNaver('마포|용산|서대문|은평|합정|홍대|연남|망원|이태원|공덕', 20),
-              ]);
-              const seen = new Set();
-              items = [...r1, ...r2].filter(i => { if(seen.has(i.link))return false; seen.add(i.link); return true; })
-                .sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0)).slice(0,30);
-            } else {
-              items = await fetchNaver(queries[cat], 30);
+            let items = [];
+            let naverCalls = 1;
+            if (cat === 'labor') {
+              // 네이버 뉴스 노동 섹션 RSS (sid=252) — 편집된 노동/고용 기사
+              try {
+                items = await fetchNaverRSS('https://news.naver.com/main/rss/shm/index.naver?category=252');
+                naverCalls = 0; // RSS는 API 쿼터 소모 없음
+              } catch(e) {
+                // RSS 실패 시 검색 API 폴백
+                items = await fetchNaverSearch('고용|노동|취업|일자리|채용|실업급여|근로자|노동부');
+              }
+            } else if (cat === 'local') {
+              // 지역뉴스: 우리 지역 4개 자치구 정확히 타겟
+              items = await fetchNaverSearch('마포구|용산구|서대문구|은평구');
+            } else if (cat === 'health') {
+              items = await fetchNaverSearch('건강|보건|의료|질병|복지부|예방접종|전염병|만성질환');
+            } else if (cat === 'law') {
+              items = await fetchNaverSearch('근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금');
             }
+            items = items.slice(0, 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
-            const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
-            const naverCalls = cat==='local' ? 2 : 1;
-            ctx.waitUntil(env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,?) ON CONFLICT(date) DO UPDATE SET calls=calls+?').bind(today,naverCalls,naverCalls).run().catch(()=>{}));
+            if (naverCalls > 0) {
+              const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+              ctx.waitUntil(env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,?) ON CONFLICT(date) DO UPDATE SET calls=calls+?').bind(today,naverCalls,naverCalls).run().catch(()=>{}));
+            }
             return json(items);
           } catch (e) {
             if (cached) return json(JSON.parse(cached.data));
