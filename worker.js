@@ -1,4 +1,4 @@
-// v2.2.0
+// v2.2.1
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -439,7 +439,15 @@ export default {
               // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
               items = await fetchNaverSearchRaw('노동 OR 고용', 100);
             } else if (cat === 'local') {
-              items = await fetchNaverSearchRaw('마포 OR 용산 OR 서대문 OR 은평', 100);
+              // 구 이름 + 핵심 동네명 병렬 2-쿼리로 커버리지 확대
+              const [r1, r2] = await Promise.allSettled([
+                fetchNaverSearchRaw('마포 OR 용산 OR 서대문 OR 은평', 50),
+                fetchNaverSearchRaw('공덕 OR 합정 OR 이태원 OR 신촌 OR 불광', 50),
+              ]);
+              naverCalls = 2;
+              const a1 = r1.status === 'fulfilled' ? r1.value : [];
+              const a2 = r2.status === 'fulfilled' ? r2.value : [];
+              items = [...a1, ...a2].sort((a, b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
             } else if (cat === 'health') {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
@@ -461,7 +469,7 @@ export default {
         try {
           const googleQueries = {
             labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
-            local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
+            local: '마포 OR 용산 OR 서대문 OR 은평 OR 공덕 OR 이태원 OR 신촌 OR 불광',
             health: '질병관리청 OR 보건복지부 건강',
             law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
           };
