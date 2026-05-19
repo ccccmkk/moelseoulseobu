@@ -1,4 +1,4 @@
-// v2.1.6
+// v2.1.7
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -527,6 +527,9 @@ export default {
           if (res.status !== 'fulfilled') { apiDebug.push(`${type}:fetch_fail`); continue; }
           const rawText = await res.value.text().catch(() => '');
           if (!res.value.ok) { apiDebug.push(`${type}:HTTP${res.value.status}`); continue; }
+          if (rawText.includes('not in allowlist') || rawText.includes('OC코드') || rawText.includes('허용되지')) {
+            apiDebug.push(`oc_invalid`); continue;
+          }
           let d;
           try { d = JSON.parse(rawText); } catch(e) { apiDebug.push(`${type}:json_fail:${rawText.slice(0,50)}`); continue; }
           if (type === 'law') {
@@ -561,7 +564,8 @@ export default {
             })).filter(e => e.name);
           }
         }
-        const result = { laws, precs, expcs, query: q, oc: OC, debug: apiDebug };
+        const ocInvalid = apiDebug.some(d => d === 'oc_invalid');
+        const result = { laws, precs, expcs, query: q, oc: OC, debug: apiDebug, oc_invalid: ocInvalid };
           return result;
         })();
         LAW_INFLIGHT.set(cacheKey, workPromise);

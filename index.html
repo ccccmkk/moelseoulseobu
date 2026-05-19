@@ -706,10 +706,13 @@ button,a,[role="button"]{touch-action:manipulation}
           <input id="lawSearchInput" type="text" placeholder="법령·판례 검색..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')lawSearch()">
           <button onclick="lawSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
         </div>
-        <div style="display:flex;gap:6px">
-          <button id="lt-law"  class="sub-tab active" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('law')">법령</button>
-          <button id="lt-prec" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('prec')">판례</button>
-          <button id="lt-expc" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('expc')">해석례</button>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;gap:6px">
+            <button id="lt-law"  class="sub-tab active" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('law')">법령</button>
+            <button id="lt-prec" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('prec')">판례</button>
+            <button id="lt-expc" class="sub-tab" style="font-size:12px;padding:4px 10px" onclick="switchLawTarget('expc')">해석례</button>
+          </div>
+          <a id="lawGoDirectLink" href="https://www.law.go.kr" target="_blank" rel="noopener" style="font-size:11px;color:var(--green-dark);text-decoration:none;padding:3px 8px;border:1px solid var(--green-light);border-radius:6px">법제처 바로가기 →</a>
         </div>
       </div>
       <div id="lawSearchResult" style="max-height:40vh;overflow-y:auto"></div>
@@ -2246,6 +2249,8 @@ function expandLawSection(btn,cls){
 async function lawSearch(){
   const q=($('lawSearchInput').value||'').trim();
   if(!q)return;
+  const directLink=$('lawGoDirectLink');
+  if(directLink)directLink.href=`https://www.law.go.kr/검색?q=${encodeURIComponent(q)}`;
   const box=$('lawSearchResult');
   box.innerHTML=lawSkeleton();
   _lawCache=[];
@@ -2287,7 +2292,12 @@ async function lawSearch(){
       if(data.expcs.length>3)html+=`<button class="law-more-btn" onclick="expandLawSection(this,'expc-extra-item')" style="width:100%;padding:10px;border:none;background:var(--bg2);color:var(--text-sub);font-size:13px;cursor:pointer;border-top:1px solid var(--border)">해석례 ${data.expcs.length-3}개 더 보기 ▾</button>`;
     }
     const dbgHtml=data.debug&&data.debug.length?`<div style="padding:4px 12px 8px;font-size:10px;color:var(--text-hint);word-break:break-all">${escHtml(data.debug.join(' | '))}</div>`:'';
-    box.innerHTML=html?(html+dbgHtml):'<div style="padding:30px;text-align:center;color:var(--text-hint)">검색 결과 없음</div>'+dbgHtml;
+    const lawGoSearchUrl=`https://www.law.go.kr/검색?q=${encodeURIComponent(q)}`;
+    const fallbackHtml=`<div style="padding:20px 16px;text-align:center">
+      <div style="font-size:13px;color:var(--text-hint);margin-bottom:14px;line-height:1.6">${data.oc_invalid?'법제처 API 연결 오류입니다.<br>아래 버튼으로 법제처에서 직접 검색할 수 있습니다.':'검색 결과가 없습니다.<br>법제처에서 더 정확히 검색할 수 있습니다.'}</div>
+      <a href="${escHtml(lawGoSearchUrl)}" target="_blank" rel="noopener" style="display:inline-block;padding:10px 24px;background:var(--green);color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">⚖️ 법제처에서 "${escHtml(q)}" 검색하기 →</a>
+    </div>`;
+    box.innerHTML=html?(html+dbgHtml):(fallbackHtml+dbgHtml);
   }catch(e){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint)">잠시 후 다시 시도해주세요</div>';}
 }
 function _lawGoUrl(lawtype,lawName,id,mst){
