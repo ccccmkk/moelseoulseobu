@@ -1486,8 +1486,8 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
   <div class="nlv-stage" id="nlvStage">
     <img id="nlvImg" class="nlv-img" src="" alt="">
-    <div class="nlv-tap-l" onclick="nlvGo(-1)"></div>
-    <div class="nlv-tap-r" onclick="nlvGo(1)"></div>
+    <div class="nlv-tap-l" id="nlvTapL" onclick="nlvGo(-1)"></div>
+    <div class="nlv-tap-r" id="nlvTapR" onclick="nlvGo(1)"></div>
   </div>
   <div class="nlv-footer">
     <div class="nlv-page-num" id="nlvPageNum"></div>
@@ -2504,9 +2504,25 @@ function renderNewsletters(){
     </div>`).join('');
 }
 let _nlCurrent=null,_nlPage=0;
+let _nlScale=1,_nlTX=0,_nlTY=0;
+let _nlLastTap=0,_nlPinchDist0=0,_nlPinchScale0=1;
+let _nlDragX=0,_nlDragY=0,_nlDragTX=0,_nlDragTY=0,_nlDragging=false;
+
+function _nlApply(smooth){
+  const img=$('nlvImg');
+  img.style.transition=smooth?'transform .2s':'none';
+  img.style.transform=`translate(${_nlTX}px,${_nlTY}px) scale(${_nlScale})`;
+  const zoomed=_nlScale>1.05;
+  $('nlvStage').style.touchAction=zoomed?'none':'pan-y';
+  $('nlvTapL').style.pointerEvents=zoomed?'none':'auto';
+  $('nlvTapR').style.pointerEvents=zoomed?'none':'auto';
+}
+function _nlResetZoom(smooth){
+  _nlScale=1;_nlTX=0;_nlTY=0;_nlApply(smooth??true);
+}
 function openNlViewer(id){
   const nl=_nlData.find(n=>n.id===id);if(!nl)return;
-  _nlCurrent=nl;_nlPage=0;
+  _nlCurrent=nl;_nlPage=0;_nlResetZoom(false);
   $('nlvTitle').textContent=nl.title;
   nlvRender();
   $('nlViewer').classList.add('open');
@@ -2515,6 +2531,7 @@ function openNlViewer(id){
 function closeNlViewer(){
   $('nlViewer').classList.remove('open');
   document.body.style.overflow='';
+  _nlResetZoom(false);
 }
 function nlvRender(){
   const pages=_nlCurrent.pages;
@@ -2531,16 +2548,56 @@ function nlvRender(){
 function nlvGo(dir){
   if(!_nlCurrent)return;
   _nlPage=(_nlPage+dir+_nlCurrent.pages.length)%_nlCurrent.pages.length;
+  _nlResetZoom(false);
   nlvRender();
 }
+// 터치 이벤트 (핀치 줌 + 패닝 + 더블탭)
 (function(){
-  let _tx=0;
-  document.addEventListener('touchstart',e=>{if($('nlViewer').classList.contains('open'))_tx=e.touches[0].clientX;},{passive:true});
-  document.addEventListener('touchend',e=>{
+  const stageEl=()=>$('nlvStage');
+  function onStart(e){
     if(!$('nlViewer').classList.contains('open'))return;
-    const dx=e.changedTouches[0].clientX-_tx;
-    if(Math.abs(dx)>50)nlvGo(dx<0?1:-1);
-  },{passive:true});
+    if(e.touches.length===2){
+      _nlPinchDist0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      _nlPinchScale0=_nlScale;
+      _nlDragging=false;
+    } else if(e.touches.length===1){
+      const now=Date.now();
+      if(now-_nlLastTap<300){
+        _nlLastTap=0;
+        if(_nlScale>1.05)_nlResetZoom(true);
+        else{_nlScale=2.5;_nlApply(true);}
+        return;
+      }
+      _nlLastTap=now;
+      _nlDragX=e.touches[0].clientX;_nlDragY=e.touches[0].clientY;
+      _nlDragTX=_nlTX;_nlDragTY=_nlTY;_nlDragging=true;
+    }
+  }
+  function onMove(e){
+    if(!$('nlViewer').classList.contains('open'))return;
+    if(e.touches.length===2){
+      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      _nlScale=Math.min(Math.max(_nlPinchScale0*(d/_nlPinchDist0),1),5);
+      _nlApply(false);
+    } else if(e.touches.length===1&&_nlDragging&&_nlScale>1.05){
+      _nlTX=_nlDragTX+(e.touches[0].clientX-_nlDragX);
+      _nlTY=_nlDragTY+(e.touches[0].clientY-_nlDragY);
+      _nlApply(false);
+    }
+  }
+  function onEnd(e){
+    if(!$('nlViewer').classList.contains('open'))return;
+    if(_nlScale<1.05){_nlResetZoom(true);return;}
+    // 스와이프로 페이지 넘기기 (축소 상태일 때만)
+    if(_nlScale<=1.05&&_nlDragging){
+      const dx=e.changedTouches[0].clientX-_nlDragX;
+      if(Math.abs(dx)>50)nlvGo(dx<0?1:-1);
+    }
+    _nlDragging=false;
+  }
+  document.addEventListener('touchstart',onStart,{passive:true});
+  document.addEventListener('touchmove',onMove,{passive:true});
+  document.addEventListener('touchend',onEnd,{passive:true});
 })();
 let _nlFiles=[];
 function openNlUploadModal(){
