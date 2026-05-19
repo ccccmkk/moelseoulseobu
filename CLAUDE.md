@@ -76,6 +76,9 @@ scripts/
 - `GET/POST /api/contests`, `/api/photo-contests` — 이달의 직원 / 사진 콘테스트
 - `GET /api/mileage`, `/api/profiles`, `/api/notifications` — 마일리지 / 프로필 / 알림
 - `GET /api/usage` — R2 스토리지 사용량
+- `GET /api/newsletters` — 소식지 목록
+- `POST /api/newsletters` — 소식지 등록 (관리자)
+- `DELETE /api/newsletters/:id` — 소식지 삭제 (관리자)
 
 ---
 
@@ -104,6 +107,7 @@ scripts/
 | `claude_usage`, `gemini_usage` | AI 토큰 사용량 추적 |
 | `login_logs` | 접속 이력 |
 | `user_presence` | 온라인 상태 |
+| `newsletters` | 소식지 (title, pages: JSON 이미지 URL 배열) |
 
 ---
 
@@ -128,6 +132,22 @@ scripts/
 
 ## 배포
 
+### 자동 배포 (GitHub Actions)
+
+`main` 브랜치에 `worker.js` 또는 `wrangler.toml` 변경이 푸시되면 **자동으로 Cloudflare에 배포**됨.
+
+```
+.github/workflows/deploy.yml
+  트리거: push to main (worker.js, wrangler.toml 변경 시)
+  사용: cloudflare/wrangler-action@v3
+  시크릿: CLOUDFLARE_API_TOKEN (GitHub Secrets에 등록)
+```
+
+> **주의**: `index.html`만 변경된 경우 자동 배포가 트리거되지 않음.
+> worker.js와 함께 변경되거나, 수동으로 배포해야 함.
+
+### 수동 배포
+
 ```bash
 # 로컬 개발
 npx wrangler dev
@@ -136,11 +156,24 @@ npx wrangler dev
 npx wrangler deploy
 ```
 
-환경 변수(Secrets)는 Wrangler Dashboard 또는 아래 명령으로 설정:
+### GitHub Actions 워크플로 목록
+
+| 파일 | 트리거 | 동작 |
+|------|--------|------|
+| `deploy.yml` | main push (worker.js/wrangler.toml) | Cloudflare Worker 배포 |
+| `law-prefetch.yml` | 매주 일요일 03:00 KST / 수동 | 법령 데이터 D1 캐시 갱신 |
+
+### 환경 변수 (Secrets)
+
+Wrangler Dashboard 또는 아래 명령으로 설정:
 ```bash
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put CLAUDE_API_KEY
 ```
+
+GitHub Secrets (Actions에서 사용):
+- `CLOUDFLARE_API_TOKEN` — Wrangler 배포용
+- `LAW_CACHE_TOKEN` — 법령 캐시 갱신용
 
 ---
 
