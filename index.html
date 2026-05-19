@@ -2546,10 +2546,12 @@ function newsCardHtml(n){
   const isToday=d&&!isNaN(d)&&(Date.now()-d.getTime()<86400000);
   const dateStr=newsRelDate(n.pubDate);
   const link=n.link||'#';
+  const localBadge=n.isLocal?'<span style="font-size:10px;font-weight:700;background:#fff3e0;color:#e65100;padding:1px 6px;border-radius:8px">지역언론</span>':'';
   return`<div class="news-card" onclick="window.open('${escHtml(link)}','_blank','noopener')">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
       <span class="news-source">${escHtml(n.source||'')}</span>
       ${isToday?'<span style="font-size:10px;font-weight:700;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:8px">NEW</span>':''}
+      ${localBadge}
     </div>
     <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
     ${dateStr?`<div class="news-date">${dateStr}</div>`:''}

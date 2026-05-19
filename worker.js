@@ -439,15 +439,54 @@ export default {
               // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
               items = await fetchNaverSearchRaw('노동 OR 고용', 100);
             } else if (cat === 'local') {
-              // 구 이름 + 핵심 동네명 병렬 2-쿼리로 커버리지 확대
-              const [r1, r2] = await Promise.allSettled([
-                fetchNaverSearchRaw('마포 OR 용산 OR 서대문 OR 은평', 50),
-                fetchNaverSearchRaw('공덕 OR 합정 OR 이태원 OR 신촌 OR 불광', 50),
+              // 지역언론사 RSS + 네이버 검색 병렬 집계
+              // 지역언론사 RSS 목록 (마포/용산/서대문/은평 권역)
+              const LOCAL_RSS_FEEDS = [
+                { url: 'https://www.epnews.net/rss/allArticle.xml',    name: '은평시민신문' },
+                { url: 'https://www.epnews.net/rss/S1N1.xml',          name: '은평시민신문' },
+                { url: 'https://maponews.kr/feed/',                     name: '마포시민신문' },
+                { url: 'https://www.maponews.kr/feed/',                 name: '마포시민신문' },
+                { url: 'https://www.sdmnews.com/rss/allArticle.xml',   name: '서대문신문' },
+                { url: 'https://www.yongsannews.co.kr/rss/allArticle.xml', name: '용산신문' },
+                { url: 'https://www.yongsan.tv/rss/allArticle.xml',    name: '용산TV' },
+                { url: 'https://m.epnews.net/rss/allArticle.xml',      name: '은평시민신문' },
+              ];
+              const domainOf = url => { try { return new URL(url).hostname.replace(/^www\.|^m\./,''); } catch(e) { return ''; } };
+              const localDomains = new Set(['epnews.net','maponews.kr','sdmnews.com','yongsannews.co.kr','yongsan.tv']);
+              const fetchLocalRSS = async ({ url, name }) => {
+                const r = await fetchTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 6000);
+                if (!r.ok) throw new Error(`${r.status}`);
+                const xml = await r.text();
+                return parseRSS(xml).map(item => ({
+                  title: item.title,
+                  link: item.link,
+                  pubDate: item.pubDate,
+                  source: name,
+                  isLocal: true,
+                }));
+              };
+              // 병렬: 지역언론사 RSS + 네이버 검색 2건
+              const [rssFeed, n1, n2] = await Promise.allSettled([
+                Promise.any(LOCAL_RSS_FEEDS.map(feed => fetchLocalRSS(feed)
+                  .then(arts => arts.length > 0 ? arts : Promise.reject(new Error('empty'))))),
+                fetchNaverSearchRaw('은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문', 50),
+                fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
               ]);
               naverCalls = 2;
-              const a1 = r1.status === 'fulfilled' ? r1.value : [];
-              const a2 = r2.status === 'fulfilled' ? r2.value : [];
-              items = [...a1, ...a2].sort((a, b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
+              const rssArts = rssFeed.status === 'fulfilled' ? rssFeed.value : [];
+              // 네이버 결과에서 지역언론사 도메인 기사만 우선 추출
+              const na1 = n1.status === 'fulfilled' ? n1.value : [];
+              const na2 = n2.status === 'fulfilled' ? n2.value : [];
+              const naverLocalArts = [...na1, ...na2].filter(a => localDomains.has(domainOf(a.link)));
+              // 나머지 네이버 기사 (구 이름 포함 일반 기사)
+              const naverGeneral = na2.filter(a => !localDomains.has(domainOf(a.link)));
+              // 우선순위: 지역언론사(RSS > 네이버필터) → 일반 구 이름 기사
+              const markLocal = a => ({ ...a, isLocal: true });
+              items = [
+                ...rssArts.map(markLocal),
+                ...naverLocalArts.map(markLocal),
+                ...naverGeneral,
+              ].sort((a, b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
             } else if (cat === 'health') {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
@@ -469,7 +508,7 @@ export default {
         try {
           const googleQueries = {
             labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
-            local: '마포 OR 용산 OR 서대문 OR 은평 OR 공덕 OR 이태원 OR 신촌 OR 불광',
+            local: '은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문 OR 마포구 OR 은평구 OR 서대문구 OR 용산구',
             health: '질병관리청 OR 보건복지부 건강',
             law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
           };
