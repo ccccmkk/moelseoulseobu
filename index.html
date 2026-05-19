@@ -556,6 +556,29 @@ button,a,[role="button"]{touch-action:manipulation}
 .sk-avatar{width:38px;height:38px;min-width:38px;border-radius:50%}
 .sk-line{height:13px;margin-bottom:8px}
 .sk-img{height:200px;border-radius:10px;margin:10px 0 6px}
+/* ── 소식지 ── */
+.nl-list{display:flex;flex-direction:column;gap:10px}
+.nl-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:.15s;-webkit-tap-highlight-color:transparent}
+.nl-card:active{transform:scale(.98)}
+.nl-card-icon{width:42px;height:42px;background:var(--green-light);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nl-card-title{font-size:15px;font-weight:600;color:var(--text)}
+.nl-card-sub{font-size:12px;color:var(--text-hint);margin-top:3px}
+/* 소식지 뷰어 */
+#nlViewer{display:none;position:fixed;inset:0;background:#111;z-index:950;flex-direction:column}
+#nlViewer.open{display:flex}
+.nlv-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top,0px));background:rgba(0,0,0,.92);color:#fff;flex-shrink:0}
+.nlv-title{font-size:15px;font-weight:700;flex:1;text-align:center}
+.nlv-close{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;font-family:inherit}
+.nlv-stage{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#000;touch-action:pan-y}
+.nlv-img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;user-select:none;transition:opacity .12s}
+.nlv-img.fade{opacity:0}
+.nlv-tap-l,.nlv-tap-r{position:absolute;top:0;bottom:0;width:30%;cursor:pointer;z-index:2}
+.nlv-tap-l{left:0}.nlv-tap-r{right:0}
+.nlv-footer{padding:10px 16px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.88);flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+.nlv-page-num{color:rgba(255,255,255,.75);font-size:13px;letter-spacing:.05em}
+.nlv-dots{display:flex;gap:5px}
+.nlv-dot{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.3);transition:.2s}
+.nlv-dot.on{background:#fff;width:18px}
 </style>
 </head>
 <body>
@@ -733,7 +756,7 @@ button,a,[role="button"]{touch-action:manipulation}
   <div id="tabChal" class="tab-page">
     <!-- 서브탭 -->
     <div style="display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px">
-      <button class="sub-tab active" id="chalSub-awards" onclick="switchChalSub('awards')" style="flex:1">수상기록</button>
+      <button class="sub-tab active" id="chalSub-awards" onclick="switchChalSub('awards')" style="flex:1">현황</button>
       <button class="sub-tab" id="chalSub-event" onclick="switchChalSub('event')" style="flex:1">행사</button>
     </div>
 
@@ -748,6 +771,14 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="chalPane-awards">
         <div id="awardsList"></div>
         <div id="awardsKudosList" style="margin-top:12px"></div>
+        <!-- 소식지 -->
+        <div style="margin-top:20px">
+          <div class="section-hd">
+            <span class="section-title">소식지</span>
+            <button class="btn-sm primary" id="nlAddBtn" style="display:none" onclick="openNlUploadModal()">+ 업로드</button>
+          </div>
+          <div id="nlList"></div>
+        </div>
       </div>
 
       <!-- 섹션 2: 친절스타 -->
@@ -1438,6 +1469,47 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
   </div>
 </div>
+<!-- ════ 소식지 뷰어 ════ -->
+<div id="nlViewer">
+  <div class="nlv-header">
+    <button class="nlv-close" onclick="closeNlViewer()">←</button>
+    <span class="nlv-title" id="nlvTitle"></span>
+    <div style="width:40px"></div>
+  </div>
+  <div class="nlv-stage" id="nlvStage">
+    <img id="nlvImg" class="nlv-img" src="" alt="">
+    <div class="nlv-tap-l" onclick="nlvGo(-1)"></div>
+    <div class="nlv-tap-r" onclick="nlvGo(1)"></div>
+  </div>
+  <div class="nlv-footer">
+    <div class="nlv-page-num" id="nlvPageNum"></div>
+    <div class="nlv-dots" id="nlvDots"></div>
+  </div>
+</div>
+
+<!-- ════ 소식지 업로드 모달 ════ -->
+<div class="modal-overlay center" id="nlUploadModal">
+  <div class="modal" style="max-height:90dvh">
+    <div class="modal-header">
+      <span class="modal-title">소식지 업로드</span>
+      <button class="modal-close" onclick="$('nlUploadModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px;overflow-y:auto">
+      <div class="form-row">
+        <label>제목 <span style="color:var(--text-hint);font-weight:400">(예: 2026년 5월호)</span></label>
+        <input type="text" id="nlTitle" placeholder="2026년 5월호"/>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:13px;font-weight:600;color:var(--text-sub);display:block;margin-bottom:6px">페이지 이미지 <span style="color:var(--text-hint);font-weight:400">(순서대로 선택)</span></label>
+        <button class="btn-sm" onclick="$('nlImgInput').click()" style="width:100%;justify-content:center;padding:10px">📎 이미지 선택</button>
+        <input type="file" id="nlImgInput" accept="image/*" multiple style="display:none" onchange="nlPreviewFiles(this)">
+        <div id="nlPreviewList" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <button class="btn-green" id="nlUploadBtn" onclick="submitNewsletter()">업로드</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 알림 패널 ════ -->
 <div class="modal-overlay" id="notiModal">
   <div class="modal">
@@ -1841,6 +1913,7 @@ function switchChalSub(tab){
     if(currentPhotoGroup) loadPhotoContests();
     else exitPhotoGroup();
   }
+  if(tab==='awards') loadNewsletters();
 }
 const TROPHY_SVG=`<svg viewBox="0 0 24 24"><path d="M6 9H5a2 2 0 000 4h1m12 0h1a2 2 0 000-4h-1M8 21h8M12 17v4M5 3h14l-2 9a5 5 0 01-10 0L5 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function updateNotiBadges(hasNew){
@@ -2006,7 +2079,8 @@ async function fetchRoles(){
     const r=await fetch(`${API}/api/roles`);const a=await r.json();userRoles={};
     a.forEach(x=>{userRoles[x.user_id]=x.role;});
     currentUserRole=userRoles[currentUser]||'user';
-    if(currentUserRole==='admin'){$('moreAdminGroup').style.display='';$('kudosAddBtn').style.display='';$('contestAddBtn').style.display='';}
+    if(currentUserRole==='admin'){$('moreAdminGroup').style.display='';$('kudosAddBtn').style.display='';$('contestAddBtn').style.display='';$('nlAddBtn').style.display='';}
+    if(isAdminOrSub()){const b=$('nlAddBtn');if(b)b.style.display='';}
     // 중간관리자: 사진 이벤트 추가 버튼만 표시
     if(currentUserRole==='sub_admin'){const b=$('photoEventAddBtn');if(b)b.style.display='';}
   }catch(e){}
@@ -2401,6 +2475,107 @@ function appendFeedCards(newPosts){
   initCarousels();
   setupViewObserver();
 }
+// ── 소식지 ──
+let _nlData=[];
+async function loadNewsletters(){
+  try{
+    const d=await fetch(`${API}/api/newsletters`).then(r=>r.json());
+    _nlData=d.newsletters||[];
+    renderNewsletters();
+  }catch(e){}
+}
+function renderNewsletters(){
+  const el=$('nlList');if(!el)return;
+  if(!_nlData.length){el.innerHTML='<div class="empty-state" style="padding:1.5rem;text-align:center;color:var(--text-hint);font-size:13px">등록된 소식지가 없습니다.</div>';return;}
+  el.innerHTML=_nlData.map(n=>`
+    <div class="nl-card" onclick="openNlViewer('${escHtml(n.id)}')">
+      <div class="nl-card-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+      <div style="flex:1"><div class="nl-card-title">${escHtml(n.title)}</div><div class="nl-card-sub">${n.page_count}페이지</div></div>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--text-hint)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      ${isAdminOrSub()?`<button class="btn-sm" style="font-size:11px;color:var(--danger);margin-left:4px;flex-shrink:0" onclick="event.stopPropagation();deleteNewsletter('${escHtml(n.id)}')">삭제</button>`:''}
+    </div>`).join('');
+}
+let _nlCurrent=null,_nlPage=0;
+function openNlViewer(id){
+  const nl=_nlData.find(n=>n.id===id);if(!nl)return;
+  _nlCurrent=nl;_nlPage=0;
+  $('nlvTitle').textContent=nl.title;
+  nlvRender();
+  $('nlViewer').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeNlViewer(){
+  $('nlViewer').classList.remove('open');
+  document.body.style.overflow='';
+}
+function nlvRender(){
+  const pages=_nlCurrent.pages;
+  const img=$('nlvImg');
+  img.classList.add('fade');
+  setTimeout(()=>{
+    img.src=pages[_nlPage];
+    img.onload=()=>img.classList.remove('fade');
+    $('nlvPageNum').textContent=`${_nlPage+1} / ${pages.length}`;
+    $('nlvDots').innerHTML=Array.from({length:Math.min(pages.length,12)},(_,i)=>
+      `<div class="nlv-dot${i===_nlPage?' on':''}"></div>`).join('');
+  },80);
+}
+function nlvGo(dir){
+  if(!_nlCurrent)return;
+  _nlPage=(_nlPage+dir+_nlCurrent.pages.length)%_nlCurrent.pages.length;
+  nlvRender();
+}
+(function(){
+  let _tx=0;
+  document.addEventListener('touchstart',e=>{if($('nlViewer').classList.contains('open'))_tx=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!$('nlViewer').classList.contains('open'))return;
+    const dx=e.changedTouches[0].clientX-_tx;
+    if(Math.abs(dx)>50)nlvGo(dx<0?1:-1);
+  },{passive:true});
+})();
+let _nlFiles=[];
+function openNlUploadModal(){
+  $('nlTitle').value='';$('nlPreviewList').innerHTML='';_nlFiles=[];
+  $('nlUploadModal').classList.add('open');
+}
+function nlPreviewFiles(input){
+  _nlFiles=Array.from(input.files);
+  $('nlPreviewList').innerHTML=_nlFiles.map((f,i)=>
+    `<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sub)">
+      <span style="background:var(--green);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${i+1}</span>
+      ${escHtml(f.name)}</div>`).join('');
+}
+async function submitNewsletter(){
+  const title=$('nlTitle').value.trim();
+  if(!title){alert('제목을 입력해주세요.');return;}
+  if(!_nlFiles.length){alert('이미지를 선택해주세요.');return;}
+  const btn=$('nlUploadBtn');btn.disabled=true;
+  try{
+    const pages=[];
+    for(let i=0;i<_nlFiles.length;i++){
+      btn.textContent=`업로드 중... (${i+1}/${_nlFiles.length})`;
+      const fd=new FormData();fd.append('file',_nlFiles[i]);
+      const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+      if(!r.url)throw new Error('이미지 업로드 실패');
+      pages.push(r.url);
+    }
+    const res=await fetch(`${API}/api/newsletters`,{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sessionToken},
+      body:JSON.stringify({title,pages})
+    }).then(r=>r.json());
+    if(!res.ok)throw new Error(res.error||'등록 실패');
+    $('nlUploadModal').classList.remove('open');
+    await loadNewsletters();
+  }catch(e){alert(e.message);}
+  finally{btn.disabled=false;btn.textContent='업로드';}
+}
+async function deleteNewsletter(id){
+  if(!confirm('소식지를 삭제할까요?'))return;
+  await fetch(`${API}/api/newsletters/${id}`,{method:'DELETE',headers:{'Authorization':'Bearer '+sessionToken}});
+  await loadNewsletters();
+}
+
 let _viewedPosts=new Set(JSON.parse(localStorage.getItem('_vp')||'[]'));
 let _viewTimers={};
 let _viewObserver=null;
@@ -4646,7 +4821,7 @@ async function openUserProfile(userId){
 // ── 뒤로가기(Android 물리 버튼 / 브라우저 back) 모달 닫기 ──
 (function(){
   // 모달 셀렉터: modal-overlay, quizOverlay, ladderOverlay
-  const MODAL_SEL = '.modal-overlay, #quizOverlay, #ladderOverlay';
+  const MODAL_SEL = '.modal-overlay, #quizOverlay, #ladderOverlay, #nlViewer';
   function getOpenModals(){ return [...document.querySelectorAll(MODAL_SEL)].filter(el=>el.classList.contains('open')); }
 
   // 모달이 열릴 때마다 히스토리 항목 추가
@@ -4775,7 +4950,7 @@ $('logoutBtn').onclick=async function(){
   _applyFontSize('sm');
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';
-  $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';
+  $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';$('nlAddBtn').style.display='none';
   showPage('loginPage');
 };
 

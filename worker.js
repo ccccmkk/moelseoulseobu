@@ -205,6 +205,7 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS photo_votes_v2 (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter, photo_id))",
     "INSERT OR IGNORE INTO photo_votes_v2(contest_id, voter, photo_id) SELECT contest_id, voter, photo_id FROM photo_votes",
     "CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))",
+    "CREATE TABLE IF NOT EXISTS newsletters (id TEXT PRIMARY KEY, title TEXT NOT NULL, pages TEXT NOT NULL, created_by TEXT, created_at INTEGER)",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -2104,6 +2105,37 @@ export default {
         }
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO quiz_answers(quiz_id,user_id,answer,answered_at) VALUES(?,?,?,?) ON CONFLICT(quiz_id,user_id) DO UPDATE SET answer=?,answered_at=?').bind(qid, s.user_id, answer, now, answer, now).run();
+        return json({ ok: true });
+      }
+
+      // ── 소식지 ──
+      if (p === '/api/newsletters' && m === 'GET') {
+        const rows = await env.DB.prepare('SELECT id, title, pages, created_at FROM newsletters ORDER BY created_at DESC').all();
+        const newsletters = (rows.results || []).map(n => ({
+          ...n, pages: JSON.parse(n.pages), page_count: JSON.parse(n.pages).length,
+        }));
+        return json({ newsletters });
+      }
+      if (p === '/api/newsletters' && m === 'POST') {
+        const authToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin', 'sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        const { title, pages } = await request.json();
+        if (!title || !pages?.length) return json({ error: '제목과 페이지가 필요합니다.' }, 400);
+        const id = 'nl_' + Date.now();
+        await env.DB.prepare('INSERT INTO newsletters(id,title,pages,created_by,created_at) VALUES(?,?,?,?,?)')
+          .bind(id, title, JSON.stringify(pages), sess.user_id, Math.floor(Date.now() / 1000)).run();
+        return json({ ok: true, id });
+      }
+      if (p.match(/^\/api\/newsletters\/[^/]+$/) && m === 'DELETE') {
+        const authToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin', 'sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('DELETE FROM newsletters WHERE id=?').bind(p.split('/')[3]).run();
         return json({ ok: true });
       }
 
