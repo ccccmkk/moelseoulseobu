@@ -168,8 +168,10 @@ body.font-xl .modal{max-height:65dvh!important}
 .btn-add-img{display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text-sub);transition:background .15s;font-family:inherit}
 .btn-add-img:hover{background:#f5f5f5}
 /* 뉴스 */
-.news-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s;display:block;text-decoration:none;color:inherit}
+.news-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;transition:box-shadow .15s;display:block;text-decoration:none;color:inherit;position:relative}
 .news-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.news-quote-btn{position:absolute;bottom:10px;right:10px;background:var(--green-light);color:var(--green-dark);border:none;border-radius:20px;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;font-family:inherit;opacity:.85}
+.news-quote-btn:active{opacity:1;background:var(--green);color:#fff}
 /* 맛집 */
 .rest-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
 .news-source{display:inline-block;font-size:11px;font-weight:600;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:20px;margin-bottom:6px}
@@ -2450,11 +2452,13 @@ function renderNews(items){
   $('newsContent').innerHTML=items.map(n=>{
     const d=n.pubDate?new Date(n.pubDate):null;
     const dateStr=d&&!isNaN(d)?d.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    return`<a class="news-card" href="${n.link||'#'}" target="_blank" rel="noopener">
+    const link=n.link||'#';
+    return`<div class="news-card" onclick="window.open('${escHtml(link)}','_blank','noopener')">
       <span class="news-source">${escHtml(n.source||'')}</span>
-      <div class="news-title">${escHtml(n.title)}</div>
+      <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
       ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
-    </a>`;
+      <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}')">피드 공유</button>
+    </div>`;
   }).join('');
 }
 
@@ -3103,7 +3107,24 @@ function renderSimpleEditor(){
   }
 }
 function renderEditor(){$('blogModeToggle').checked?renderBlogEditor():renderSimpleEditor();}
-function openWriteModal(){editingKey=null;editorBlocks=[{type:'text',content:''}];_ogFetching=false;clearTimeout(_ogFetchTid);$('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;$('postKeyword').value='';$('blogModeToggle').checked=false;renderSimpleEditor();$('writeModal').classList.add('open');}
+function openWriteModal(prefillUrl){
+  editingKey=null;_ogFetching=false;clearTimeout(_ogFetchTid);
+  $('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';
+  updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
+  $('postKeyword').value='';$('blogModeToggle').checked=false;
+  if(prefillUrl){
+    editorBlocks=[{type:'text',content:''}];
+    renderSimpleEditor();
+    $('writeModal').classList.add('open');
+    // OG 즉시 fetch (텍스트 없이 링크만)
+    switchTab('Feed');
+    setTimeout(()=>{_detectAndFetchOG(prefillUrl);},200);
+  } else {
+    editorBlocks=[{type:'text',content:''}];
+    renderSimpleEditor();
+    $('writeModal').classList.add('open');
+  }
+}
 function editPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
   editingKey=key;editorBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
