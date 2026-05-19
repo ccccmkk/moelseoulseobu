@@ -3069,6 +3069,11 @@ function _detectAndFetchOG(text){
     try{
       const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(targetUrl)}`).then(r=>r.json());
       if(d.ok&&d.title){
+        // Google URL → 실제 URL로 textarea 텍스트 교체
+        if(d.url && d.url!==targetUrl){
+          const tb=editorBlocks.find(b=>b.type==='text');
+          if(tb){tb.content=tb.content.replace(targetUrl,d.url);const ta=$('blockEditor')?.querySelector('textarea');if(ta)ta.value=tb.content;}
+        }
         editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();
       }
