@@ -1,4 +1,4 @@
-// v2.1.5
+// v2.1.6
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -345,25 +345,58 @@ export default {
         return json({ url: `${new URL(request.url).origin}/${key}` });
       }
 
-      // ── 뉴스 (Google News RSS + D1 캐시 10분, 요약 없음) ──
+      // ── 뉴스 (네이버 뉴스 API + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
         const queries = {
-          labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
+          labor: '고용노동부 채용 취업 실업급여',
           local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
-          health: '질병관리청 OR 보건복지부 건강',
-          law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
+          health: '질병관리청 보건복지부 건강',
+          law: '근로기준법 노동법 산업재해',
         };
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
-        const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(queries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
         if (cached && (now - cached.cached_at) < 600) {
           return json(JSON.parse(cached.data));
         }
+        // 네이버 뉴스 API 사용 (원본 URL 직접 제공)
+        if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
+          try {
+            const naverUrl = 'https://openapi.naver.com/v1/search/news.json?query=' + encodeURIComponent(queries[cat]) + '&display=30&sort=date';
+            const resp = await fetchTimeout(naverUrl, {
+              headers: {
+                'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
+              }
+            }, 8000);
+            if (!resp.ok) throw new Error(`Naver API HTTP ${resp.status}`);
+            const data = await resp.json();
+            const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim() : '';
+            const items = (data.items || []).map(item => ({
+              title: decode(item.title),
+              link: item.originallink || item.link,
+              pubDate: item.pubDate,
+              source: (() => { try { return new URL(item.originallink||item.link).hostname.replace(/^www\./,''); } catch(e){ return ''; } })(),
+            }));
+            ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+              .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
+            return json(items);
+          } catch (e) {
+            if (cached) return json(JSON.parse(cached.data));
+          }
+        }
+        // 네이버 API 키 없을 때 Google News RSS 폴백
         try {
+          const googleQueries = {
+            labor: '고용노동부 OR 취업 OR 채용 OR 실업급여 일자리',
+            local: '마포구 OR 용산구 OR 서대문구 OR 은평구',
+            health: '질병관리청 OR 보건복지부 건강',
+            law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
+          };
+          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(googleQueries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
           const resp = await fetchTimeout(feedUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
           }, 8000);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const xml = await resp.text();
@@ -372,7 +405,6 @@ export default {
             .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
           return json(items);
         } catch (e) {
-          // fetch 실패 시 stale 캐시라도 반환
           if (cached) return json(JSON.parse(cached.data));
           return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
         }
