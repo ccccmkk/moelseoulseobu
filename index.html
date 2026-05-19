@@ -733,21 +733,19 @@ button,a,[role="button"]{touch-action:manipulation}
   <div id="tabChal" class="tab-page">
     <!-- 서브탭 -->
     <div style="display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px">
-      <button class="sub-tab active" id="chalSub-contest" onclick="switchChalSub('contest')" style="flex:1">현황</button>
-      <button class="sub-tab" id="chalSub-awards" onclick="switchChalSub('awards')" style="flex:1">수상기록</button>
+      <button class="sub-tab active" id="chalSub-awards" onclick="switchChalSub('awards')" style="flex:1">수상기록</button>
       <button class="sub-tab" id="chalSub-event" onclick="switchChalSub('event')" style="flex:1">행사</button>
     </div>
 
-    <!-- 이달의 서부인 + 친절스타 + 경조사 (행사 탭이 아닐 때만 표시) -->
+    <!-- JS 호환용 히든 요소 -->
+    <div style="display:none">
+      <button id="contestAddBtn" onclick="openContestModal()"></button>
+      <div id="contestList"></div>
+    </div>
+
+    <!-- 수상기록 + 친절스타 + 경조사 (행사 탭이 아닐 때만 표시) -->
     <div id="chalNonEvent">
-      <div class="section-hd">
-        <span class="section-title">이달의 서부인</span>
-        <button class="btn-sm primary" id="contestAddBtn" style="display:none" onclick="openContestModal()">+ 만들기</button>
-      </div>
-      <div id="chalPane-contest">
-        <div id="contestList"></div>
-      </div>
-      <div id="chalPane-awards" style="display:none">
+      <div id="chalPane-awards">
         <div id="awardsList"></div>
         <div id="awardsKudosList" style="margin-top:12px"></div>
       </div>
@@ -1834,13 +1832,9 @@ const EVT_TYPE_COLOR={결혼:'#e91e8c',출산:'#2196f3',생일:'#ff9800',상:'#6
 function evtDot(type){return`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${EVT_TYPE_COLOR[type]||'#9e9e9e'};flex-shrink:0;margin-top:6px"></span>`;}
 function switchChalSub(tab){
   const isEvent=tab==='event';
-  ['contest','awards'].forEach(t=>{
-    const btn=$('chalSub-'+t),pane=$('chalPane-'+t);
-    if(!btn||!pane)return;
-    btn.classList.toggle('active',t===tab);
-    pane.style.display=t===tab?'':'none';
-  });
+  $('chalSub-awards').classList.toggle('active',tab==='awards');
   $('chalSub-event').classList.toggle('active',isEvent);
+  $('chalPane-awards').style.display=tab==='awards'?'':'none';
   $('chalPane-event').style.display=isEvent?'':'none';
   $('chalNonEvent').style.display=isEvent?'none':'';
   if(isEvent){
@@ -2407,7 +2401,7 @@ function appendFeedCards(newPosts){
   initCarousels();
   setupViewObserver();
 }
-let _viewedPosts=new Set();
+let _viewedPosts=new Set(JSON.parse(localStorage.getItem('_vp')||'[]'));
 let _viewTimers={};
 let _viewObserver=null;
 function setupViewObserver(){
@@ -2421,9 +2415,11 @@ function setupViewObserver(){
           _viewTimers[id]=setTimeout(()=>{
             if(!_viewedPosts.has(id)){
               _viewedPosts.add(id);
-              fetch(`/api/posts/${id}/view`,{method:'POST'}).then(()=>{
+              const arr=[..._viewedPosts].slice(-500);
+              localStorage.setItem('_vp',JSON.stringify(arr));
+              fetch(`/api/posts/${id}/view`,{method:'POST'}).then(r=>r.json()).then(d=>{
                 const el=document.getElementById('vc-'+id);
-                if(el)el.textContent=parseInt(el.textContent||0)+1;
+                if(el&&d.views!=null)el.textContent=d.views;
               }).catch(()=>{});
             }
             delete _viewTimers[id];
@@ -3758,7 +3754,7 @@ async function submitAwardEdit(){
   await fetchContests();await renderContests();
 }
 async function renderContests(){
-  if(!contests.length){$('contestList').innerHTML='<div class="empty-state" style="padding:1.5rem;text-align:center;color:var(--text-hint);font-size:13px">진행 중인 이달의 서부인이 없습니다.</div>';switchChalSub('contest');return;}
+  if(!contests.length){$('contestList').innerHTML='';switchChalSub('awards');return;}
   const active=contests.filter(c=>!c.winner);
   const past=contests.filter(c=>c.winner);
   $('contestList').innerHTML='';
