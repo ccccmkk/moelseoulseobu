@@ -353,8 +353,16 @@ export default {
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
+        // 캐시 유효: 10분 이내 AND 캐시된 기사 중 최신이 3일 이내
         if (cached && (now - cached.cached_at) < 600) {
-          return json(JSON.parse(cached.data));
+          const cachedItems = JSON.parse(cached.data);
+          const newest = cachedItems.reduce((mx, x) => {
+            const t = x.pubDate ? new Date(x.pubDate).getTime() : 0;
+            return t > mx ? t : mx;
+          }, 0);
+          const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+          if (newest > threeDaysAgo) return json(cachedItems);
+          // 캐시가 오래된 기사만 담고 있으면 강제 갱신
         }
         // 네이버 뉴스 API
         if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
@@ -402,7 +410,15 @@ export default {
             } else if (cat === 'law') {
               items = await fetchNaverSearch('근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금');
             }
-            items = items.slice(0, 100);
+            // 날짜 필터: 30일 이내 기사 우선, 부족하면 90일까지 확장
+            const filterByDays = (arr, days) => {
+              const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+              return arr.filter(x => x.pubDate && new Date(x.pubDate).getTime() > cutoff);
+            };
+            let fresh = filterByDays(items, 30);
+            if (fresh.length < 10) fresh = filterByDays(items, 90);
+            if (fresh.length < 5) fresh = items; // 그래도 없으면 전체
+            items = fresh.slice(0, 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
