@@ -1539,7 +1539,11 @@ button,a,[role="button"]{touch-action:manipulation}
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일</span></div>
         <div id="naverUsageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Workers AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주 (무료)</span></div>
-        <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px">Cloudflare 내장 AI (llama-3.3-70b) · 무료 10,000토큰/일</div>
+        <div id="workersAiStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">llama-3.3-70b · 무료 (일 ~10,000 뉴런)</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">법제처 Open API <span style="font-size:11px;font-weight:400;color:#0277bd;background:#e1f5fe;padding:2px 8px;border-radius:10px">무료</span></div>
+        <div id="lawUsageStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">STEP-OPENAPI · 법령/판례/AI 질문 · 제한 없음</div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:#5c6bc0;background:#e8eaf6;padding:2px 8px;border-radius:10px">폴백1</span></div>
         <div id="geminiStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백2</span></div>
@@ -4890,6 +4894,22 @@ function loadAdminStats(){
       <div class="admin-stat-row"><span class="admin-stat-label">출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
       <div class="admin-stat-row"><span class="admin-stat-label">예상 비용</span><span class="admin-stat-val">$${costUSD}</span></div>`;
   }).catch(()=>{$('claudeStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
+  fetch(`${API}/api/workers-ai-usage`).then(r=>r.json()).then(d=>{
+    const calls=d.calls||0;const tin=d.tokens_in||0;const tout=d.tokens_out||0;
+    if($('workersAiStats'))$('workersAiStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">총 호출</span><span class="admin-stat-val">${calls.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">추정 입력 토큰</span><span class="admin-stat-val">${tin.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">추정 출력 토큰</span><span class="admin-stat-val">${tout.toLocaleString()}</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">비용</span><span class="admin-stat-val" style="color:#2e7d32">무료</span></div>`;
+  }).catch(()=>{if($('workersAiStats'))$('workersAiStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
+  fetch(`${API}/api/law-usage`).then(r=>r.json()).then(d=>{
+    const s=d.search_calls||0;const c=d.content_calls||0;const a=d.ask_calls||0;
+    if($('lawUsageStats'))$('lawUsageStats').innerHTML=`
+      <div class="admin-stat-row"><span class="admin-stat-label">법령 검색</span><span class="admin-stat-val">${s.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">본문 조회</span><span class="admin-stat-val">${c.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">AI 법률 질문</span><span class="admin-stat-val">${a.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">비용</span><span class="admin-stat-val" style="color:#2e7d32">무료 (무제한)</span></div>`;
+  }).catch(()=>{if($('lawUsageStats'))$('lawUsageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
 }
 
 // ── 관리자 탭 전환 ──

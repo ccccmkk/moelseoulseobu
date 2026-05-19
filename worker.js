@@ -1,4 +1,4 @@
-// v2.1.9
+// v2.2.0
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -36,7 +36,14 @@ async function callAI(systemPrompt, userMessage, env, opts = {}) {
         max_tokens: Math.min(maxTokens, 4096),
       });
       const text = wRes?.response || '';
-      if (text) return { text, model: 'workers-ai' };
+      if (text) {
+        const tokIn = Math.ceil(((systemPrompt||'').length + userMessage.length) / 4);
+        const tokOut = Math.ceil(text.length / 4);
+        const _n = Math.floor(Date.now() / 1000);
+        env.DB.prepare('INSERT INTO workers_ai_usage(id,calls,tokens_in,tokens_out,updated_at) VALUES(1,1,?,?,?) ON CONFLICT(id) DO UPDATE SET calls=calls+1,tokens_in=tokens_in+?,tokens_out=tokens_out+?,updated_at=?')
+          .bind(tokIn, tokOut, _n, tokIn, tokOut, _n).run().catch(()=>{});
+        return { text, model: 'workers-ai' };
+      }
     } catch (e) { console.error('[Workers AI]', e.message); }
   }
 
@@ -138,6 +145,22 @@ async function fetchOG(targetUrl, env) {
   if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400
       && (!isGoogleUrl || cached.final_url)) {
     return { title: cached.title, description: cached.description, image: cached.image, site_name: cached.site_name, finalUrl: cached.final_url || null };
+  }
+  // YouTube oEmbed (무료, 인증 불필요)
+  if (/(?:youtube\.com\/(?:watch|shorts)|youtu\.be\/)/i.test(targetUrl)) {
+    try {
+      const oeResp = await fetchTimeout(`https://www.youtube.com/oembed?url=${encodeURIComponent(targetUrl)}&format=json`, {}, 6000);
+      if (oeResp.ok) {
+        const oe = await oeResp.json();
+        const title = oe.title || null;
+        const image = oe.thumbnail_url || null;
+        if (title) {
+          const desc = oe.author_name ? `${oe.author_name} · YouTube` : 'YouTube';
+          env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at,final_url) VALUES(?,?,?,?,?,?,?)').bind(targetUrl, title, desc, image, 'YouTube', Math.floor(Date.now()/1000), targetUrl).run().catch(()=>{});
+          return { title, description: desc, image, site_name: 'YouTube', finalUrl: targetUrl };
+        }
+      }
+    } catch(e) {}
   }
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -273,6 +296,8 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS og_cache (url TEXT PRIMARY KEY, title TEXT, description TEXT, image TEXT, site_name TEXT, cached_at INTEGER)",
     "ALTER TABLE og_cache ADD COLUMN final_url TEXT",
     "CREATE TABLE IF NOT EXISTS naver_usage (date TEXT PRIMARY KEY, calls INTEGER DEFAULT 0)",
+    `CREATE TABLE IF NOT EXISTS workers_ai_usage (id INTEGER PRIMARY KEY, calls INTEGER DEFAULT 0, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS law_usage (id INTEGER PRIMARY KEY, search_calls INTEGER DEFAULT 0, content_calls INTEGER DEFAULT 0, ask_calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -576,6 +601,7 @@ export default {
           await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
             .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
         }
+        env.DB.prepare('INSERT INTO law_usage(id,search_calls,updated_at) VALUES(1,1,?) ON CONFLICT(id) DO UPDATE SET search_calls=search_calls+1,updated_at=?').bind(Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)).run().catch(()=>{});
         return json(result);
       }
 
@@ -725,6 +751,7 @@ export default {
           await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
             .bind(cacheKey, JSON.stringify(result), now, JSON.stringify(result), now).run();
         }
+        env.DB.prepare('INSERT INTO law_usage(id,content_calls,updated_at) VALUES(1,1,?) ON CONFLICT(id) DO UPDATE SET content_calls=content_calls+1,updated_at=?').bind(Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)).run().catch(()=>{});
         return json(result);
       }
 
@@ -785,6 +812,7 @@ export default {
         const userMsg = `아래 자료를 참고하여 질문에 답변하세요.\n\n${precSection}${context || ''}${!precSection&&!context?'(관련 법령 정보를 찾지 못했습니다. 일반 지식으로 답변합니다.)\n\n':''}질문: ${question}\n\n${precContext?'제공된 판례·해석례 내용을 중심으로 쉽게 풀어서 설명하세요.':'관련 법령/판례를 인용하고 법 조항 번호를 명시하세요 (예: 근로기준법 제56조).'}`;
         const aiResult = await callAI(sysPrompt, userMsg, env, { type: 'qa', maxTokens: 8192 });
         if (!aiResult) return json({ error: 'AI 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' }, 503);
+        env.DB.prepare('INSERT INTO law_usage(id,ask_calls,updated_at) VALUES(1,1,?) ON CONFLICT(id) DO UPDATE SET ask_calls=ask_calls+1,updated_at=?').bind(Math.floor(Date.now()/1000),Math.floor(Date.now()/1000)).run().catch(()=>{});
         return json({ answer: aiResult.text, sources, model: aiResult.model });
       }
 
@@ -1665,6 +1693,14 @@ export default {
         const todayRow = await env.DB.prepare('SELECT calls FROM naver_usage WHERE date=?').bind(today).first();
         const totalRow = await env.DB.prepare('SELECT SUM(calls) as total FROM naver_usage').first();
         return json({ today: todayRow?.calls||0, total: totalRow?.total||0, limit: 25000 });
+      }
+      if (p === '/api/workers-ai-usage' && m === 'GET') {
+        const d = await env.DB.prepare('SELECT * FROM workers_ai_usage WHERE id=1').first();
+        return json({ calls: d?.calls||0, tokens_in: d?.tokens_in||0, tokens_out: d?.tokens_out||0 });
+      }
+      if (p === '/api/law-usage' && m === 'GET') {
+        const d = await env.DB.prepare('SELECT * FROM law_usage WHERE id=1').first();
+        return json({ search_calls: d?.search_calls||0, content_calls: d?.content_calls||0, ask_calls: d?.ask_calls||0 });
       }
       if (p === '/api/test-ai' && m === 'GET') {
         const result = { binding: !!env.AI };
