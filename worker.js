@@ -441,37 +441,45 @@ export default {
             } else if (cat === 'local') {
               // 지역언론사 RSS + 네이버 검색 병렬 집계
               // 언론사별로 시도할 URL 목록 (앞에서부터 첫 성공 URL 사용)
+              const mkUrls = (domain) => [
+                `https://www.${domain}/rss/allArticle.xml`,
+                `https://${domain}/rss/allArticle.xml`,
+                `https://www.${domain}/feed/`,
+                `https://${domain}/feed/`,
+                `http://www.${domain}/rss/allArticle.xml`,
+              ];
               const LOCAL_OUTLETS = [
-                { name: '은평시민신문', urls: [
+                // 마포 권역
+                { name: '마포타임즈',    urls: mkUrls('mapotimes.co.kr') },
+                { name: '마포시민신문',  urls: mkUrls('maponews.kr') },
+                { name: '마포저널',      urls: mkUrls('mapojournal.com') },
+                // 서대문 권역
+                { name: '서부신문',      urls: mkUrls('seobunews.co.kr') },
+                { name: '서대문자치신문', urls: mkUrls('newsjj.net') },
+                { name: '서대문사람들',  urls: mkUrls('esdmnews.com') },
+                { name: '서대문신문',    urls: mkUrls('sdmsinmun.com') },
+                // 은평 권역
+                { name: '온평타임즈',    urls: mkUrls('eptimes.co.kr') },
+                { name: '온평신문',      urls: mkUrls('ieps.co.kr') },
+                { name: '은평시민신문',  urls: [
                   'https://www.epnews.net/rss/allArticle.xml',
                   'https://epnews.net/rss/allArticle.xml',
                   'https://www.epnews.net/rss/S1N1.xml',
                 ]},
-                { name: '마포시민신문', urls: [
-                  'https://www.maponews.kr/rss/allArticle.xml',
-                  'https://maponews.kr/rss/allArticle.xml',
-                  'https://www.maponews.kr/feed/',
-                  'https://maponews.kr/feed/',
-                ]},
-                { name: '마포저널', urls: [
-                  'https://www.mapojournal.com/rss/allArticle.xml',
-                  'https://mapojournal.com/rss/allArticle.xml',
-                  'https://www.mapojournal.com/feed/',
-                ]},
-                { name: '서대문신문', urls: [
-                  'https://www.sdmsinmun.com/rss/allArticle.xml',
-                  'https://sdmsinmun.com/rss/allArticle.xml',
-                  'https://www.sdmsinmun.com/feed/',
-                ]},
-                { name: '새용산신문', urls: [
-                  'https://www.yongsannews.kr/rss/allArticle.xml',
-                  'https://yongsannews.kr/rss/allArticle.xml',
+                // 용산 권역
+                { name: '새용산신문',    urls: [
                   'http://www.yongsannews.kr/rss/allArticle.xml',
-                  'https://www.yongsannews.kr/feed/',
+                  'https://www.yongsannews.kr/rss/allArticle.xml',
+                  ...mkUrls('yongsannews.kr'),
                 ]},
               ];
               const domainOf = u => { try { return new URL(u).hostname.replace(/^(?:www|m)\./,''); } catch(e) { return ''; } };
-              const localDomains = new Set(['epnews.net','maponews.kr','mapojournal.com','sdmsinmun.com','yongsannews.kr']);
+              const localDomains = new Set([
+                'mapotimes.co.kr','maponews.kr','mapojournal.com',
+                'seobunews.co.kr','newsjj.net','esdmnews.com','sdmsinmun.com',
+                'eptimes.co.kr','ieps.co.kr','epnews.net',
+                'yongsannews.kr',
+              ]);
               // 각 언론사별로 URL 순서대로 시도, 첫 성공 반환
               const fetchOutletRSS = async ({ name, urls }) => {
                 for (const feedUrl of urls) {
@@ -486,9 +494,10 @@ export default {
                 return [];
               };
               // 모든 언론사 + 네이버 검색 2건 병렬 실행
+              const naverOutletQuery = '마포타임즈 OR 서부신문 OR 서대문자치신문 OR 서대문사람들 OR 서대문신문 OR 온평타임즈 OR 온평신문 OR 은평시민신문 OR 새용산신문';
               const rssResults = await Promise.allSettled([
                 ...LOCAL_OUTLETS.map(o => fetchOutletRSS(o)),
-                fetchNaverSearchRaw('은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문', 50),
+                fetchNaverSearchRaw(naverOutletQuery, 50),
                 fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
               ]);
               naverCalls = 2;
