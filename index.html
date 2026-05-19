@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.json"/>
 <title>STEP</title>
 <style>
-html,body{overscroll-behavior-y:none}
+html{background:#f5f5f5}html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --green:#0a808f;--green-dark:#076672;--green-light:#e0f4f6;
@@ -564,19 +564,19 @@ button,a,[role="button"]{touch-action:manipulation}
 .nl-card-title{font-size:15px;font-weight:600;color:var(--text)}
 .nl-card-sub{font-size:12px;color:var(--text-hint);margin-top:3px}
 /* 링크 프리뷰 */
-.link-preview{display:block;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fff;margin:4px 14px 8px;transition:box-shadow .15s}
+.link-preview{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fafafa;margin:0 14px 10px;transition:box-shadow .15s;padding:10px 12px}
 .link-preview:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
-.link-preview-img{width:100%;height:160px;object-fit:cover;display:block}
-.link-preview-body{padding:10px 12px}
-.link-preview-site{font-size:11px;color:var(--text-hint);margin-bottom:4px;display:flex;align-items:center;gap:5px}
-.link-preview-title{font-size:14px;font-weight:600;line-height:1.4;color:var(--text)}
-.link-preview-desc{font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.editor-link-preview{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:8px 0;background:#fff;position:relative}
-.editor-link-preview-del{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.45);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10}
-.editor-link-preview img{width:100%;height:120px;object-fit:cover;display:block}
-.editor-link-preview-body{padding:8px 10px}
-.editor-link-preview-site{font-size:11px;color:var(--text-hint);margin-bottom:3px}
-.editor-link-preview-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.4}
+.link-preview-img{width:56px;height:56px;object-fit:cover;display:block;flex-shrink:0;border-radius:6px}
+.link-preview-body{flex:1;min-width:0}
+.link-preview-site{font-size:11px;color:var(--text-hint);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-preview-title{font-size:13px;font-weight:600;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.link-preview-desc{display:none}
+.editor-link-preview{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:8px 0;background:#fff;position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px}
+.editor-link-preview-del{flex-shrink:0;background:var(--bg);color:var(--text-hint);border:1px solid var(--border);border-radius:50%;width:20px;height:20px;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.editor-link-preview img{width:44px;height:44px;object-fit:cover;display:block;border-radius:5px;flex-shrink:0}
+.editor-link-preview-body{flex:1;min-width:0}
+.editor-link-preview-site{font-size:11px;color:var(--text-hint);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.editor-link-preview-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 /* 소식지 뷰어 */
 #nlViewer{display:none;position:fixed;inset:0;background:#111;z-index:950;flex-direction:column}
 #nlViewer.open{display:flex}
@@ -2482,16 +2482,11 @@ function renderBlocksInCard(p,blogMode){
   return html;
 }
 function linkPreviewHtml(b){
-  const img=b.image?`<img src="${escHtml(b.image)}" loading="lazy" onerror="this.style.display='none'"/>`:'';
+  const img=b.image?`<img class="link-preview-img" src="${escHtml(b.image)}" loading="lazy" onerror="this.style.display='none'"/>`:'';
   let site=b.site_name||'';
   try{if(!site)site=new URL(b.url).hostname.replace('www.','');}catch(e){site=b.url;}
   return`<a class="link-preview" href="${escHtml(b.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-    ${img}
-    <div class="link-preview-body">
-      <div class="link-preview-site">${escHtml(site)}</div>
-      <div class="link-preview-title">${escHtml(b.title||b.url)}</div>
-      ${b.description?`<div class="link-preview-desc">${escHtml(b.description)}</div>`:''}
-    </div>
+    ${img}<div class="link-preview-body"><div class="link-preview-site">${escHtml(site)}</div><div class="link-preview-title">${escHtml(b.title||b.url)}</div></div>
   </a>`;
 }
 function postCardHtml(p){
@@ -3053,30 +3048,21 @@ function _detectAndFetchOG(text){
   clearTimeout(_ogFetchTid);
   if(editorBlocks.some(b=>b.type==='link'))return;
   const raw=text.match(/https?:\/\/[^\s）)）\]]+/);
-  if(!raw){_setOgStatus('');return;}
-  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,''); // 끝 구두점 제거
-  _setOgStatus('loading');
+  if(!raw)return;
+  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,'');
   _ogFetchTid=setTimeout(async()=>{
     if(_ogFetching)return;
-    if(editorBlocks.some(b=>b.type==='link')){_setOgStatus('');return;}
+    if(editorBlocks.some(b=>b.type==='link'))return;
     _ogFetching=true;
     try{
       const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(targetUrl)}`).then(r=>r.json());
       if(d.ok&&d.title){
         editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();
-      } else {
-        _setOgStatus('');
       }
-    }catch(e){_setOgStatus('');}
+    }catch(e){}
     _ogFetching=false;
   },800);
-}
-function _setOgStatus(s){
-  const el=document.getElementById('_ogStatus');
-  if(!el)return;
-  el.textContent=s==='loading'?'링크 미리보기 불러오는 중...':'';
-  el.style.display=s?'':'none';
 }
 function renderSimpleEditor(){
   const editor=$('blockEditor');editor.innerHTML='';
@@ -3089,17 +3075,14 @@ function renderSimpleEditor(){
   ta.addEventListener('paste',e=>{setTimeout(()=>{textBlock.content=ta.value;_detectAndFetchOG(ta.value);},0);});
   ta.style.height='auto';ta.style.height=(ta.scrollHeight||80)+'px';
   editor.appendChild(textDiv);
-  // OG 로딩 상태 표시
-  const ogStatus=document.createElement('div');
-  ogStatus.id='_ogStatus';ogStatus.style.cssText='display:none;font-size:12px;color:var(--text-hint);padding:4px 2px';
-  editor.appendChild(ogStatus);
   // 링크 프리뷰 블록
   const linkBlock=editorBlocks.find(b=>b.type==='link');
   if(linkBlock){
     const lp=document.createElement('div');lp.className='editor-link-preview editor-block';
+    const _site=linkBlock.site_name||(()=>{try{return new URL(linkBlock.url).hostname.replace('www.','')}catch(e){return linkBlock.url}})();
     lp.innerHTML=`${linkBlock.image?`<img src="${escHtml(linkBlock.image)}" onerror="this.style.display='none'"/>`:''}
       <div class="editor-link-preview-body">
-        <div class="editor-link-preview-site">${escHtml(linkBlock.site_name||(()=>{try{return new URL(linkBlock.url).hostname.replace('www.','')}catch(e){return linkBlock.url}})())}</div>
+        <div class="editor-link-preview-site">${escHtml(_site)}</div>
         <div class="editor-link-preview-title">${escHtml(linkBlock.title)}</div>
       </div>
       <button class="editor-link-preview-del" title="삭제">×</button>`;
