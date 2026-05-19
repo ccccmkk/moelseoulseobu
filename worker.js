@@ -414,7 +414,7 @@ export default {
               // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
               items = await fetchNaverSearchRaw('노동', 100);
             } else if (cat === 'local') {
-              items = await fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 100);
+              items = await fetchNaverSearchRaw('마포 OR 용산 OR 서대문 OR 은평', 100);
             } else if (cat === 'health') {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
