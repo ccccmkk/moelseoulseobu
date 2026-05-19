@@ -145,6 +145,7 @@ async function fetchOG(targetUrl, env) {
     redirect: 'follow',
   }, 8000);
   if (!res.ok) return null;
+  const finalUrl = res.url || targetUrl;
   const html = await res.text();
   const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim() : null;
   const getMeta = (prop) => {
@@ -166,7 +167,7 @@ async function fetchOG(targetUrl, env) {
   }
   const site_name = getMeta('og:site_name') || null;
   env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at) VALUES(?,?,?,?,?,?)').bind(targetUrl, title, description, image, site_name, Math.floor(Date.now()/1000)).run().catch(()=>{});
-  return { title, description, image, site_name };
+  return { title, description, image, site_name, finalUrl };
 }
 
 let _dbReady = false;
@@ -358,7 +359,7 @@ export default {
         try {
           const og = await fetchOG(targetUrl, env);
           if (!og || !og.title) return json({ error: 'no data' });
-          return json({ ok: true, url: targetUrl, ...og });
+          return json({ ok: true, url: og.finalUrl || targetUrl, ...og });
         } catch(e) {
           return json({ error: e.message });
         }
