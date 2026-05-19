@@ -399,26 +399,32 @@ export default {
             };
             let items = [];
             let naverCalls = 1;
-            if (cat === 'labor') {
-              // 네이버 뉴스 검색 API — 고용/노동 분야 직접 검색
-              items = await fetchNaverSearch('고용노동|근로기준|최저임금|실업급여|노동부|노동법|취업지원|산업재해');
-            } else if (cat === 'local') {
-              // 지역뉴스: 우리 지역 4개 자치구 정확히 타겟
-              items = await fetchNaverSearch('마포구|용산구|서대문구|은평구');
-            } else if (cat === 'health') {
-              items = await fetchNaverSearch('건강|보건|의료|질병|복지부|예방접종|전염병|만성질환');
-            } else if (cat === 'law') {
-              items = await fetchNaverSearch('근로기준법|노동법|산업재해|직장내괴롭힘|노동권|해고|퇴직금');
-            }
-            // 날짜 필터: 30일 이내 기사 우선, 부족하면 90일까지 확장
-            const filterByDays = (arr, days) => {
-              const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-              return arr.filter(x => x.pubDate && new Date(x.pubDate).getTime() > cutoff);
+            const dedup = arr => {
+              const seen = new Set();
+              return arr.filter(x => { if(seen.has(x.link)) return false; seen.add(x.link); return true; });
             };
-            let fresh = filterByDays(items, 30);
-            if (fresh.length < 10) fresh = filterByDays(items, 90);
-            if (fresh.length < 5) fresh = items; // 그래도 없으면 전체
-            items = fresh.slice(0, 100);
+            if (cat === 'labor') {
+              // 두 쿼리 병렬: 고용부 공식·정책 + 노동 현장·근로자
+              naverCalls = 2;
+              const [r1, r2] = await Promise.allSettled([
+                fetchNaverSearch('고용노동부 OR 실업급여 OR 최저임금 OR 고용보험'),
+                fetchNaverSearch('근로자 OR 노동조합 OR 취업 OR 채용 OR 해고'),
+              ]);
+              const merged = [
+                ...(r1.status==='fulfilled'?r1.value:[]),
+                ...(r2.status==='fulfilled'?r2.value:[]),
+              ];
+              // 날짜 기준 정렬 후 중복 제거
+              merged.sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0));
+              items = dedup(merged);
+            } else if (cat === 'local') {
+              items = await fetchNaverSearch('마포구 OR 용산구 OR 서대문구 OR 은평구');
+            } else if (cat === 'health') {
+              items = await fetchNaverSearch('건강 OR 보건 OR 의료 OR 질병관리청 OR 복지부');
+            } else if (cat === 'law') {
+              items = await fetchNaverSearch('근로기준법 OR 노동법 OR 산업재해 OR 직장내괴롭힘 OR 해고 OR 퇴직금');
+            }
+            items = items.slice(0, 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
