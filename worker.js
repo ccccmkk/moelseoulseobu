@@ -453,23 +453,25 @@ export default {
                   'https://www.maponews.kr/feed/',
                   'https://maponews.kr/feed/',
                 ]},
+                { name: '마포저널', urls: [
+                  'https://www.mapojournal.com/rss/allArticle.xml',
+                  'https://mapojournal.com/rss/allArticle.xml',
+                  'https://www.mapojournal.com/feed/',
+                ]},
                 { name: '서대문신문', urls: [
-                  'https://www.sdmnews.com/rss/allArticle.xml',
-                  'https://sdmnews.com/rss/allArticle.xml',
-                  'https://www.sdmnews.com/feed/',
+                  'https://www.sdmsinmun.com/rss/allArticle.xml',
+                  'https://sdmsinmun.com/rss/allArticle.xml',
+                  'https://www.sdmsinmun.com/feed/',
                 ]},
-                { name: '용산신문', urls: [
-                  'https://www.yongsannews.co.kr/rss/allArticle.xml',
-                  'https://yongsannews.co.kr/rss/allArticle.xml',
-                  'https://www.yongsannews.co.kr/feed/',
-                ]},
-                { name: '용산TV', urls: [
-                  'https://www.yongsan.tv/rss/allArticle.xml',
-                  'https://yongsan.tv/rss/allArticle.xml',
+                { name: '새용산신문', urls: [
+                  'https://www.yongsannews.kr/rss/allArticle.xml',
+                  'https://yongsannews.kr/rss/allArticle.xml',
+                  'http://www.yongsannews.kr/rss/allArticle.xml',
+                  'https://www.yongsannews.kr/feed/',
                 ]},
               ];
               const domainOf = u => { try { return new URL(u).hostname.replace(/^(?:www|m)\./,''); } catch(e) { return ''; } };
-              const localDomains = new Set(['epnews.net','maponews.kr','sdmnews.com','yongsannews.co.kr','yongsan.tv']);
+              const localDomains = new Set(['epnews.net','maponews.kr','mapojournal.com','sdmsinmun.com','yongsannews.kr']);
               // 각 언론사별로 URL 순서대로 시도, 첫 성공 반환
               const fetchOutletRSS = async ({ name, urls }) => {
                 for (const feedUrl of urls) {
