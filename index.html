@@ -4688,7 +4688,7 @@ async function clearNewsCache(){
   const msg=$('agentMsg');
   msg.textContent='초기화 중...';
   try{
-    const r=await fetch(`${API}/api/admin/news-cache?token=${encodeURIComponent(currentToken)}`,{method:'DELETE'});
+    const r=await fetch(`${API}/api/admin/news-cache?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
     const d=await r.json();
     msg.style.color='var(--green-dark)';
     msg.textContent=d.ok?'뉴스 캐시가 초기화되었습니다. 뉴스탭 새로고침 시 최신 뉴스가 바로 로딩됩니다.':'오류: '+(d.error||'알 수 없음');
