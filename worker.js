@@ -131,6 +131,29 @@ function parseRSS(xml) {
   return out;
 }
 
+async function fetchOG(targetUrl, env) {
+  const cached = await env.DB.prepare('SELECT * FROM og_cache WHERE url=?').bind(targetUrl).first().catch(()=>null);
+  if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400) {
+    return { title: cached.title, description: cached.description, image: cached.image, site_name: cached.site_name };
+  }
+  const res = await fetchTimeout(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STEPBot/1.0; +https://band-archive-api.cm99i.workers.dev)' } }, 7000);
+  if (!res.ok) return null;
+  const html = await res.text();
+  const getMeta = (prop) => {
+    const a = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i').exec(html);
+    if (a) return a[1].trim();
+    const b = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i').exec(html);
+    return b ? b[1].trim() : null;
+  };
+  const title = getMeta('og:title') || /<title[^>]*>([^<]+)<\/title>/i.exec(html)?.[1]?.trim() || null;
+  if (!title) return null;
+  const description = (getMeta('og:description') || getMeta('description') || '').slice(0, 300) || null;
+  const image = getMeta('og:image') || null;
+  const site_name = getMeta('og:site_name') || null;
+  env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at) VALUES(?,?,?,?,?,?)').bind(targetUrl, title, description, image, site_name, Math.floor(Date.now()/1000)).run().catch(()=>{});
+  return { title, description, image, site_name };
+}
+
 let _dbReady = false;
 async function initDB(env) {
   if (_dbReady) return;
@@ -206,6 +229,7 @@ async function initDB(env) {
     "INSERT OR IGNORE INTO photo_votes_v2(contest_id, voter, photo_id) SELECT contest_id, voter, photo_id FROM photo_votes",
     "CREATE TABLE IF NOT EXISTS photo_contest_voters (contest_id TEXT, user_id TEXT, added_by TEXT, added_at INTEGER, PRIMARY KEY(contest_id, user_id))",
     "CREATE TABLE IF NOT EXISTS newsletters (id TEXT PRIMARY KEY, title TEXT NOT NULL, pages TEXT NOT NULL, created_by TEXT, created_at INTEGER)",
+    "CREATE TABLE IF NOT EXISTS og_cache (url TEXT PRIMARY KEY, title TEXT, description TEXT, image TEXT, site_name TEXT, cached_at INTEGER)",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -304,6 +328,19 @@ export default {
         await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
           .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run();
         return json(items);
+      }
+
+      // ── OG 링크 프리뷰 ──
+      if (p === '/api/og-preview' && m === 'GET') {
+        const targetUrl = url.searchParams.get('url') || '';
+        if (!targetUrl.match(/^https?:\/\/.+/)) return json({ error: 'invalid url' }, 400);
+        try {
+          const og = await fetchOG(targetUrl, env);
+          if (!og || !og.title) return json({ error: 'no data' });
+          return json({ ok: true, url: targetUrl, ...og });
+        } catch(e) {
+          return json({ error: e.message });
+        }
       }
 
       // ── 접속 이력 (관리자) ──
