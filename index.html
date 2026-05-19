@@ -2459,7 +2459,7 @@ function newsCardHtml(n){
     <span class="news-source">${escHtml(n.source||'')}</span>
     <div class="news-title" style="padding-right:52px">${escHtml(n.title)}</div>
     ${dateStr?`<div class="news-date">${dateStr}</div>`:''}
-    <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}')">피드 공유</button>
+    <button class="news-quote-btn" onclick="event.stopPropagation();openWriteModal('${escHtml(link)}','${escHtml(n.title)}','${escHtml(n.source||"")}')">\피드 공유</button>
   </div>`;
 }
 function renderNews(items){
@@ -3058,23 +3058,27 @@ function renderBlogEditor(){
 let _ogFetchTid=null,_ogFetching=false;
 function _detectAndFetchOG(text){
   clearTimeout(_ogFetchTid);
-  if(editorBlocks.some(b=>b.type==='link'))return;
-  const raw=text.match(/https?:\/\/[^\s）)）\]]+/);
-  if(!raw)return;
-  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,'');
+  const existing=editorBlocks.find(b=>b.type==='link');
+  const raw=(text||'').match(/https?:\/\/[^\s）)）\]]+/);
+  const targetUrl=raw?raw[0].replace(/[.,;:!?)）\]'"]+$/,''):existing?.url;
+  if(!targetUrl)return;
   _ogFetchTid=setTimeout(async()=>{
     if(_ogFetching)return;
-    if(editorBlocks.some(b=>b.type==='link'))return;
     _ogFetching=true;
     try{
       const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(targetUrl)}`).then(r=>r.json());
       if(d.ok&&d.title){
-        // Google URL → 실제 URL로 textarea 텍스트 교체
-        if(d.url && d.url!==targetUrl){
+        const lb=editorBlocks.find(b=>b.type==='link');
+        if(lb){
+          // 이미 카드 있으면 이미지/URL만 보충
+          if(d.image)lb.image=d.image;
+          if(d.url&&d.url!==targetUrl){lb.url=d.url;lb.site_name=d.site_name||lb.site_name;}
+        } else {
+          // 새로 추가
           const tb=editorBlocks.find(b=>b.type==='text');
-          if(tb){tb.content=tb.content.replace(targetUrl,d.url);const ta=$('blockEditor')?.querySelector('textarea');if(ta)ta.value=tb.content;}
+          if(tb&&d.url&&d.url!==targetUrl){tb.content=tb.content.replace(targetUrl,d.url);const ta=$('blockEditor')?.querySelector('textarea');if(ta)ta.value=tb.content;}
+          editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         }
-        editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();
       }
     }catch(e){}
@@ -3120,12 +3124,16 @@ function renderSimpleEditor(){
   }
 }
 function renderEditor(){$('blogModeToggle').checked?renderBlogEditor():renderSimpleEditor();}
-function openWriteModal(prefillUrl){
+function openWriteModal(prefillUrl,prefillTitle,prefillSource){
   editingKey=null;_ogFetching=false;clearTimeout(_ogFetchTid);
   $('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';
   updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
   $('postKeyword').value='';$('blogModeToggle').checked=false;
-  editorBlocks=[{type:'text',content:prefillUrl||''}];
+  editorBlocks=[{type:'text',content:''}];
+  // 뉴스 공유: RSS 제목/출처로 즉시 링크 카드 생성, OG fetch로 이미지 보충
+  if(prefillUrl&&prefillTitle){
+    editorBlocks.push({type:'link',url:prefillUrl,title:prefillTitle,description:'',image:'',site_name:prefillSource||''});
+  }
   renderSimpleEditor();
   $('writeModal').classList.add('open');
   _modalJustOpened=true;setTimeout(()=>{_modalJustOpened=false;},400);
