@@ -414,22 +414,6 @@ export default {
 
       // ── OG 링크 프리뷰 ──
       // ── 네이버 API 연결 테스트 (임시, 인증 없음) ──
-      if (p === '/api/debug/naver' && m === 'GET') {
-        if (!env.NAVER_CLIENT_ID || !env.NAVER_CLIENT_SECRET) return json({ error: 'NAVER 키 없음', has_id: !!env.NAVER_CLIENT_ID, has_secret: !!env.NAVER_CLIENT_SECRET });
-        const naverUrl = 'https://openapi.naver.com/v1/search/news.json?query=%EA%B3%A0%EC%9A%A9%EB%85%B8%EB%8F%99&display=1&sort=date';
-        const results = {};
-        // 테스트1: 헤더 없이
-        try {
-          const r1 = await fetchTimeout(naverUrl, { headers: { 'X-Naver-Client-Id': env.NAVER_CLIENT_ID, 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET } }, 6000);
-          results.noReferer = { status: r1.status, body: (await r1.text()).slice(0, 300) };
-        } catch(e) { results.noReferer = { error: e.message }; }
-        // 테스트2: Referer 포함
-        try {
-          const r2 = await fetchTimeout(naverUrl, { headers: { 'X-Naver-Client-Id': env.NAVER_CLIENT_ID, 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET, 'Referer': 'https://band-archive-api.cm99i.workers.dev' } }, 6000);
-          results.withReferer = { status: r2.status, body: (await r2.text()).slice(0, 300) };
-        } catch(e) { results.withReferer = { error: e.message }; }
-        return json(results);
-      }
 
       if (p === '/api/og-preview' && m === 'GET') {
         const targetUrl = url.searchParams.get('url') || '';
