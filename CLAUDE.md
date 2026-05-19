@@ -195,6 +195,81 @@ GitHub Secrets (Actions에서 사용):
 
 ---
 
+## API 시스템 구성
+
+### 런타임 환경
+
+| 항목 | 값 |
+|------|-----|
+| 플랫폼 | Cloudflare Workers (V8 isolate, 전 세계 엣지) |
+| Worker 이름 | `band-archive-api` |
+| 배포 URL | `band-archive-api.cm99i.workers.dev` |
+| DB | D1 (SQLite) — `band-archive-db` |
+| 스토리지 | R2 — `band-archive` (최대 9GB) |
+| AI | Workers AI 바인딩 (`env.AI`) |
+
+### 환경 변수 전체 목록
+
+| 변수명 | 종류 | 설명 |
+|--------|------|------|
+| `DB` | 바인딩 | Cloudflare D1 데이터베이스 |
+| `R2` | 바인딩 | Cloudflare R2 버킷 |
+| `AI` | 바인딩 | Cloudflare Workers AI |
+| `LAW_OC` | vars (평문) | law.go.kr OpenAPI OC 코드 |
+| `GEMINI_API_KEY` | secret | Google Gemini API 키 |
+| `ANTHROPIC_API_KEY` | secret | Anthropic Claude API 키 |
+| `LAW_CACHE_TOKEN` | secret | 법령 캐시 수동 갱신 인증 토큰 |
+| `MOEL_LLM_TOKEN` | secret | MOEL LLM API 인증 토큰 |
+| `MOEL_ORG_CODE` | secret | MOEL 조직 코드 (선택) |
+
+### CORS 정책
+
+```js
+'Access-Control-Allow-Origin': '*'
+'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS'
+'Access-Control-Allow-Headers': 'Content-Type'
+```
+
+- 인증은 `Authorization` 헤더가 **아닌** `?token=` 쿼리 파라미터로 전달 (CORS 제약)
+- 모든 응답(`json()` 헬퍼)에 자동 포함
+
+### AI 폴백 체인 (`callAI()` — `worker.js:24`)
+
+```
+1순위: Cloudflare Workers AI  (Llama 3.3 70B, 무료)
+2순위: Gemini 2.5 Flash       (GEMINI_API_KEY 필요, settings.gemini_fallback_enabled)
+3순위: Claude Haiku 4.5       (ANTHROPIC_API_KEY 필요, settings.claude_enabled)
+모두 실패 시 null 반환
+```
+
+- 각 단계는 독립 try-catch, 실패해도 다음 단계로 진행
+- Gemini/Claude 사용량은 `gemini_usage`, `claude_usage` 테이블에 기록
+
+### 뉴스 API 구조 (`/api/news`)
+
+- 소스: Google News RSS (`news.google.com/rss/search`)
+- 캐시: D1 `news_cache` 테이블, TTL 10분
+- fetch 타임아웃: 8초
+- **stale fallback**: fetch 실패 시 만료된 캐시라도 반환 (빈 화면 방지)
+- 카테고리: `labor` / `local` / `health` / `law`
+
+### 라우팅 구조 (`worker.js:251~`)
+
+- 방식: `if (p === '/api/...' && m === 'METHOD')` 체인
+- 정적 라우트를 동적 라우트보다 앞에 배치 (`/api/posts/search` > `/api/posts/:id`)
+- 이미지 서빙: `GET /img/*` → R2에서 직접 스트리밍
+
+### 주요 외부 의존성
+
+| 서비스 | 용도 | 비고 |
+|--------|------|------|
+| Google News RSS | 뉴스 피드 | 10분 캐시, 타임아웃 8초 |
+| law.go.kr OpenAPI | 법령/판례 검색 | `LAW_OC` 코드 필요 |
+| Gemini API | AI 폴백 1순위 | `generativelanguage.googleapis.com` |
+| Anthropic API | AI 폴백 2순위 | `api.anthropic.com` |
+
+---
+
 ## 주의사항
 
 - `worker.js`는 단일 파일 2100줄 이상. 라우팅은 `if (p === '/api/...')` 체인 방식 (`worker.js:251~`).

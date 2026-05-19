@@ -3052,15 +3052,16 @@ let _ogFetchTid=null,_ogFetching=false;
 function _detectAndFetchOG(text){
   clearTimeout(_ogFetchTid);
   if(editorBlocks.some(b=>b.type==='link'))return;
-  const m=text.match(/https?:\/\/[^\s）)）\]]+/);
-  if(!m){_setOgStatus('');return;}
+  const raw=text.match(/https?:\/\/[^\s）)）\]]+/);
+  if(!raw){_setOgStatus('');return;}
+  const targetUrl=raw[0].replace(/[.,;:!?)）\]'"]+$/,''); // 끝 구두점 제거
   _setOgStatus('loading');
   _ogFetchTid=setTimeout(async()=>{
     if(_ogFetching)return;
     if(editorBlocks.some(b=>b.type==='link')){_setOgStatus('');return;}
     _ogFetching=true;
     try{
-      const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(m[0])}`).then(r=>r.json());
+      const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(targetUrl)}`).then(r=>r.json());
       if(d.ok&&d.title){
         editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();

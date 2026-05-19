@@ -136,19 +136,34 @@ async function fetchOG(targetUrl, env) {
   if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400) {
     return { title: cached.title, description: cached.description, image: cached.image, site_name: cached.site_name };
   }
-  const res = await fetchTimeout(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STEPBot/1.0; +https://band-archive-api.cm99i.workers.dev)' } }, 7000);
+  const res = await fetchTimeout(targetUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9',
+    },
+    redirect: 'follow',
+  }, 8000);
   if (!res.ok) return null;
   const html = await res.text();
+  const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim() : null;
   const getMeta = (prop) => {
-    const a = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i').exec(html);
-    if (a) return a[1].trim();
-    const b = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i').exec(html);
-    return b ? b[1].trim() : null;
+    // 속성 순서 두 가지 모두 시도, 큰따옴표·작은따옴표 모두 허용
+    const pats = [
+      new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"'<>]*)["']`,'i'),
+      new RegExp(`<meta[^>]+content=["']([^"'<>]*)["'][^>]+(?:property|name)=["']${prop}["']`,'i'),
+    ];
+    for (const r of pats) { const m=r.exec(html); if(m) return decode(m[1]); }
+    return null;
   };
-  const title = getMeta('og:title') || /<title[^>]*>([^<]+)<\/title>/i.exec(html)?.[1]?.trim() || null;
+  const title = getMeta('og:title') || getMeta('twitter:title') || decode(/<title[^>]*>([^<]+)<\/title>/i.exec(html)?.[1]) || null;
   if (!title) return null;
-  const description = (getMeta('og:description') || getMeta('description') || '').slice(0, 300) || null;
-  const image = getMeta('og:image') || null;
+  const description = (getMeta('og:description') || getMeta('twitter:description') || getMeta('description') || '').slice(0,300) || null;
+  let image = getMeta('og:image') || getMeta('twitter:image') || null;
+  // 상대 경로 이미지를 절대 경로로 변환
+  if (image && image.startsWith('/')) {
+    try { const u = new URL(targetUrl); image = u.origin + image; } catch(e) {}
+  }
   const site_name = getMeta('og:site_name') || null;
   env.DB.prepare('INSERT OR REPLACE INTO og_cache(url,title,description,image,site_name,cached_at) VALUES(?,?,?,?,?,?)').bind(targetUrl, title, description, image, site_name, Math.floor(Date.now()/1000)).run().catch(()=>{});
   return { title, description, image, site_name };
@@ -315,19 +330,25 @@ export default {
         if (!queries[cat]) return json({ error: 'unknown' }, 400);
         const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(queries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
-        if (cached && (Math.floor(Date.now() / 1000) - cached.cached_at) < 600) {
+        const now = Math.floor(Date.now() / 1000);
+        if (cached && (now - cached.cached_at) < 600) {
           return json(JSON.parse(cached.data));
         }
-        const resp = await fetch(feedUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        if (!resp.ok) return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
-        const xml = await resp.text();
-        const items = parseRSS(xml).sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
-        const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
-          .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run();
-        return json(items);
+        try {
+          const resp = await fetchTimeout(feedUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+          }, 8000);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const xml = await resp.text();
+          const items = parseRSS(xml).sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0));
+          ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
+          return json(items);
+        } catch (e) {
+          // fetch 실패 시 stale 캐시라도 반환
+          if (cached) return json(JSON.parse(cached.data));
+          return json({ error: '뉴스를 불러오지 못했습니다.' }, 502);
+        }
       }
 
       // ── OG 링크 프리뷰 ──
