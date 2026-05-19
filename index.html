@@ -2013,7 +2013,9 @@ function renderMd(s){
   // 6. 리스트 (- 또는 * 또는 숫자.)
   t=t.replace(/^(\d+)\. (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="min-width:18px;color:var(--text-hint)">$1.</span><span>$2</span></div>');
   t=t.replace(/^[-*] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--green)">•</span><span>$1</span></div>');
-  // 7. 줄바꿈
+  // 7. URL 자동 링크 (이미 <a> 태그 안에 있는 URL은 건드리지 않음)
+  t=t.replace(/(?<!href=["'])https?:\/\/[^\s<>"）)）\]，。]+/g,url=>`<a href="${url.replace(/&amp;/g,'&')}" target="_blank" rel="noopener noreferrer" style="color:var(--green);word-break:break-all;text-decoration:underline" onclick="event.stopPropagation()">${url}</a>`);
+  // 8. 줄바꿈
   t=t.replace(/\n/g,'<br>');
   return t;
 }
@@ -2481,7 +2483,8 @@ function renderBlocksInCard(p,blogMode){
 }
 function linkPreviewHtml(b){
   const img=b.image?`<img src="${escHtml(b.image)}" loading="lazy" onerror="this.style.display='none'"/>`:'';
-  const site=b.site_name||new URL(b.url).hostname.replace('www.','');
+  let site=b.site_name||'';
+  try{if(!site)site=new URL(b.url).hostname.replace('www.','');}catch(e){site=b.url;}
   return`<a class="link-preview" href="${escHtml(b.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
     ${img}
     <div class="link-preview-body">
@@ -3048,23 +3051,31 @@ function renderBlogEditor(){
 let _ogFetchTid=null,_ogFetching=false;
 function _detectAndFetchOG(text){
   clearTimeout(_ogFetchTid);
+  if(editorBlocks.some(b=>b.type==='link'))return;
+  const m=text.match(/https?:\/\/[^\s）)）\]]+/);
+  if(!m){_setOgStatus('');return;}
+  _setOgStatus('loading');
   _ogFetchTid=setTimeout(async()=>{
     if(_ogFetching)return;
-    if(editorBlocks.some(b=>b.type==='link'))return; // 이미 링크 블록 있음
-    const m=text.match(/https?:\/\/[^\s）)）\]]+/);
-    if(!m)return;
+    if(editorBlocks.some(b=>b.type==='link')){_setOgStatus('');return;}
     _ogFetching=true;
-    const ogEl=document.getElementById('_ogPreviewLoading');
-    if(ogEl)ogEl.style.display='';
     try{
       const d=await fetch(`${API}/api/og-preview?url=${encodeURIComponent(m[0])}`).then(r=>r.json());
       if(d.ok&&d.title){
         editorBlocks.push({type:'link',url:d.url,title:d.title,description:d.description||'',image:d.image||'',site_name:d.site_name||''});
         renderEditor();
+      } else {
+        _setOgStatus('');
       }
-    }catch(e){}
+    }catch(e){_setOgStatus('');}
     _ogFetching=false;
-  },900);
+  },800);
+}
+function _setOgStatus(s){
+  const el=document.getElementById('_ogStatus');
+  if(!el)return;
+  el.textContent=s==='loading'?'링크 미리보기 불러오는 중...':'';
+  el.style.display=s?'':'none';
 }
 function renderSimpleEditor(){
   const editor=$('blockEditor');editor.innerHTML='';
@@ -3074,15 +3085,20 @@ function renderSimpleEditor(){
   textDiv.innerHTML=`<textarea placeholder="지금 무슨 생각을 하고 있나요?" rows="3">${textBlock.content}</textarea>`;
   const ta=textDiv.querySelector('textarea');
   ta.oninput=()=>{textBlock.content=ta.value;ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';_detectAndFetchOG(ta.value);};
+  ta.addEventListener('paste',e=>{setTimeout(()=>{textBlock.content=ta.value;_detectAndFetchOG(ta.value);},0);});
   ta.style.height='auto';ta.style.height=(ta.scrollHeight||80)+'px';
   editor.appendChild(textDiv);
+  // OG 로딩 상태 표시
+  const ogStatus=document.createElement('div');
+  ogStatus.id='_ogStatus';ogStatus.style.cssText='display:none;font-size:12px;color:var(--text-hint);padding:4px 2px';
+  editor.appendChild(ogStatus);
   // 링크 프리뷰 블록
   const linkBlock=editorBlocks.find(b=>b.type==='link');
   if(linkBlock){
     const lp=document.createElement('div');lp.className='editor-link-preview editor-block';
     lp.innerHTML=`${linkBlock.image?`<img src="${escHtml(linkBlock.image)}" onerror="this.style.display='none'"/>`:''}
       <div class="editor-link-preview-body">
-        <div class="editor-link-preview-site">${escHtml(linkBlock.site_name||new URL(linkBlock.url).hostname.replace('www.',''))}</div>
+        <div class="editor-link-preview-site">${escHtml(linkBlock.site_name||(()=>{try{return new URL(linkBlock.url).hostname.replace('www.','')}catch(e){return linkBlock.url}})())}</div>
         <div class="editor-link-preview-title">${escHtml(linkBlock.title)}</div>
       </div>
       <button class="editor-link-preview-del" title="삭제">×</button>`;
