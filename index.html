@@ -978,6 +978,7 @@ button,a,[role="button"]{touch-action:manipulation}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>사진 추가
         </button>
         <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none"/>
+        <input type="file" id="imgCameraInput" accept="image/*" capture="environment" style="display:none"/>
       </div>
       <div class="keyword-row">
         <span>#태그</span>
@@ -1019,6 +1020,21 @@ button,a,[role="button"]{touch-action:manipulation}
 </div>
 
 <!-- ════ 라이트박스 ════ -->
+<!-- 사진 선택 시트 -->
+<div id="photoPickerSheet" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.45)" onclick="closePhotoPicker()">
+  <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom,0px))" onclick="event.stopPropagation()">
+    <div style="width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px"></div>
+    <button onclick="closePhotoPicker();$('imgCameraInput').click()" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 24px;background:none;border:none;font-size:16px;cursor:pointer;font-family:inherit;color:var(--text)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      카메라
+    </button>
+    <button onclick="closePhotoPicker();$('imgFileInput').click()" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 24px;background:none;border:none;font-size:16px;cursor:pointer;font-family:inherit;color:var(--text)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      갤러리
+    </button>
+    <button onclick="closePhotoPicker()" style="display:flex;align-items:center;justify-content:center;width:calc(100% - 48px);margin:8px 24px 0;padding:13px;background:var(--bg);border:none;border-radius:var(--radius-sm);font-size:15px;cursor:pointer;font-family:inherit;color:var(--text-sub);font-weight:500">취소</button>
+  </div>
+</div>
 <div id="lightbox" onclick="if(_lbDragDist<10)closeLightbox()" ontouchstart="lbTouchStart(event)" ontouchmove="lbTouchMove(event)" ontouchend="lbTouchEnd(event)" onmousedown="lbMouseDown(event)" onmousemove="lbMouseMove(event)" onmouseup="lbMouseUp(event)">
   <div id="lbTrack">
     <img id="lightboxImg" onclick="event.stopPropagation()"/>
@@ -3114,13 +3130,13 @@ async function compressImage(file,maxPx=1200,quality=0.78){
     img.src=URL.createObjectURL(file);
   });
 }
-$('addImgBtn').onclick=()=>$('imgFileInput').click();
-$('imgFileInput').onchange=async function(e){
-  const files=Array.from(e.target.files);this.value='';
+function openPhotoPicker(){$('photoPickerSheet').style.display='';}
+function closePhotoPicker(){$('photoPickerSheet').style.display='none';}
+$('addImgBtn').onclick=openPhotoPicker;
+async function _handleImgFiles(files){
   if(!files.length)return;
   const isBlog=$('blogModeToggle').checked;
   if(files.length===1){
-    // 단일 이미지: 크롭 모달 표시
     const file=files[0];
     const reader=new FileReader();
     reader.onload=ev=>openCropModal(file,ev.target.result,async croppedFile=>{
@@ -3136,7 +3152,6 @@ $('imgFileInput').onchange=async function(e){
     reader.readAsDataURL(file);
     return;
   }
-  // 다중 이미지: 크롭 생략, 바로 압축 후 업로드
   showUploadProgress(`사진 업로드 중... (0/${files.length})`);
   for(let i=0;i<files.length;i++){
     const file=await compressImage(files[i]);
@@ -3152,7 +3167,9 @@ $('imgFileInput').onchange=async function(e){
     }catch(err){hideUploadProgress();alert('업로드 실패: '+err.message);renderEditor();return;}
   }
   hideUploadProgress();renderEditor();
-};
+}
+$('imgCameraInput').onchange=async function(e){const files=Array.from(e.target.files);this.value='';await _handleImgFiles(files);};
+$('imgFileInput').onchange=async function(e){const files=Array.from(e.target.files);this.value='';await _handleImgFiles(files);};
 $('submitPost').onclick=async function(){
   const hasContent=editorBlocks.some(b=>b.type==='image'||b.type==='link'||(b.type==='text'&&b.content.trim()));
   if(!hasContent){alert('내용을 입력해주세요.');return;}
