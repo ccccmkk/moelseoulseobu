@@ -1383,9 +1383,9 @@ button,a,[role="button"]{touch-action:manipulation}
         <!-- 계정 추가 -->
         <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
           <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">계정 추가</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-            <input type="text" id="newUserId" placeholder="사번 (9자리)" maxlength="9" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
-            <input type="text" id="newUserName" placeholder="이름" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+            <input type="text" id="newUserId" placeholder="사번 (9자리)" maxlength="9" style="flex:1 1 120px;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
+            <input type="text" id="newUserName" placeholder="이름" style="flex:1 1 100px;min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit"/>
           </div>
           <div style="display:flex;gap:6px">
             <select id="newUserDept" style="flex:1;padding:9px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit;background:#fff">
@@ -1413,7 +1413,10 @@ button,a,[role="button"]{touch-action:manipulation}
         </div>
         <!-- 사용자 목록 -->
         <div style="padding:12px 16px">
-          <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px">사용자 목록</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-sub);flex-shrink:0">사용자 목록</div>
+            <input type="text" id="userSearchInput" placeholder="이름·사번 검색" oninput="filterUserRoleList(this.value)" style="flex:1;min-width:0;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;outline:none;font-family:inherit"/>
+          </div>
           <div id="userRoleList"></div>
         </div>
       </div>
@@ -5113,10 +5116,56 @@ async function loadLoginLogs(){
 }
 
 // ── 관리자 ──
+let _admActiveUsers=[];
+function filterUserRoleList(q){
+  const kw=(q||'').trim().toLowerCase();
+  if(!kw){$('userRoleList').innerHTML=_admUserHtml(_admActiveUsers);return;}
+  const filtered=_admActiveUsers.filter(u=>(u.name||'').toLowerCase().includes(kw)||(u.id||'').toLowerCase().includes(kw));
+  $('userRoleList').innerHTML=_admUserHtml(filtered,true);
+}
+function _admUserHtml(list,flat=false){
+  if(!list.length)return'<div style="padding:16px;color:var(--text-hint);font-size:13px">검색 결과가 없습니다.</div>';
+  if(flat)return list.map(_admRenderRow).join('');
+  const grouped={};
+  DEPT_OPTIONS.forEach(d=>{grouped[d]=[];});
+  grouped['기타']=[];
+  list.forEach(u=>{const d=u.dept&&DEPT_OPTIONS.includes(u.dept)?u.dept:'기타';grouped[d].push(u);});
+  let html='';
+  [...DEPT_OPTIONS,'기타'].forEach(dept=>{
+    const g=grouped[dept]||[];if(!g.length)return;
+    if(dept==='기타'&&currentUserRole!=='admin')return;
+    html+=`<details open><summary style="cursor:pointer;padding:8px 0;font-size:13px;font-weight:700;color:var(--text-sub);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border);margin-bottom:4px"><span>${dept}</span><span style="font-size:12px;color:var(--text-hint);font-weight:400">${g.length}명</span></summary>${g.map(_admRenderRow).join('')}</details>`;
+  });
+  return html||'<div style="padding:16px;color:var(--text-hint);font-size:13px">사용자가 없습니다.</div>';
+}
+function _admRenderRow(u){
+  const role=userRoles[u.id]||'user';const isAdmin=role==='admin';const isSubAdmin=role==='sub_admin';
+  const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
+  const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
+  const deptStr=escHtml(u.dept||'');
+  const roleLabel=isAdmin?' · <b style="color:var(--green)">관리자</b>':isSubAdmin?' · <b style="color:var(--accent)">중간관리자</b>':'';
+  const meta=`<div style="font-size:12px;color:var(--text-hint);margin-top:1px">${di} · ${lastSeenStr}${roleLabel}</div>`;
+  if(u.id===currentUser)return`<div class="user-role-row"><div><span class="user-role-name">${dn}</span>${meta}</div><div style="font-size:12px;color:var(--text-hint)">(나)</div></div>`;
+  const uprefs=badgePrefs[u.id]||{};
+  return`<div class="user-role-row">
+    <div><span class="user-role-name">${dn}</span>${meta}</div>
+    <div class="role-btns">
+      <button class="role-btn${role==='user'?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button>
+      <button class="role-btn${isSubAdmin?' on':''}" onclick="setUserRole('${di}','sub_admin',this)">중간관리자</button>
+      <button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button>
+      <button class="role-btn${uprefs.granted_badge_admin?' on':''}" onclick="toggleBadge('${di}','admin',this)">관리자칭호</button>
+      <button class="role-btn${uprefs.granted_badge_top?' on':''}" onclick="toggleBadge('${di}','top',this)">소통왕칭호</button>
+      <button class="role-btn" onclick="changeDeptAdmin('${di}','${deptStr}')">소속변경</button>
+      <button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button>
+      <button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button>
+    </div>
+  </div>`;
+}
 async function openAdminModal(){
   switchAdmTab('users');
   $('adminModal').classList.add('open');
   loadClaudeSetting();
+  if($('userSearchInput')) $('userSearchInput').value='';
   $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
   try{
     const users=await fetch(`${API}/api/users`).then(r=>r.json());
@@ -5132,46 +5181,8 @@ async function openAdminModal(){
         </div>
       </div>`).join('');
     }else{$('pendingSection').style.display='none';}
-    function renderUserRow(u){
-      const role=userRoles[u.id]||'user';const isAdmin=role==='admin';const isSubAdmin=role==='sub_admin';
-      const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
-      const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
-      const deptStr=escHtml(u.dept||'');
-      const roleLabel=isAdmin?' · <b style="color:var(--green)">관리자</b>':isSubAdmin?' · <b style="color:var(--accent)">중간관리자</b>':'';
-      const meta=`<div style="font-size:12px;color:var(--text-hint);margin-top:1px">${di} · ${lastSeenStr}${roleLabel}</div>`;
-      if(u.id===currentUser)return`<div class="user-role-row"><div><span class="user-role-name">${dn}</span>${meta}</div><div style="font-size:12px;color:var(--text-hint)">(나)</div></div>`;
-      const uprefs=badgePrefs[u.id]||{};
-      return`<div class="user-role-row">
-        <div><span class="user-role-name">${dn}</span>${meta}</div>
-        <div class="role-btns">
-          <button class="role-btn${role==='user'?' on':''}" onclick="setUserRole('${di}','user',this)">일반</button>
-          <button class="role-btn${isSubAdmin?' on':''}" onclick="setUserRole('${di}','sub_admin',this)">중간관리자</button>
-          <button class="role-btn${isAdmin?' on':''}" onclick="setUserRole('${di}','admin',this)">관리자</button>
-          <button class="role-btn${uprefs.granted_badge_admin?' on':''}" onclick="toggleBadge('${di}','admin',this)">관리자칭호</button>
-          <button class="role-btn${uprefs.granted_badge_top?' on':''}" onclick="toggleBadge('${di}','top',this)">소통왕칭호</button>
-          <button class="role-btn" onclick="changeDeptAdmin('${di}','${deptStr}')">소속변경</button>
-          <button class="role-btn" onclick="resetPasswordAdmin('${di}')">비번초기화</button>
-          <button class="role-btn" style="color:var(--danger)" onclick="deleteUserAdmin('${di}')">삭제</button>
-        </div>
-      </div>`;
-    }
-    // 소속별 그룹화
-    const grouped={};
-    DEPT_OPTIONS.forEach(d=>{grouped[d]=[];});
-    grouped['기타']=[];
-    active.forEach(u=>{
-      const d=u.dept&&DEPT_OPTIONS.includes(u.dept)?u.dept:'기타';
-      grouped[d].push(u);
-    });
-    let html='';
-    [...DEPT_OPTIONS,'기타'].forEach(dept=>{
-      const list=grouped[dept]||[];
-      if(!list.length)return;
-      if(dept==='기타'&&currentUserRole!=='admin')return; // 기타 폴더는 관리자만
-      const open=dept!=='기타';
-      html+=`<details${open?' open':''}><summary style="cursor:pointer;padding:8px 0;font-size:13px;font-weight:700;color:var(--text-sub);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border);margin-bottom:4px"><span>${dept}</span><span style="font-size:12px;color:var(--text-hint);font-weight:400">${list.length}명</span></summary>${list.map(renderUserRow).join('')}</details>`;
-    });
-    $('userRoleList').innerHTML=html||'<div style="padding:16px;color:var(--text-hint);font-size:13px">사용자가 없습니다.</div>';
+    _admActiveUsers=active;
+    $('userRoleList').innerHTML=_admUserHtml(active);
   }catch(e){$('userRoleList').innerHTML='<div style="padding:16px;color:var(--danger);font-size:13px">불러오지 못했습니다.</div>';}
 }
 async function createUserAdmin(){
