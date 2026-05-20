@@ -5185,10 +5185,13 @@ async function loadScrap(){
         <span style="font-size:12px;color:var(--text-hint)">총 ${articles.length}건</span>
       </div>
       <button onclick="scrapLoaded=false;loadScrap()" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0">새로고침</button>
-    </div>`+articles.map(a=>`<a href="${escHtml(a.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:block;padding:11px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;transition:background .12s" onmouseover="this.style.background='#f7f7f7'" onmouseout="this.style.background=''">
-      <div style="font-size:14px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:4px">${escHtml(a.title)}</div>
-      ${a.source?`<div style="font-size:11px;color:var(--text-hint)">${escHtml(a.source)}</div>`:''}
-    </a>`).join('');
+    </div>`+articles.map(a=>`<div style="position:relative;border-bottom:1px solid var(--border)">
+      <a href="${escHtml(a.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:block;padding:11px 52px 11px 16px;text-decoration:none;color:inherit;transition:background .12s" onmouseover="this.style.background='#f7f7f7'" onmouseout="this.style.background=''">
+        <div style="font-size:14px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:4px">${escHtml(a.title)}</div>
+        ${a.source?`<div style="font-size:11px;color:var(--text-hint)">${escHtml(a.source)}</div>`:''}
+      </a>
+      <button class="news-quote-btn" onclick="openWriteModal('${escHtml(a.url)}','${escHtml(a.title)}','${escHtml(a.source||'')}')">피드 공유</button>
+    </div>`).join('');
   }catch(e){box.innerHTML=`<div style="padding:30px;text-align:center;color:var(--danger);font-size:13px">네트워크 오류<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 async function loadRestaurants(){
