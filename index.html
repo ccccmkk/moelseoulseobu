@@ -5100,7 +5100,11 @@ async function agentHealthReply(){
 
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
-const CENTER_LAT=37.5430, CENTER_LNG=126.9510; // 서울서부고용복지플러스센터
+// 두 건물 좌표
+const BLDG_PLUS = { lat:37.5432, lng:126.9513, name:'서울서부고용복지플러스센터', short:'복지플러스' };
+const BLDG_JI   = { lat:37.5498, lng:126.9450, name:'서울서부지청', short:'서부지청' };
+// 두 건물 중간 지점을 지도 기본 중심으로
+const CENTER_LAT=(BLDG_PLUS.lat+BLDG_JI.lat)/2, CENTER_LNG=(BLDG_PLUS.lng+BLDG_JI.lng)/2;
 let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='map', _restSearchResults=[];
 
 function switchRestView(v){
@@ -5125,17 +5129,19 @@ function initRestMap(){
   if(!_restMap){
     _restMap=new naver.maps.Map('naverMapContainer',{
       center:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
-      zoom:16,
+      zoom:15,
       mapTypeControl:false,
       scaleControl:false,
       logoControl:false,
       mapDataControl:false,
     });
-    new naver.maps.Marker({
-      position:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
-      map:_restMap,
-      icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">🏢 센터</div>`,anchor:new naver.maps.Point(30,14)},
-      title:'서울서부고용복지플러스센터',zIndex:10,
+    [BLDG_PLUS, BLDG_JI].forEach(b=>{
+      new naver.maps.Marker({
+        position:new naver.maps.LatLng(b.lat,b.lng),
+        map:_restMap,
+        icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">🏢 ${b.short}</div>`,anchor:new naver.maps.Point(0,14)},
+        title:b.name,zIndex:10,
+      });
     });
   } else {
     _restMap.updateSize();
