@@ -1095,7 +1095,8 @@ export default {
       if (p === '/api/posts' && m === 'GET') {
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 50);
         const before = parseInt(url.searchParams.get('before') || '0');
-        // 본인 토큰으로 본인 임시저장 포함 여부 확인
+        const authorParam = url.searchParams.get('author');
+        const statusParam = url.searchParams.get('status');
         const tok = url.searchParams.get('token') || '';
         let meId = null;
         if (tok) {
@@ -1103,16 +1104,28 @@ export default {
           meId = sess?.user_id || null;
         }
         const baseSQL = 'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
-        // published(또는 null) + 본인 draft/hidden 포함, 남의 draft/hidden 제외
-        const statusFilter = meId
-          ? `(p.status IS NULL OR p.status='published' OR p.status='hidden' AND p.author=? OR p.status='draft' AND p.author=?)`
-          : `(p.status IS NULL OR p.status='published')`;
-        const bindMe = meId ? [meId, meId] : [];
+        let whereClause, bindArgs;
+        if (authorParam) {
+          const isOwnProfile = meId && meId === authorParam;
+          if (isOwnProfile && statusParam === 'draft') {
+            whereClause = `p.author=? AND p.status='draft'`;
+            bindArgs = [authorParam];
+          } else if (isOwnProfile && statusParam === 'hidden') {
+            whereClause = `p.author=? AND p.status='hidden'`;
+            bindArgs = [authorParam];
+          } else {
+            whereClause = `p.author=? AND (p.status IS NULL OR p.status='published')`;
+            bindArgs = [authorParam];
+          }
+        } else {
+          whereClause = `(p.status IS NULL OR p.status='published')`;
+          bindArgs = [];
+        }
         let rows;
         if (before > 0) {
-          rows = await env.DB.prepare(`${baseSQL} WHERE ${statusFilter} AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).bind(...bindMe, before, limit + 1).all();
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).bind(...bindArgs, before, limit + 1).all();
         } else {
-          rows = await env.DB.prepare(`${baseSQL} WHERE ${statusFilter} ORDER BY p.created_at DESC LIMIT ?`).bind(...bindMe, limit + 1).all();
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} ORDER BY p.created_at DESC LIMIT ?`).bind(...bindArgs, limit + 1).all();
         }
         const items = rows.results || [];
         const has_more = items.length > limit;
@@ -1229,12 +1242,17 @@ export default {
         if (!['published','draft','hidden'].includes(status)) return json({ error: 'invalid status' }, 400);
         const sess = token ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token).first().catch(()=>null) : null;
         if (!sess) return json({ error: 'unauthorized' }, 401);
-        const post = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(postId).first();
+        const post = await env.DB.prepare('SELECT author, status as prevStatus FROM posts WHERE id=?').bind(postId).first();
         if (!post) return json({ error: 'not found' }, 404);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
         const isAdmin = role?.role === 'admin' || role?.role === 'sub_admin';
         if (!isAdmin && post.author !== sess.user_id) return json({ error: 'forbidden' }, 403);
-        await env.DB.prepare('UPDATE posts SET status=? WHERE id=?').bind(status, postId).run();
+        if (status === 'published' && post.prevStatus === 'draft') {
+          const now = Math.floor(Date.now() / 1000);
+          await env.DB.prepare('UPDATE posts SET status=?, created_at=? WHERE id=?').bind(status, now, postId).run();
+        } else {
+          await env.DB.prepare('UPDATE posts SET status=? WHERE id=?').bind(status, postId).run();
+        }
         return json({ ok: true, status });
       }
 
