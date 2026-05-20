@@ -20,6 +20,7 @@ html{background:#f5f5f5}html,body{overscroll-behavior-y:none}
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh}
 .page{display:none;min-height:100dvh}.page.active{display:block}
+#writeBlogPage.active{display:flex;flex-direction:column}
 /* 로그인 */
 #loginPage.active{display:flex;align-items:center;justify-content:center;padding:2rem;min-height:100dvh}
 .login-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:360px;box-shadow:0 2px 16px rgba(0,0,0,.07)}
@@ -163,6 +164,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .img-block .caption-input::placeholder{color:var(--text-hint)}
 .block-del{background:none;border:none;cursor:pointer;color:var(--text-hint);font-size:18px;line-height:1;padding:2px 4px;flex-shrink:0}
 .block-del:hover{color:var(--danger)}
+.block-move{background:rgba(0,0,0,.45);color:#fff;border:none;border-radius:4px;width:24px;height:24px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .add-img-row{padding:4px 16px 12px;display:flex;gap:8px}
 .btn-add-img{display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text-sub);transition:background .15s;font-family:inherit}
 .btn-add-img:hover{background:#f5f5f5}
@@ -1091,6 +1093,14 @@ button,a,[role="button"]{touch-action:manipulation}
           <button class="blog-thumb-del" id="blogThumbDel" style="display:none" onclick="event.stopPropagation();removeBlogThumb()">×</button>
         </div>
         <input type="file" id="thumbFileInput" accept="image/*" style="display:none"/>
+        <div style="padding:10px 16px 0">
+          <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:4px">카드 제목 <span style="color:var(--text-hint);font-weight:400">(비우면 첫 줄 텍스트 사용)</span></div>
+          <input type="text" id="blogCardTitle" placeholder="카드에 표시할 제목을 입력하세요" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;outline:none"/>
+        </div>
+        <div style="padding:8px 16px 10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:4px">카드 설명 <span style="color:var(--text-hint);font-weight:400">(비우면 본문에서 자동 추출)</span></div>
+          <textarea id="blogCardDesc" placeholder="카드에 표시할 설명을 입력하세요" rows="2" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;outline:none;resize:none"></textarea>
+        </div>
       </div>
       <div class="block-editor" id="blockEditor"></div>
       <div class="add-img-row">
@@ -1125,7 +1135,7 @@ button,a,[role="button"]{touch-action:manipulation}
 </div>
 
 <!-- ════ 블로그 글 작성 페이지 ════ -->
-<div id="writeBlogPage" class="page" style="display:flex;flex-direction:column;background:var(--bg)">
+<div id="writeBlogPage" class="page" style="background:var(--bg)">
   <div style="position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;height:52px;gap:8px">
     <button onclick="cancelBlogWrite()" style="background:none;border:none;font-size:24px;color:var(--text);padding:0 8px;cursor:pointer;line-height:1;flex-shrink:0">‹</button>
     <span style="flex:1;font-weight:700;font-size:16px" id="writeBlogPageTitle">블로그 글 작성</span>
@@ -2917,8 +2927,9 @@ function postCardHtml(p){
     const thumbBlock=p.blocks?.find(b=>b.type==='thumbnail');
     const textBlocks=p.blocks?.filter(b=>b.type==='text'&&b.content?.trim())||[];
     const _stripHtml=h=>(h||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
-    const title=_stripHtml(textBlocks[0]?.content)?.split('\n')[0]||p.keyword||'블로그 글';
-    const excerpt=_stripHtml(textBlocks.map(b=>b.content).join(' ')).slice(0,150);
+    const metaBlock=p.blocks?.find(b=>b.type==='meta');
+    const title=metaBlock?.title||_stripHtml(textBlocks[0]?.content)?.split('\n')[0]||p.keyword||'블로그 글';
+    const excerpt=metaBlock?.description||_stripHtml(textBlocks.map(b=>b.content).join(' ')).slice(0,150);
     return`<div class="post-card" id="pc-${key}">
       <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
       <div class="blog-og-card" onclick="openFullPost('${key}')">
@@ -3077,12 +3088,11 @@ function nlvGo(dir){
   }
   function onEnd(e){
     if(!$('nlViewer').classList.contains('open'))return;
-    if(_nlScale<1.05){_nlResetZoom(true);return;}
-    // 스와이프로 페이지 넘기기 (축소 상태일 때만)
     if(_nlScale<=1.05&&_nlDragging){
       const dx=e.changedTouches[0].clientX-_nlDragX;
-      if(Math.abs(dx)>50)nlvGo(dx<0?1:-1);
+      if(Math.abs(dx)>50){_nlDragging=false;nlvGo(dx<0?1:-1);return;}
     }
+    if(_nlScale<1.05){_nlResetZoom(true);}
     _nlDragging=false;
   }
   document.addEventListener('touchstart',onStart,{passive:true});
@@ -3526,9 +3536,11 @@ function renderBlogEditor(){
       div.querySelector('.block-del').onclick=()=>{editorBlocks.splice(i,1);renderBlogEditor();};
     }else{
       div.draggable=true;
-      div.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><div class="caption-wrap"><input class="caption-input" type="text" placeholder="사진 설명 (선택)" value="${escHtml(b.caption||'')}"/><button class="block-del">×</button></div>`;
+      div.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><div class="caption-wrap"><input class="caption-input" type="text" placeholder="사진 설명 (선택)" value="${escHtml(b.caption||'')}"/><div style="display:flex;gap:4px;align-items:center"><button class="block-move" title="위로">↑</button><button class="block-move" title="아래로">↓</button><button class="block-del">×</button></div></div>`;
       div.querySelector('.caption-input').oninput=e=>{editorBlocks[i].caption=e.target.value;};
       div.querySelector('.block-del').onclick=()=>{editorBlocks.splice(i,1);renderBlogEditor();};
+      div.querySelector('.caption-wrap').querySelector('button[title="위로"]').onclick=()=>{if(i>0){const t=editorBlocks[i];editorBlocks[i]=editorBlocks[i-1];editorBlocks[i-1]=t;renderBlogEditor();}};
+      div.querySelector('.caption-wrap').querySelector('button[title="아래로"]').onclick=()=>{if(i<editorBlocks.length-1){const t=editorBlocks[i];editorBlocks[i]=editorBlocks[i+1];editorBlocks[i+1]=t;renderBlogEditor();}};
       div.addEventListener('dragstart',e=>{_blogDragIdx=i;e.dataTransfer.effectAllowed='move';});
       div.addEventListener('dragover',e=>{e.preventDefault();div.style.opacity='0.5';});
       div.addEventListener('dragleave',()=>{div.style.opacity='';});
@@ -3699,10 +3711,13 @@ function editPost(key){
   editingKey=key;
   const allBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
   const thumbBlock=allBlocks.find(b=>b.type==='thumbnail');
-  editorBlocks=allBlocks.filter(b=>b.type!=='thumbnail');
+  editorBlocks=allBlocks.filter(b=>b.type!=='thumbnail'&&b.type!=='meta');
   if(!editorBlocks.length)editorBlocks=[{type:'text',content:''}];
   $('modalTitle').textContent='글 수정';$('submitPost').textContent='수정';updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
   $('postKeyword').value=p.keyword||'';
+  const existingMeta=p.blocks?.find(b=>b.type==='meta');
+  if($('blogCardTitle'))$('blogCardTitle').value=existingMeta?.title||'';
+  if($('blogCardDesc'))$('blogCardDesc').value=existingMeta?.description||'';
   _showWriteEditor(p.mode==='blog'?'blog':'normal');
   if(thumbBlock&&thumbBlock.url){
     $('blogThumbPreview').src=thumbBlock.url;$('blogThumbPreview').style.display='block';
@@ -3711,7 +3726,7 @@ function editPost(key){
   }
   if(p.mode!=='blog')$('writeModal').classList.add('open');
 }
-function resetBlogThumb(){_blogThumbUrl='';$('blogThumbPreview').src='';$('blogThumbPreview').style.display='none';$('blogThumbPlaceholder').style.display='flex';$('blogThumbDel').style.display='none';}
+function resetBlogThumb(){_blogThumbUrl='';$('blogThumbPreview').src='';$('blogThumbPreview').style.display='none';$('blogThumbPlaceholder').style.display='flex';$('blogThumbDel').style.display='none';$('blogCardTitle').value='';$('blogCardDesc').value='';}
 function removeBlogThumb(){resetBlogThumb();}
 $('thumbFileInput') && ($('thumbFileInput').onchange=async function(e){
   const file=e.target.files[0];this.value='';if(!file)return;
@@ -3838,7 +3853,9 @@ $('imgFileInput').onchange=async function(e){const files=Array.from(e.target.fil
 $('submitPost').onclick=async function(){
   const hasContent=editorBlocks.some(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()));
   if(!hasContent){alert('내용을 입력해주세요.');return;}
+  const _bct=$('blogCardTitle')?.value.trim()||'';const _bcd=$('blogCardDesc')?.value.trim()||'';
   const thumbBlocks=(_writeMode==='blog'&&_blogThumbUrl)?[{type:'thumbnail',url:_blogThumbUrl}]:[];
+  if(_writeMode==='blog'&&(_bct||_bcd)){thumbBlocks.push({type:'meta',title:_bct,description:_bcd});}
   const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()))];
   $('submitPost').disabled=true;
   const keyword=$('postKeyword').value.trim();
@@ -3867,7 +3884,9 @@ $('submitPost').onclick=async function(){
   }catch(e){alert('저장 실패: '+e.message);}finally{$('submitPost').disabled=false;}
 };
 $('saveDraft').onclick=async function(){
+  const _bct2=$('blogCardTitle')?.value.trim()||'';const _bcd2=$('blogCardDesc')?.value.trim()||'';
   const thumbBlocks=(_writeMode==='blog'&&_blogThumbUrl)?[{type:'thumbnail',url:_blogThumbUrl}]:[];
+  if(_writeMode==='blog'&&(_bct2||_bcd2)){thumbBlocks.push({type:'meta',title:_bct2,description:_bcd2});}
   const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()))];
   if(!finalBlocks.length&&!_blogThumbUrl){alert('내용을 입력해주세요.');return;}
   $('saveDraft').disabled=true;
@@ -5977,6 +5996,7 @@ async function _loadProfilePosts(reset){
     }
     arr.forEach(p=>{const div=document.createElement('div');div.innerHTML=postCardHtml(p);cont.appendChild(div.firstChild);});
     $('profilePageLoadMore').style.display=_profileHasMore?'':'none';
+    initCarousels();
     initYtPlayers();
   }catch(e){
     $('profilePagePosts').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오지 못했습니다</div>';
