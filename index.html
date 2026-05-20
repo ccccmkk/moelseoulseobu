@@ -763,7 +763,7 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="section-title">공덕·마포역 맛집</span>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn-sm" id="restViewListBtn" onclick="switchRestView('list')" style="font-size:11px;padding:4px 10px">목록</button>
-          <button class="btn-sm" id="restViewMapBtn" onclick="switchRestView('map')" style="font-size:11px;padding:4px 10px">지도</button>
+          <button class="btn-sm" id="restViewMapBtn" onclick="switchRestView('map')" style="font-size:11px;padding:4px 10px;background:var(--green);color:#fff">지도</button>
           <button class="btn-sm primary" id="addRestBtn" style="display:none;font-size:11px;padding:4px 10px" onclick="openAddRestModal()">+ 추가</button>
         </div>
       </div>
@@ -5013,7 +5013,7 @@ async function agentHealthReply(){
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 const CENTER_LAT=37.5430, CENTER_LNG=126.9510; // 서울서부고용복지플러스센터
-let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='list';
+let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='map';
 
 function switchRestView(v){
   _restView=v;
@@ -5093,7 +5093,7 @@ async function loadRestaurants(){
     _restData=Array.isArray(list)?list:[];
     if(!_restData.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
     box.innerHTML=_restData.map(r=>renderRestCard(r)).join('');
-    if(_restView==='map') renderRestMapMarkers();
+    switchRestView(_restView);
   }catch(e){box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 function renderRestCard(r){
