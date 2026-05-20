@@ -2160,8 +2160,7 @@ function switchNewsMainTab(sub){
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
   if(sub==='law') updateLawAskCounter();
   if(sub==='lunch'){
-    // 지도를 데이터 로딩과 무관하게 탭 전환 즉시 초기화
-    requestAnimationFrame(()=>setTimeout(initRestMap,80));
+    requestAnimationFrame(()=>switchRestView('map')); // restMapView 표시 후 지도 초기화
     if(!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
   }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';

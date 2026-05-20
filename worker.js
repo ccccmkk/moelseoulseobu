@@ -2137,9 +2137,11 @@ export default {
             `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(q)}`,
             { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
           );
-          const d = await r.json();
+          const raw = await r.text();
+          let d; try { d = JSON.parse(raw); } catch(e) { return json({ ok: false, error: 'API 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }
+          if (!r.ok) return json({ ok: false, error: 'NCP 오류', status: r.status, body: d });
           const addr = d?.addresses?.[0];
-          if (!addr) return json({ ok: false, message: '주소를 찾을 수 없습니다' });
+          if (!addr) return json({ ok: false, message: '주소를 찾을 수 없습니다', meta: d?.meta });
           const today2 = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
           ctx.waitUntil(env.DB.prepare('INSERT INTO naver_map_usage(date,geocode_calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET geocode_calls=geocode_calls+1').bind(today2).run().catch(()=>{}));
           return json({ ok: true, lat: parseFloat(addr.y), lng: parseFloat(addr.x), roadAddress: addr.roadAddress, jibunAddress: addr.jibunAddress });
@@ -2148,16 +2150,17 @@ export default {
 
       if (p === '/api/place-search' && m === 'GET') {
         const q = url.searchParams.get('q');
-        const lat = url.searchParams.get('lat') || '37.5430';
-        const lng = url.searchParams.get('lng') || '126.9510';
         if (!q) return json({ error: 'q 필수' }, 400);
         if (!env.NAVER_MAP_CLIENT_ID || !env.NAVER_MAP_CLIENT_SECRET) return json({ error: 'API 키 미설정' }, 503);
         try {
+          // 좌표 반경 제한 없이 전국 검색 (반경 제한 시 결과 없는 경우 있음)
           const r = await fetch(
-            `https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=${encodeURIComponent(q)}&coordinate=${lng},${lat}&radius=5000`,
+            `https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=${encodeURIComponent(q)}`,
             { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
           );
-          const d = await r.json();
+          const raw = await r.text();
+          let d; try { d = JSON.parse(raw); } catch(e) { return json({ error: 'API 응답 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }
+          if (!r.ok) return json({ error: 'NCP 오류', status: r.status, body: d }, r.status);
           const todayPs = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
           ctx.waitUntil(env.DB.prepare('INSERT INTO naver_map_usage(date,place_calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET place_calls=place_calls+1').bind(todayPs).run().catch(()=>{}));
           return json({ ok: true, places: d.places || [] });
