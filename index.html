@@ -1026,6 +1026,30 @@ button,a,[role="button"]{touch-action:manipulation}
   </nav>
 </div>
 
+<!-- ════ 프로필 페이지 ════ -->
+<div id="profilePage" class="page">
+  <div style="position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0;height:52px">
+    <button onclick="closeProfilePage()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);padding:0 16px;height:100%;line-height:1">‹</button>
+    <span id="profilePageTitle" style="font-weight:700;font-size:16px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+  </div>
+  <div style="padding:28px 20px 16px;text-align:center;border-bottom:1px solid var(--border)">
+    <div id="profilePageAvatar" style="width:72px;height:72px;border-radius:50%;background:var(--green);color:#fff;font-size:26px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;overflow:hidden;flex-shrink:0"></div>
+    <div id="profilePageName" style="font-weight:700;font-size:18px;color:var(--text);margin-bottom:12px"></div>
+    <div id="profilePageStats" style="display:flex;justify-content:center;gap:32px"></div>
+  </div>
+  <div id="profilePageTabs" style="display:none;border-bottom:1px solid var(--border)">
+    <div style="display:flex;background:var(--card)">
+      <button id="profileTab-published" onclick="switchProfileTab('published')" style="flex:1;padding:13px 4px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--green);border-bottom:2px solid var(--green);transition:all .15s">게시글</button>
+      <button id="profileTab-draft" onclick="switchProfileTab('draft')" style="flex:1;padding:13px 4px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-hint);border-bottom:2px solid transparent;transition:all .15s">임시저장</button>
+      <button id="profileTab-hidden" onclick="switchProfileTab('hidden')" style="flex:1;padding:13px 4px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-hint);border-bottom:2px solid transparent;transition:all .15s">숨긴글</button>
+    </div>
+  </div>
+  <div id="profilePagePosts"></div>
+  <div id="profilePageLoadMore" style="display:none;text-align:center;padding:16px">
+    <button onclick="loadMoreProfilePosts()" style="padding:9px 24px;border:1px solid var(--border);border-radius:20px;background:none;cursor:pointer;font-size:13px;color:var(--text-sub)">더 보기</button>
+  </div>
+</div>
+
 <!-- FAB -->
 <button class="fab" id="fab" onclick="openWriteModal()">+</button>
 
@@ -3679,6 +3703,11 @@ async function _setPostStatus(key,status){
       if(el){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}
       initCarousels();
     }
+    // 프로필 페이지가 열려있으면 현재 탭 새로고침
+    if($('profilePage').classList.contains('active')&&_profileUserId===currentUser){
+      _profileNextCursor=null;
+      await _loadProfilePosts(true);
+    }
   }catch(e){alert('실패: '+e.message);}
 }
 function _closeWriteModal(){_blogFullscreen=false;$('writeModal').classList.remove('open');$('writeModal').classList.remove('fullscreen-modal');}
@@ -5805,46 +5834,88 @@ async function toggleBadge(userId,badge,btn){
 }
 
 // ── 유저 프로필 카드 ──
+let _profileUserId=null,_profileTab='published',_profileNextCursor=null,_profileHasMore=false;
+
 async function openUserProfile(userId){
-  $('userProfileBody').innerHTML='<div style="padding:20px;text-align:center;color:#aaa">불러오는 중...</div>';
-  $('userProfileModal').classList.add('open');
-  try{
-    const [d,act]=await Promise.all([
-      fetch(`${API}/api/profile/${encodeURIComponent(userId)}`).then(r=>r.json()),
-      fetch(`${API}/api/profile/${encodeURIComponent(userId)}/activity`).then(r=>r.json()).catch(()=>({posts:[],comments:[]})),
-    ]);
-    const av=profiles[userId];
-    const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
-    const avHtml=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`:escHtml(av||initials(userId));
-    const uname=escHtml(userName(userId));
-    let actHtml='';
-    const recentPosts=act.posts||[];
-    const recentCmts=act.comments||[];
-    if(recentPosts.length){
-      actHtml+=`<div style="font-size:12px;font-weight:600;color:var(--text-hint);text-transform:uppercase;letter-spacing:.4px;padding:14px 0 6px">최근 게시글</div>`;
-      actHtml+=recentPosts.map(p=>{
-        const txt=(p.blocks||[]).filter(b=>b.type==='text').map(b=>b.content).join(' ');
-        const preview=txt.length>60?txt.slice(0,60)+'...':txt||'(사진 게시물)';
-        return`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;color:var(--text)">${escHtml(preview)}</div><div style="font-size:11px;color:var(--text-hint);margin-top:2px">${relDate(p.created_at)} · ♥${p.like_count||0}</div></div>`;
-      }).join('');
-    }
-    if(recentCmts.length){
-      actHtml+=`<div style="font-size:12px;font-weight:600;color:var(--text-hint);text-transform:uppercase;letter-spacing:.4px;padding:14px 0 6px">최근 댓글</div>`;
-      actHtml+=recentCmts.map(c=>
-        `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;color:var(--text)">${escHtml((c.content||'').slice(0,60)+(c.content&&c.content.length>60?'...':''))}</div><div style="font-size:11px;color:var(--text-hint);margin-top:2px">${relDate(c.created_at)}</div></div>`
-      ).join('');
-    }
-    $('userProfileBody').innerHTML=`
-      <div class="userprofile-avatar" ${isImg?'style="overflow:hidden;padding:0"':''}>${avHtml}</div>
-      <div class="userprofile-name">${uname}${badgeHtml(userId)}</div>
-      <div class="userprofile-stats">
-        <div class="stat-item"><div class="stat-num">${d.post_count||0}</div><div class="stat-label">게시글</div></div>
-        <div class="stat-item"><div class="stat-num">${d.comment_count||0}</div><div class="stat-label">댓글</div></div>
-        <div class="stat-item"><div class="stat-num">${Math.floor(d.mileage||0)}</div><div class="stat-label">마일리지</div></div>
-      </div>
-      ${actHtml}`;
-  }catch(e){$('userProfileBody').innerHTML='<div class="empty-state"><div class="ei">⚠️</div>불러오지 못했습니다.</div>';}
+  _profileUserId=userId;
+  _profileTab='published';
+  _profileNextCursor=null;
+  const isMe=userId===currentUser;
+  showPage('profilePage');
+  $('profilePageTitle').textContent=isMe?'내 게시물함':`${userName(userId)}의 게시물`;
+  const tabs=$('profilePageTabs');
+  tabs.style.display=isMe?'block':'none';
+  if(isMe)_switchProfileTabUI('published');
+  // 프로필 헤더
+  const av=profiles[userId];
+  const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
+  $('profilePageAvatar').innerHTML=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover"/>`:(av||initials(userName(userId)||userId));
+  $('profilePageName').innerHTML=escHtml(userName(userId)||userId)+badgeHtml(userId);
+  $('profilePageStats').innerHTML='<div style="text-align:center"><div style="font-weight:700;font-size:18px">-</div><div style="font-size:11px;color:var(--text-hint)">게시글</div></div>';
+  $('profilePagePosts').innerHTML='<div style="padding:60px 20px;text-align:center;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  $('profilePageLoadMore').style.display='none';
+  // 프로필 통계 비동기 로드
+  fetch(`${API}/api/profile/${encodeURIComponent(userId)}`).then(r=>r.json()).then(d=>{
+    $('profilePageStats').innerHTML=`
+      <div style="text-align:center"><div style="font-weight:700;font-size:18px">${d.post_count||0}</div><div style="font-size:11px;color:var(--text-hint)">게시글</div></div>
+      <div style="text-align:center"><div style="font-weight:700;font-size:18px">${d.comment_count||0}</div><div style="font-size:11px;color:var(--text-hint)">댓글</div></div>
+      <div style="text-align:center"><div style="font-weight:700;font-size:18px">${Math.floor(d.mileage||0)}</div><div style="font-size:11px;color:var(--text-hint)">마일리지</div></div>`;
+  }).catch(()=>{});
+  await _loadProfilePosts(true);
 }
+
+function _switchProfileTabUI(tab){
+  ['published','draft','hidden'].forEach(t=>{
+    const btn=$('profileTab-'+t);
+    if(!btn)return;
+    const active=t===tab;
+    btn.style.color=active?'var(--green)':'var(--text-hint)';
+    btn.style.borderBottomColor=active?'var(--green)':'transparent';
+  });
+}
+
+async function switchProfileTab(tab){
+  if(_profileTab===tab)return;
+  _profileTab=tab;
+  _profileNextCursor=null;
+  _switchProfileTabUI(tab);
+  $('profilePagePosts').innerHTML='<div style="padding:60px 20px;text-align:center;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  $('profilePageLoadMore').style.display='none';
+  await _loadProfilePosts(true);
+}
+
+async function _loadProfilePosts(reset){
+  const isMe=_profileUserId===currentUser;
+  let url=`${API}/api/posts?author=${encodeURIComponent(_profileUserId)}&limit=20`;
+  if(isMe&&_profileTab!=='published'){
+    url+=`&status=${_profileTab}&token=${encodeURIComponent(sessionToken)}`;
+  } else if(isMe){
+    url+=`&token=${encodeURIComponent(sessionToken)}`;
+  }
+  if(!reset&&_profileNextCursor)url+=`&before=${_profileNextCursor}`;
+  try{
+    const d=await fetch(url).then(r=>r.json());
+    const arr=d.posts||[];
+    _profileHasMore=d.has_more;
+    _profileNextCursor=d.next_cursor||null;
+    const cont=$('profilePagePosts');
+    if(reset)cont.innerHTML='';
+    if(!arr.length&&reset){
+      const msg=_profileTab==='draft'?'임시저장된 글이 없습니다':_profileTab==='hidden'?'숨긴 글이 없습니다':'아직 게시글이 없습니다';
+      cont.innerHTML=`<div style="padding:60px 20px;text-align:center;color:var(--text-hint);font-size:13px">${msg}</div>`;
+      $('profilePageLoadMore').style.display='none';
+      return;
+    }
+    arr.forEach(p=>{const div=document.createElement('div');div.innerHTML=postCardHtml(p);cont.appendChild(div.firstChild);});
+    $('profilePageLoadMore').style.display=_profileHasMore?'':'none';
+  }catch(e){
+    $('profilePagePosts').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오지 못했습니다</div>';
+  }
+}
+
+async function loadMoreProfilePosts(){await _loadProfilePosts(false);}
+
+function closeProfilePage(){showPage('appPage');}
 
 // ── 뒤로가기(Android 물리 버튼 / 브라우저 back) 모달 닫기 ──
 (function(){
