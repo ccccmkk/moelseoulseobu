@@ -2159,7 +2159,11 @@ function switchNewsMainTab(sub){
   if(sub==='news'&&!newsCache) loadNews();
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
   if(sub==='law') updateLawAskCounter();
-  if(sub==='lunch'&&!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
+  if(sub==='lunch'){
+    // 지도를 데이터 로딩과 무관하게 탭 전환 즉시 초기화
+    requestAnimationFrame(()=>setTimeout(initRestMap,80));
+    if(!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
+  }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
 // legacy stub
@@ -5094,7 +5098,8 @@ async function loadRestaurants(){
     _restData=Array.isArray(list)?list:[];
     if(!_restData.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
     box.innerHTML=_restData.map(r=>renderRestCard(r)).join('');
-    switchRestView(_restView);
+    // 이미 지도가 초기화돼 있으면 마커만 갱신
+    if(_restMap) renderRestMapMarkers(); else requestAnimationFrame(()=>setTimeout(initRestMap,80));
   }catch(e){box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 function renderRestCard(r){
@@ -5212,25 +5217,33 @@ async function searchRestPlace(){
     </div>`).join('');
   }
 
+  let lastErr='';
+
   // 1순위: NCP Place Search
   try{
-    const d=await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}&lat=${CENTER_LAT}&lng=${CENTER_LNG}`).then(r=>r.json());
-    if(d.ok&&d.places?.length){
+    const r=await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}&lat=${CENTER_LAT}&lng=${CENTER_LNG}`);
+    const text=await r.text();
+    let d;try{d=JSON.parse(text);}catch(e){lastErr='[PlaceSearch] 파싱실패 HTTP'+r.status+': '+text.slice(0,200);}
+    if(d?.ok&&d.places?.length){
       _renderResults(d.places.slice(0,8).map(pl=>({lat:parseFloat(pl.y),lng:parseFloat(pl.x),name:pl.name,addr:pl.roadAddress||pl.address||'',dist:pl.distance?Math.round(pl.distance):null})));
       return;
     }
-  }catch(e){}
+    if(d&&!lastErr) lastErr='[PlaceSearch] '+JSON.stringify(d).slice(0,200);
+  }catch(e){lastErr='[PlaceSearch] 네트워크오류: '+e.message;}
 
-  // 2순위: Geocoding 폴백 (주소·장소명 모두 가능)
+  // 2순위: Geocoding 폴백
   try{
-    const d=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`).then(r=>r.json());
-    if(d.ok){
+    const r=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
+    const text=await r.text();
+    let d;try{d=JSON.parse(text);}catch(e){lastErr+=' | [Geocode] 파싱실패 HTTP'+r.status+': '+text.slice(0,200);}
+    if(d?.ok){
       _renderResults([{lat:d.lat,lng:d.lng,name:q,addr:d.roadAddress||d.jibunAddress||'',dist:null}]);
       return;
     }
-  }catch(e){}
+    if(d&&!lastErr.includes('[Geocode]')) lastErr+=' | [Geocode] '+JSON.stringify(d).slice(0,200);
+  }catch(e){lastErr+=' | [Geocode] 네트워크오류: '+e.message;}
 
-  res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--text-hint)">검색 결과가 없습니다<br/><span style="font-size:11px">가게 이름 대신 주소로 검색해보세요</span></div>';
+  res.innerHTML=`<div style="padding:10px 14px;font-size:12px;color:var(--danger);word-break:break-all">검색 실패:<br/>${escHtml(lastErr)}</div>`;
 }
 function selectRestPlace(lat,lng,name,address){
   $('restName').value=name;
@@ -5245,14 +5258,16 @@ async function geocodeRestAddress(){
   const q=$('restAddress').value.trim();
   if(!q){alert('주소를 입력해주세요.');return;}
   try{
-    const d=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`).then(r=>r.json());
-    if(!d.ok){alert(d.message||'주소를 찾을 수 없습니다.');return;}
+    const r=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
+    const text=await r.text();
+    let d;
+    try{d=JSON.parse(text);}catch(e){alert('응답 파싱 실패 (HTTP '+r.status+'):\n'+text.slice(0,300));return;}
+    if(!d.ok){alert('주소 검색 실패:\n'+JSON.stringify(d,null,2));return;}
     setAddRestPin(d.lat,d.lng);
     $('restAddress').value=d.roadAddress||d.jibunAddress||q;
-    _addRestMap.setCenter(new naver.maps.LatLng(d.lat,d.lng));
-    _addRestMap.setZoom(17);
+    if(_addRestMap){_addRestMap.setCenter(new naver.maps.LatLng(d.lat,d.lng));_addRestMap.setZoom(17);}
     $('addRestMapMsg').textContent=`✅ ${d.roadAddress||d.jibunAddress}`;
-  }catch(e){alert('Geocoding 실패: '+e.message);}
+  }catch(e){alert('네트워크 오류: '+e.message);}
 }
 async function submitAddRest(){
   const name=$('restName').value.trim();
