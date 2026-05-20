@@ -5029,8 +5029,14 @@ function switchRestView(v){
   // display 변경 후 브라우저 레이아웃 사이클 대기 후 초기화
   if(v==='map') requestAnimationFrame(()=>setTimeout(initRestMap,50));
 }
+let _initRestMapTries=0;
 function initRestMap(){
-  if(!window.naver||!naver.maps) return;
+  // SDK 아직 로드 안 됐으면 최대 30회(9초) 재시도
+  if(!window.naver||!naver.maps||!naver.maps.Map){
+    if(_initRestMapTries++<30) setTimeout(initRestMap,300);
+    return;
+  }
+  _initRestMapTries=0;
   if(!_restMap){
     _restMap=new naver.maps.Map('naverMapContainer',{
       center:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
@@ -5040,13 +5046,14 @@ function initRestMap(){
       logoControl:false,
       mapDataControl:false,
     });
-    // 센터 마커
     new naver.maps.Marker({
       position:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
       map:_restMap,
       icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">🏢 센터</div>`,anchor:new naver.maps.Point(30,14)},
       title:'서울서부고용복지플러스센터',zIndex:10,
     });
+  } else {
+    _restMap.updateSize();
   }
   renderRestMapMarkers();
 }
@@ -5216,33 +5223,31 @@ async function searchRestPlace(){
     </div>`).join('');
   }
 
-  let lastErr='';
-
-  // 1순위: NCP Place Search
+  // 1순위: NCP Place Search (REST API)
   try{
-    const r=await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}&lat=${CENTER_LAT}&lng=${CENTER_LNG}`);
-    const text=await r.text();
-    let d;try{d=JSON.parse(text);}catch(e){lastErr='[PlaceSearch] 파싱실패 HTTP'+r.status+': '+text.slice(0,200);}
+    const r=await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}`);
+    const d=await r.json();
     if(d?.ok&&d.places?.length){
       _renderResults(d.places.slice(0,8).map(pl=>({lat:parseFloat(pl.y),lng:parseFloat(pl.x),name:pl.name,addr:pl.roadAddress||pl.address||'',dist:pl.distance?Math.round(pl.distance):null})));
       return;
     }
-    if(d&&!lastErr) lastErr='[PlaceSearch] '+JSON.stringify(d).slice(0,200);
-  }catch(e){lastErr='[PlaceSearch] 네트워크오류: '+e.message;}
+  }catch(e){}
 
-  // 2순위: Geocoding 폴백
-  try{
-    const r=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
-    const text=await r.text();
-    let d;try{d=JSON.parse(text);}catch(e){lastErr+=' | [Geocode] 파싱실패 HTTP'+r.status+': '+text.slice(0,200);}
-    if(d?.ok){
-      _renderResults([{lat:d.lat,lng:d.lng,name:q,addr:d.roadAddress||d.jibunAddress||'',dist:null}]);
-      return;
-    }
-    if(d&&!lastErr.includes('[Geocode]')) lastErr+=' | [Geocode] '+JSON.stringify(d).slice(0,200);
-  }catch(e){lastErr+=' | [Geocode] 네트워크오류: '+e.message;}
+  // 2순위: naver.maps.Service.geocode (JS SDK — REST API 구독 불필요)
+  if(window.naver&&naver.maps?.Service){
+    naver.maps.Service.geocode({query:q},function(status,response){
+      if(status===naver.maps.Service.Status.OK&&response.v2?.addresses?.length){
+        _renderResults(response.v2.addresses.slice(0,5).map(a=>({
+          lat:parseFloat(a.y),lng:parseFloat(a.x),name:q,addr:a.roadAddress||a.jibunAddress||'',dist:null
+        })));
+      }else{
+        res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--text-hint)">검색 결과가 없습니다<br/><span style="font-size:11px">가게 이름 대신 주소로 검색해보세요</span></div>';
+      }
+    });
+    return;
+  }
 
-  res.innerHTML=`<div style="padding:10px 14px;font-size:12px;color:var(--danger);word-break:break-all">검색 실패:<br/>${escHtml(lastErr)}</div>`;
+  res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--text-hint)">검색 결과가 없습니다</div>';
 }
 function selectRestPlace(lat,lng,name,address){
   $('restName').value=name;
@@ -5253,20 +5258,21 @@ function selectRestPlace(lat,lng,name,address){
   if(_addRestMap){_addRestMap.setCenter(new naver.maps.LatLng(lat,lng));_addRestMap.setZoom(17);}
   $('addRestMapMsg').textContent=`✅ ${address||name}`;
 }
-async function geocodeRestAddress(){
+function geocodeRestAddress(){
   const q=$('restAddress').value.trim();
   if(!q){alert('주소를 입력해주세요.');return;}
-  try{
-    const r=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
-    const text=await r.text();
-    let d;
-    try{d=JSON.parse(text);}catch(e){alert('응답 파싱 실패 (HTTP '+r.status+'):\n'+text.slice(0,300));return;}
-    if(!d.ok){alert('주소 검색 실패:\n'+JSON.stringify(d,null,2));return;}
-    setAddRestPin(d.lat,d.lng);
-    $('restAddress').value=d.roadAddress||d.jibunAddress||q;
-    if(_addRestMap){_addRestMap.setCenter(new naver.maps.LatLng(d.lat,d.lng));_addRestMap.setZoom(17);}
-    $('addRestMapMsg').textContent=`✅ ${d.roadAddress||d.jibunAddress}`;
-  }catch(e){alert('네트워크 오류: '+e.message);}
+  if(!window.naver||!naver.maps?.Service){alert('지도 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.');return;}
+  naver.maps.Service.geocode({query:q},function(status,response){
+    if(status!==naver.maps.Service.Status.OK||!response.v2?.addresses?.length){
+      alert('주소를 찾을 수 없습니다.\n도로명 주소나 지번 주소로 입력해보세요.');return;
+    }
+    const addr=response.v2.addresses[0];
+    const lat=parseFloat(addr.y),lng=parseFloat(addr.x);
+    setAddRestPin(lat,lng);
+    $('restAddress').value=addr.roadAddress||addr.jibunAddress||q;
+    if(_addRestMap){_addRestMap.setCenter(new naver.maps.LatLng(lat,lng));_addRestMap.setZoom(17);}
+    $('addRestMapMsg').textContent=`✅ ${addr.roadAddress||addr.jibunAddress}`;
+  });
 }
 async function submitAddRest(){
   const name=$('restName').value.trim();
