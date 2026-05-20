@@ -2668,19 +2668,39 @@ function ytVideoId(url){
 let _ytUid=0;
 const _ytPlayers={};
 let _ytObserver=null;
+let _activeYtUid=null; // 현재 재생 중인 플레이어 uid (한 번에 하나만)
 
 function onYouTubeIframeAPIReady(){ initYtPlayers(); }
 
+function _ytPlay(uid){
+  // 다른 영상이 재생 중이면 먼저 일시정지
+  if(_activeYtUid&&_activeYtUid!==uid){
+    try{_ytPlayers[_activeYtUid]?.pauseVideo();}catch(e){}
+  }
+  try{_ytPlayers[uid]?.playVideo();}catch(e){}
+  _activeYtUid=uid;
+}
+
+function _ytPause(uid){
+  try{_ytPlayers[uid]?.pauseVideo();}catch(e){}
+  if(_activeYtUid===uid)_activeYtUid=null;
+}
+
 function getYtObserver(){
   if(_ytObserver) return _ytObserver;
+  // rootMargin: 상단 -15% / 하단 -25% → 영상이 화면 중간~상단 60% 구간에 들어올 때 재생
+  // threshold 배열로 진입/이탈 모두 감지
   _ytObserver=new IntersectionObserver(entries=>{
     entries.forEach(entry=>{
       const uid=entry.target.dataset.ytUid;
-      const p=_ytPlayers[uid];
-      if(!p) return;
-      try{ entry.isIntersecting&&entry.intersectionRatio>=0.4 ? p.playVideo() : p.pauseVideo(); }catch(e){}
+      if(!_ytPlayers[uid]) return;
+      if(entry.isIntersecting){
+        _ytPlay(uid);
+      }else{
+        _ytPause(uid);
+      }
     });
-  },{threshold:0.4});
+  },{rootMargin:'-15% 0px -25% 0px', threshold:0});
   return _ytObserver;
 }
 
@@ -2709,6 +2729,7 @@ function toggleYtMute(btn){
 
 function cleanupYtPlayers(){
   if(_ytObserver){_ytObserver.disconnect();_ytObserver=null;}
+  _activeYtUid=null;
   Object.keys(_ytPlayers).forEach(k=>{try{_ytPlayers[k].destroy();}catch(e){}delete _ytPlayers[k];});
 }
 
