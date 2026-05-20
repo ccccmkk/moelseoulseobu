@@ -727,6 +727,16 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div id="newsScrapPane"></div>
       <div id="newsContent" style="display:none"></div>
+      <!-- 네이버뉴스 검색 패널 -->
+      <div id="naverSearchPane" style="display:none">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:8px">
+            <input id="naverSearchInput" type="text" placeholder="뉴스 검색어 입력..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit" onkeydown="if(event.key==='Enter')doNaverSearch()">
+            <button onclick="doNaverSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">검색</button>
+          </div>
+        </div>
+        <div id="naverSearchResult"></div>
+      </div>
     </div>
     <!-- 법률 -->
     <div id="lawMainPane" style="display:none">
@@ -2255,6 +2265,24 @@ function _stopLocalMsg(){
   if(_localMsgTimer){clearInterval(_localMsgTimer);_localMsgTimer=null;}
   const el=$('localLoadingMsg');if(el)el.style.display='none';
 }
+async function doNaverSearch(){
+  const q=($('naverSearchInput')?.value||'').trim();
+  const box=$('naverSearchResult');
+  if(!q){box.innerHTML='<div style="padding:20px 16px;text-align:center;font-size:13px;color:var(--text-hint)">검색어를 입력해주세요.</div>';return;}
+  const _sk=()=>`<div class="sk-card" style="padding:12px 14px"><div class="sk sk-line" style="width:80%;margin-bottom:8px"></div><div class="sk sk-line" style="width:40%;height:10px"></div></div>`;
+  box.innerHTML=Array(6).fill(0).map(_sk).join('');
+  try{
+    const r=await fetch(`${API}/api/news/search?q=${encodeURIComponent(q)}`);
+    if(!r.ok) throw new Error('서버 오류 '+r.status);
+    const data=await r.json();
+    if(data.error) throw new Error(data.error);
+    if(!data.length){box.innerHTML='<div class="empty-state"><div class="ei">🔍</div>검색 결과가 없습니다.</div>';return;}
+    box.innerHTML=`<div style="padding:8px 16px;font-size:12px;color:var(--text-hint);border-bottom:1px solid var(--border)">"${escHtml(q)}" 검색 결과 ${data.length}건</div>`
+      +data.map(n=>newsCardHtml(n)).join('');
+  }catch(e){
+    box.innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'검색에 실패했습니다.')}<br/><button class="btn-sm" onclick="doNaverSearch()" style="margin-top:12px">재시도</button></div>`;
+  }
+}
 function switchNewsCat(cat){
   newsCat=cat;
   ['scrap','local','naver'].forEach(t=>{
@@ -2262,13 +2290,17 @@ function switchNewsCat(cat){
   });
   const ldf=$('localDistrictFilter');
   if(ldf) ldf.style.display=cat==='local'?'flex':'none';
-  const sp=$('newsScrapPane'), nc=$('newsContent');
+  const sp=$('newsScrapPane'), nc=$('newsContent'), np=$('naverSearchPane');
   if(sp) sp.style.display=cat==='scrap'?'block':'none';
-  if(nc) nc.style.display=cat==='scrap'?'none':'block';
+  if(nc) nc.style.display=cat==='local'?'block':'none';
+  if(np) np.style.display=cat==='naver'?'block':'none';
   if(cat==='scrap'){
     if(!scrapLoaded){scrapLoaded=true;loadScrap();}
-  } else {
+  } else if(cat==='local'){
     newsCache=null;newsPage=1;loadNews();
+  } else if(cat==='naver'){
+    // 검색창 포커스
+    setTimeout(()=>$('naverSearchInput')?.focus(),100);
   }
 }
 const DISTRICT_IDS={'all':'ld-all','은평':'ld-eunpyeong','서대문':'ld-sdm','마포':'ld-mapo','용산':'ld-yongsan'};
@@ -2618,7 +2650,7 @@ async function loadNews(reset){
   if(newsCat==='local') _startLocalMsg(); else _stopLocalMsg();
   $('newsContent').innerHTML=Array(6).fill(0).map(_skNews).join('');
   np.start();
-  const apiCat=newsCat==='naver'?'headline':newsCat;
+  const apiCat=newsCat;
   try{
     const r=await fetch(`${API}/api/news?category=${apiCat}`);
     if(!r.ok)throw new Error('서버 오류 '+r.status);

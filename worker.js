@@ -463,6 +463,42 @@ export default {
         }
       }
 
+      // ── 뉴스 검색 (네이버 검색 API, 5분 캐시) ──
+      if (p === '/api/news/search' && m === 'GET') {
+        const q = (url.searchParams.get('q') || '').trim();
+        if (!q) return json({ error: 'q 필수' }, 400);
+        const cacheKey = 'search:' + q.slice(0, 80);
+        const now = Math.floor(Date.now() / 1000);
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cacheKey).first();
+        if (cached && now - cached.cached_at < 300) return json(JSON.parse(cached.data));
+        if (!env.NAVER_CLIENT_ID || !env.NAVER_CLIENT_SECRET) return json({ error: '네이버 API 키 미설정' }, 503);
+        try {
+          const naverHeaders = { 'X-Naver-Client-Id': env.NAVER_CLIENT_ID, 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET };
+          const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim() : '';
+          const r = await fetchTimeout(
+            `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(q)}&display=100&sort=date`,
+            { headers: naverHeaders }, 8000);
+          if (!r.ok) throw new Error(`Naver API ${r.status}`);
+          const d = await r.json();
+          const items = (d.items||[]).map(item=>({
+            title: decode(item.title),
+            link: item.originallink||item.link,
+            pubDate: item.pubDate,
+            source: (()=>{try{return new URL(item.originallink||item.link).hostname.replace(/^www\./,'');}catch(e){return '';}})(),
+          }));
+          const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+          ctx.waitUntil(Promise.all([
+            env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+              .bind(cacheKey, JSON.stringify(items), now, JSON.stringify(items), now).run(),
+            env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET calls=calls+1').bind(today).run().catch(()=>{}),
+          ]));
+          return json(items);
+        } catch(e) {
+          if (cached) return json(JSON.parse(cached.data));
+          return json({ error: e.message }, 500);
+        }
+      }
+
       // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
