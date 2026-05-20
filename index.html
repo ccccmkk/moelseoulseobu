@@ -584,6 +584,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .editor-yt-wrap{padding:8px 16px 4px;}
 .yt-mute-btn{position:absolute;bottom:10px;right:10px;z-index:10;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .yt-mute-btn:hover{background:rgba(0,0,0,.8)}
+.yt-overlay{position:absolute;inset:0;z-index:5;cursor:pointer;background:transparent;-webkit-tap-highlight-color:transparent}
 .rest-result-item{transition:background .12s}
 .rest-result-item:hover{background:var(--bg2)}
 .link-preview{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fafafa;margin:0 14px 10px;transition:box-shadow .15s;padding:10px 12px}
@@ -2843,6 +2844,14 @@ function initYtPlayers(){
   });
 }
 
+function toggleYtPlay(el){
+  const uid=el.dataset.ytUid;
+  const p=_ytPlayers[uid]; if(!p) return;
+  try{
+    if(p.getPlayerState()===YT.PlayerState.PLAYING){p.pauseVideo();}
+    else{p.playVideo();}
+  }catch(e){}
+}
 function toggleYtMute(btn){
   const uid=btn.dataset.ytUid;
   const p=_ytPlayers[uid]; if(!p) return;
@@ -2871,6 +2880,7 @@ function youtubeBlockHtml(b){
   const uid=++_ytUid;
   return`<div class="yt-player-wrap" data-ytid="${escHtml(vid)}" data-yt-uid="${uid}" onclick="event.stopPropagation()">
     <div id="yt-p-${uid}" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
+    <div class="yt-overlay" data-yt-uid="${uid}" onclick="event.stopPropagation();toggleYtPlay(this)"></div>
     <button class="yt-mute-btn" data-yt-uid="${uid}" onclick="event.stopPropagation();toggleYtMute(this)">🔇</button>
   </div>`;
 }
