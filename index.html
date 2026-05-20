@@ -763,7 +763,7 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="section-title">공덕·마포역 맛집</span>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn-sm" id="restViewListBtn" onclick="switchRestView('list')" style="font-size:11px;padding:4px 10px">목록</button>
-          <button class="btn-sm" id="restViewMapBtn" onclick="switchRestView('map')" style="font-size:11px;padding:4px 10px">지도</button>
+          <button class="btn-sm" id="restViewMapBtn" onclick="switchRestView('map')" style="font-size:11px;padding:4px 10px;background:var(--green);color:#fff">지도</button>
           <button class="btn-sm primary" id="addRestBtn" style="display:none;font-size:11px;padding:4px 10px" onclick="openAddRestModal()">+ 추가</button>
         </div>
       </div>
@@ -787,10 +787,17 @@ button,a,[role="button"]{touch-action:manipulation}
         <button class="modal-close" onclick="$('addRestModal').classList.remove('open')">×</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div style="position:relative">
+          <div style="display:flex;gap:6px">
+            <input id="restPlaceSearch" type="text" placeholder="장소명 검색 (예: 스타벅스 서울역)" style="flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" onkeydown="if(event.key==='Enter')searchRestPlace()"/>
+            <button onclick="searchRestPlace()" style="white-space:nowrap;padding:0 14px;background:#03c75a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">검색</button>
+          </div>
+          <div id="restPlaceResults" style="display:none;position:absolute;left:0;right:0;top:44px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;max-height:220px;overflow-y:auto"></div>
+        </div>
         <input id="restName" type="text" placeholder="식당 이름 *" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box"/>
         <div style="display:flex;gap:6px">
-          <input id="restAddress" type="text" placeholder="주소 검색 후 핀으로 확인" style="flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
-          <button onclick="geocodeRestAddress()" style="white-space:nowrap;padding:0 12px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">검색</button>
+          <input id="restAddress" type="text" placeholder="주소 (검색 후 자동 입력)" style="flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
+          <button onclick="geocodeRestAddress()" style="white-space:nowrap;padding:0 12px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">주소검색</button>
         </div>
         <div id="addRestMapWrap" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
           <div id="addRestMap" style="width:100%;height:200px"></div>
@@ -1563,7 +1570,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
         <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일</span></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일 무료</span></div>
         <div id="naverUsageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Workers AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주 (무료)</span></div>
         <div id="workersAiStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
@@ -2668,19 +2675,39 @@ function ytVideoId(url){
 let _ytUid=0;
 const _ytPlayers={};
 let _ytObserver=null;
+let _activeYtUid=null; // 현재 재생 중인 플레이어 uid (한 번에 하나만)
 
 function onYouTubeIframeAPIReady(){ initYtPlayers(); }
 
+function _ytPlay(uid){
+  // 다른 영상이 재생 중이면 먼저 일시정지
+  if(_activeYtUid&&_activeYtUid!==uid){
+    try{_ytPlayers[_activeYtUid]?.pauseVideo();}catch(e){}
+  }
+  try{_ytPlayers[uid]?.playVideo();}catch(e){}
+  _activeYtUid=uid;
+}
+
+function _ytPause(uid){
+  try{_ytPlayers[uid]?.pauseVideo();}catch(e){}
+  if(_activeYtUid===uid)_activeYtUid=null;
+}
+
 function getYtObserver(){
   if(_ytObserver) return _ytObserver;
+  // rootMargin: 상단 -15% / 하단 -25% → 영상이 화면 중간~상단 60% 구간에 들어올 때 재생
+  // threshold 배열로 진입/이탈 모두 감지
   _ytObserver=new IntersectionObserver(entries=>{
     entries.forEach(entry=>{
       const uid=entry.target.dataset.ytUid;
-      const p=_ytPlayers[uid];
-      if(!p) return;
-      try{ entry.isIntersecting&&entry.intersectionRatio>=0.4 ? p.playVideo() : p.pauseVideo(); }catch(e){}
+      if(!_ytPlayers[uid]) return;
+      if(entry.isIntersecting){
+        _ytPlay(uid);
+      }else{
+        _ytPause(uid);
+      }
     });
-  },{threshold:0.4});
+  },{rootMargin:'-15% 0px -25% 0px', threshold:0});
   return _ytObserver;
 }
 
@@ -2693,7 +2720,20 @@ function initYtPlayers(){
     new YT.Player('yt-p-'+uid,{
       videoId:vid,
       playerVars:{playsinline:1,mute:1,controls:1,rel:0,modestbranding:1},
-      events:{onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);}}
+      events:{
+        onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);},
+        onStateChange(e){
+          if(e.data===YT.PlayerState.PLAYING){
+            // 이 영상이 재생되면 다른 영상 모두 일시정지
+            Object.entries(_ytPlayers).forEach(([k,p])=>{
+              if(k!==uid){try{p.pauseVideo();}catch(err){}}
+            });
+            _activeYtUid=uid;
+          }else if(e.data===YT.PlayerState.PAUSED||e.data===YT.PlayerState.ENDED){
+            if(_activeYtUid===uid)_activeYtUid=null;
+          }
+        }
+      }
     });
   });
 }
@@ -2709,6 +2749,7 @@ function toggleYtMute(btn){
 
 function cleanupYtPlayers(){
   if(_ytObserver){_ytObserver.disconnect();_ytObserver=null;}
+  _activeYtUid=null;
   Object.keys(_ytPlayers).forEach(k=>{try{_ytPlayers[k].destroy();}catch(e){}delete _ytPlayers[k];});
 }
 
@@ -4972,7 +5013,7 @@ async function agentHealthReply(){
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 const CENTER_LAT=37.5430, CENTER_LNG=126.9510; // 서울서부고용복지플러스센터
-let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='list';
+let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='map';
 
 function switchRestView(v){
   _restView=v;
@@ -5052,7 +5093,7 @@ async function loadRestaurants(){
     _restData=Array.isArray(list)?list:[];
     if(!_restData.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
     box.innerHTML=_restData.map(r=>renderRestCard(r)).join('');
-    if(_restView==='map') renderRestMapMarkers();
+    switchRestView(_restView);
   }catch(e){box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 function renderRestCard(r){
@@ -5132,7 +5173,8 @@ async function deleteRest(id){
 function openAddRestModal(){
   $('restName').value='';$('restAddress').value='';$('restNote').value='';
   $('restLat').value='';$('restLng').value='';
-  $('addRestMapMsg').textContent='지도를 클릭하거나 주소를 검색해서 위치를 지정하세요';
+  $('restPlaceSearch').value='';$('restPlaceResults').style.display='none';
+  $('addRestMapMsg').textContent='장소명으로 검색하거나 지도를 클릭해 위치를 지정하세요';
   $('addRestModal').classList.add('open');
   setTimeout(()=>{
     if(!window.naver||!naver.maps)return;
@@ -5153,6 +5195,34 @@ function setAddRestPin(lat,lng){
   $('restLat').value=lat;$('restLng').value=lng;
   if(_addRestMarker) _addRestMarker.setMap(null);
   _addRestMarker=new naver.maps.Marker({position:new naver.maps.LatLng(lat,lng),map:_addRestMap});
+}
+async function searchRestPlace(){
+  const q=$('restPlaceSearch').value.trim();
+  if(!q)return;
+  const res=$('restPlaceResults');
+  res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--text-hint)">검색 중...</div>';
+  res.style.display='block';
+  try{
+    const d=await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}&lat=${CENTER_LAT}&lng=${CENTER_LNG}`).then(r=>r.json());
+    if(!d.ok||!d.places?.length){res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--text-hint)">검색 결과가 없습니다</div>';return;}
+    res.innerHTML=d.places.slice(0,8).map(pl=>{
+      const addr=pl.roadAddress||pl.address||'';
+      const cat=pl.category?pl.category.split('>').pop().trim():'';
+      return`<div onclick="selectRestPlace(${pl.y},${pl.x},${JSON.stringify(pl.name)},${JSON.stringify(addr)})" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(pl.name)}</div>
+        <div style="font-size:11px;color:var(--text-hint);margin-top:2px">${escHtml(addr)}${cat?` · ${escHtml(cat)}`:''}${pl.distance?` · ${Math.round(pl.distance)}m`:''}</div>
+      </div>`;
+    }).join('');
+  }catch(e){res.innerHTML='<div style="padding:10px 14px;font-size:13px;color:var(--danger)">검색 실패</div>';}
+}
+function selectRestPlace(lat,lng,name,address){
+  $('restName').value=name;
+  $('restAddress').value=address;
+  $('restPlaceSearch').value='';
+  $('restPlaceResults').style.display='none';
+  setAddRestPin(lat,lng);
+  if(_addRestMap){_addRestMap.setCenter(new naver.maps.LatLng(lat,lng));_addRestMap.setZoom(17);}
+  $('addRestMapMsg').textContent=`✅ ${address||name}`;
 }
 async function geocodeRestAddress(){
   const q=$('restAddress').value.trim();
@@ -5236,11 +5306,16 @@ function loadAdminStats(){
     const today=d.today||0;const total=d.total||0;const limit=d.limit||25000;
     const pct=Math.min(100,Math.round(today/limit*100));
     const color=pct>80?'var(--danger)':pct>60?'#f57f17':'var(--green-dark)';
+    const m=d.map||{today:{geocode:0,directions:0,place:0},total:{geocode:0,directions:0,place:0}};
     $('naverUsageStats').innerHTML=`
       <div class="admin-stat-row"><span class="admin-stat-label">오늘 사용</span><span class="admin-stat-val" style="color:${color}">${today.toLocaleString()}회 / ${limit.toLocaleString()}회</span></div>
       <div class="storage-bar-wrap" style="margin:6px 0"><div class="storage-bar" style="width:${pct}%;background:${color}"></div></div>
       <div style="font-size:11px;color:var(--text-hint);margin-bottom:6px">${pct}% 사용 중</div>
-      <div class="admin-stat-row"><span class="admin-stat-label">누적 총 호출</span><span class="admin-stat-val">${total.toLocaleString()}회</span></div>`;
+      <div class="admin-stat-row"><span class="admin-stat-label">누적 총 호출</span><span class="admin-stat-val">${total.toLocaleString()}회</span></div>
+      <div style="font-size:13px;font-weight:700;margin:14px 0 8px;color:var(--text)">네이버 지도 API <span style="font-size:11px;font-weight:400;color:#0277bd;background:#e1f5fe;padding:2px 8px;border-radius:10px">Geocoding·경로·장소검색</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">주소검색 (오늘/누적)</span><span class="admin-stat-val">${m.today.geocode.toLocaleString()} / ${m.total.geocode.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">경로계산 (오늘/누적)</span><span class="admin-stat-val">${m.today.directions.toLocaleString()} / ${m.total.directions.toLocaleString()}회</span></div>
+      <div class="admin-stat-row"><span class="admin-stat-label">장소검색 (오늘/누적)</span><span class="admin-stat-val">${m.today.place.toLocaleString()} / ${m.total.place.toLocaleString()}회</span></div>`;
   }).catch(()=>{if($('naverUsageStats'))$('naverUsageStats').innerHTML='<div style="font-size:13px;color:var(--danger)">불러오지 못했습니다.</div>';});
   fetch(`${API}/api/gemini-usage`).then(r=>r.json()).then(d=>{
     const tin=d.tokens_in||0;const tout=d.tokens_out||0;const calls=d.calls||0;

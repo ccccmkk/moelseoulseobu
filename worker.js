@@ -319,6 +319,7 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS og_cache (url TEXT PRIMARY KEY, title TEXT, description TEXT, image TEXT, site_name TEXT, cached_at INTEGER)",
     "ALTER TABLE og_cache ADD COLUMN final_url TEXT",
     "CREATE TABLE IF NOT EXISTS naver_usage (date TEXT PRIMARY KEY, calls INTEGER DEFAULT 0)",
+    "CREATE TABLE IF NOT EXISTS naver_map_usage (date TEXT PRIMARY KEY, geocode_calls INTEGER DEFAULT 0, directions_calls INTEGER DEFAULT 0, place_calls INTEGER DEFAULT 0)",
     `CREATE TABLE IF NOT EXISTS workers_ai_usage (id INTEGER PRIMARY KEY, calls INTEGER DEFAULT 0, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS law_usage (id INTEGER PRIMARY KEY, search_calls INTEGER DEFAULT 0, content_calls INTEGER DEFAULT 0, ask_calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     "ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'published'",
@@ -1877,7 +1878,15 @@ export default {
         const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
         const todayRow = await env.DB.prepare('SELECT calls FROM naver_usage WHERE date=?').bind(today).first();
         const totalRow = await env.DB.prepare('SELECT SUM(calls) as total FROM naver_usage').first();
-        return json({ today: todayRow?.calls||0, total: totalRow?.total||0, limit: 25000 });
+        const mapToday = await env.DB.prepare('SELECT * FROM naver_map_usage WHERE date=?').bind(today).first();
+        const mapTotal = await env.DB.prepare('SELECT SUM(geocode_calls) as g, SUM(directions_calls) as d, SUM(place_calls) as pl FROM naver_map_usage').first();
+        return json({
+          today: todayRow?.calls||0, total: totalRow?.total||0, limit: 25000,
+          map: {
+            today: { geocode: mapToday?.geocode_calls||0, directions: mapToday?.directions_calls||0, place: mapToday?.place_calls||0 },
+            total: { geocode: mapTotal?.g||0, directions: mapTotal?.d||0, place: mapTotal?.pl||0 },
+          }
+        });
       }
       if (p === '/api/workers-ai-usage' && m === 'GET') {
         const d = await env.DB.prepare('SELECT * FROM workers_ai_usage WHERE id=1').first();
@@ -2110,6 +2119,10 @@ export default {
             } catch(e) {}
           }
         }
+        if (walkSec !== null) {
+          const todayDir = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+          ctx.waitUntil(env.DB.prepare('INSERT INTO naver_map_usage(date,directions_calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET directions_calls=directions_calls+1').bind(todayDir).run().catch(()=>{}));
+        }
         await env.DB.prepare('INSERT INTO restaurants(id,name,address,category,walk_min,note,added_by,created_at,lat,lng,walk_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
           .bind(id, b.name, b.address||'', b.category||'기타', b.walk_min||5, b.note||'', b.added_by||'', Math.floor(Date.now()/1000), lat, lng, walkSec).run();
         return json({ id, lat, lng, walk_sec: walkSec });
@@ -2127,7 +2140,27 @@ export default {
           const d = await r.json();
           const addr = d?.addresses?.[0];
           if (!addr) return json({ ok: false, message: '주소를 찾을 수 없습니다' });
+          const today2 = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+          ctx.waitUntil(env.DB.prepare('INSERT INTO naver_map_usage(date,geocode_calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET geocode_calls=geocode_calls+1').bind(today2).run().catch(()=>{}));
           return json({ ok: true, lat: parseFloat(addr.y), lng: parseFloat(addr.x), roadAddress: addr.roadAddress, jibunAddress: addr.jibunAddress });
+        } catch(e) { return json({ error: e.message }, 500); }
+      }
+
+      if (p === '/api/place-search' && m === 'GET') {
+        const q = url.searchParams.get('q');
+        const lat = url.searchParams.get('lat') || '37.5430';
+        const lng = url.searchParams.get('lng') || '126.9510';
+        if (!q) return json({ error: 'q 필수' }, 400);
+        if (!env.NAVER_MAP_CLIENT_ID || !env.NAVER_MAP_CLIENT_SECRET) return json({ error: 'API 키 미설정' }, 503);
+        try {
+          const r = await fetch(
+            `https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=${encodeURIComponent(q)}&coordinate=${lng},${lat}&radius=5000`,
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+          );
+          const d = await r.json();
+          const todayPs = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+          ctx.waitUntil(env.DB.prepare('INSERT INTO naver_map_usage(date,place_calls) VALUES(?,1) ON CONFLICT(date) DO UPDATE SET place_calls=place_calls+1').bind(todayPs).run().catch(()=>{}));
+          return json({ ok: true, places: d.places || [] });
         } catch(e) { return json({ error: e.message }, 500); }
       }
 
