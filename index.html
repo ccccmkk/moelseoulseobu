@@ -66,6 +66,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%;will-change:opacity,transform;backface-visibility:hidden}
 .tab-page.active{display:block;animation:tabFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) both}
 @keyframes tabFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 /* 서브탭 */
 .sub-tabs{display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
 .sub-tab{flex:1;padding:9px;border:none;background:none;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-hint);font-family:inherit;transition:.15s}
@@ -7194,7 +7195,31 @@ async function adminQuizAction(action){
 
   // 서비스워커 등록
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      // 새 SW 설치 감지 → 설치 완료 후 토스트
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw.addEventListener('statechange', () => {
+          if(nw.state === 'activated') _showSwUpdateToast();
+        });
+      });
+    }).catch(()=>{});
+
+    // 이미 대기 중인 SW가 활성화되면서 보내는 메시지 수신
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(e.data === 'sw-updated') _showSwUpdateToast();
+    });
+  }
+
+  function _showSwUpdateToast(){
+    if(document.getElementById('swUpdateToast')) return;
+    const t = document.createElement('div');
+    t.id = 'swUpdateToast';
+    t.style.cssText = 'position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#1b5e20;color:#fff;padding:11px 20px;border-radius:24px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer;white-space:nowrap;animation:fadeInUp .3s ease;display:flex;align-items:center;gap:8px';
+    t.innerHTML = '🔄 <span>새 버전이 있습니다. 탭하여 업데이트</span>';
+    t.onclick = () => location.reload(true);
+    document.body.appendChild(t);
+    setTimeout(() => { if(t.parentNode) t.remove(); }, 12000);
   }
 
   window.forceUpdate = async function(){

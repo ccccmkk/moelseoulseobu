@@ -1,4 +1,4 @@
-const CACHE = 'step-app-v3';
+const CACHE = 'step-app-v5';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -7,6 +7,12 @@ self.addEventListener('activate', e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => {
+        // 업데이트된 SW가 활성화되면 열린 탭 전체에 알림
+        self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(client => client.postMessage('sw-updated'));
+        });
+      })
   );
 });
 
@@ -23,16 +29,15 @@ self.addEventListener('fetch', e => {
   const isHtml = url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
   if (!isHtml) return;
 
-  // stale-while-revalidate: 캐시 버전 즉시 반환 + 백그라운드에서 업데이트
+  // network-first: 항상 최신 버전 먼저 시도, 오프라인이면 캐시 폴백
   e.respondWith(
-    caches.open(CACHE).then(async cache => {
-      const cached = await cache.match(req);
-      const networkFetch = fetch(req).then(res => {
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-      }).catch(() => null);
-      return cached || networkFetch;
-    })
+    fetch(req).then(res => {
+      if (res.ok) {
+        const clone = res.clone();
+        caches.open(CACHE).then(cache => cache.put(req, clone));
+      }
+      return res;
+    }).catch(() => caches.match(req))
   );
 });
 
