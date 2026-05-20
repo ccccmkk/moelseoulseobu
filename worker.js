@@ -462,7 +462,7 @@ export default {
       // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
-        const validCats = ['labor','local','health','law'];
+        const validCats = ['labor','local','health','law','headline'];
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
@@ -619,6 +619,19 @@ export default {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
               items = await fetchNaverSearchRaw('근로기준법 OR 노동법 OR 산업재해', 100);
+            } else if (cat === 'headline') {
+              // 헤드라인 뉴스 - 노동 필터 없이 다양한 분야 최신 뉴스
+              const [r1,r2,r3] = await Promise.allSettled([
+                fetchNaverSearchRaw('사회 뉴스', 40),
+                fetchNaverSearchRaw('경제 뉴스', 40),
+                fetchNaverSearchRaw('정치 뉴스', 30),
+              ]);
+              naverCalls = 3;
+              items = dedup([
+                ...(r1.status==='fulfilled'?r1.value:[]),
+                ...(r2.status==='fulfilled'?r2.value:[]),
+                ...(r3.status==='fulfilled'?r3.value:[]),
+              ].sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0)));
             }
             items = dedup(items).slice(0, cat === 'local' ? 200 : 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
@@ -639,8 +652,11 @@ export default {
             local: '은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문 OR 마포구 OR 은평구 OR 서대문구 OR 용산구',
             health: '질병관리청 OR 보건복지부 건강',
             law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
+            headline: '속보 뉴스',
           };
-          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(googleQueries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
+          const feedUrl = cat === 'headline'
+            ? 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko'
+            : 'https://news.google.com/rss/search?q=' + encodeURIComponent(googleQueries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
           const resp = await fetchTimeout(feedUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
           }, 8000);
@@ -2163,7 +2179,7 @@ export default {
           try {
             const dr = await fetch(
               `https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
-              { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+              { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
             );
             const dd = await dr.json();
             walkSec = dd?.route?.traoptimal?.[0]?.summary?.duration || null;
@@ -2172,7 +2188,7 @@ export default {
             try {
               const wr = await fetch(
                 `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
-                { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+                { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
               );
               const wd = await wr.json();
               walkSec = wd?.route?.traoptimal?.[0]?.summary?.duration || null;
@@ -2195,7 +2211,7 @@ export default {
         try {
           const r = await fetch(
             `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(q)}`,
-            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
           );
           const raw = await r.text();
           let d; try { d = JSON.parse(raw); } catch(e) { return json({ ok: false, error: 'API 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }
@@ -2216,7 +2232,7 @@ export default {
           // 좌표 반경 제한 없이 전국 검색 (반경 제한 시 결과 없는 경우 있음)
           const r = await fetch(
             `https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=${encodeURIComponent(q)}`,
-            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
           );
           const raw = await r.text();
           let d; try { d = JSON.parse(raw); } catch(e) { return json({ error: 'API 응답 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }

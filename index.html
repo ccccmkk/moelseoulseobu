@@ -709,22 +709,24 @@ button,a,[role="button"]{touch-action:manipulation}
       <button class="sub-tab active" id="sub-news" onclick="switchNewsMainTab('news')">뉴스</button>
       <button class="sub-tab" id="sub-law" onclick="switchNewsMainTab('law')">법률</button>
       <button class="sub-tab" id="sub-lunch" onclick="switchNewsMainTab('lunch')">점심</button>
-      <button class="sub-tab" id="sub-scrap" onclick="switchNewsMainTab('scrap')">신문스크랩</button>
     </div>
     <!-- 뉴스 -->
     <div id="newsMainPane">
       <div class="sub-tabs" id="newsCatTabs" style="margin-top:-6px">
-        <button class="sub-tab active" id="nc-labor" onclick="switchNewsCat('labor')">고용·노동</button>
+        <button class="sub-tab active" id="nc-scrap" onclick="switchNewsCat('scrap')">신문스크랩</button>
         <button class="sub-tab" id="nc-local" onclick="switchNewsCat('local')">지역뉴스</button>
+        <button class="sub-tab" id="nc-naver" onclick="switchNewsCat('naver')">네이버뉴스</button>
       </div>
-      <div id="localDistrictFilter" style="display:none;padding:8px 14px 4px;display:flex;gap:6px;flex-wrap:wrap">
+      <div id="localLoadingMsg" style="display:none;padding:8px 16px;font-size:12px;color:var(--text-hint);text-align:center"></div>
+      <div id="localDistrictFilter" style="display:none;padding:8px 14px 4px;gap:6px;flex-wrap:wrap">
         <button class="sub-tab active" id="ld-all"   onclick="switchLocalDistrict('all')"   style="font-size:12px;padding:3px 10px">전체</button>
         <button class="sub-tab"        id="ld-eunpyeong" onclick="switchLocalDistrict('은평')" style="font-size:12px;padding:3px 10px">은평</button>
         <button class="sub-tab"        id="ld-sdm"   onclick="switchLocalDistrict('서대문')" style="font-size:12px;padding:3px 10px">서대문</button>
         <button class="sub-tab"        id="ld-mapo"  onclick="switchLocalDistrict('마포')"   style="font-size:12px;padding:3px 10px">마포</button>
         <button class="sub-tab"        id="ld-yongsan" onclick="switchLocalDistrict('용산')" style="font-size:12px;padding:3px 10px">용산</button>
       </div>
-      <div id="newsContent"></div>
+      <div id="newsScrapPane"></div>
+      <div id="newsContent" style="display:none"></div>
     </div>
     <!-- 법률 -->
     <div id="lawMainPane" style="display:none">
@@ -814,9 +816,6 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
     </div>
   </div>
-
-  <!-- 신문스크랩 pane -->
-  <div id="scrapMainPane" style="display:none"></div>
 
   <!-- 법령 본문 모달 -->
   <div class="modal-overlay" id="lawContentModal">
@@ -2141,7 +2140,10 @@ function switchTab(tab){
     $('nav-'+tab.toLowerCase()).classList.add('active');
     $('fab').className='fab'+(tab==='Feed'?' show':'');
   }
-  if(tab==='News')loadNews();
+  if(tab==='News'){
+    if(newsCat==='scrap'){if(!scrapLoaded){scrapLoaded=true;loadScrap();}}
+    else loadNews();
+  }
   if(tab==='Search'){setTimeout(()=>$('searchInput')?.focus(),100);renderSearch($('searchInput').value.trim());}
   if(tab==='Chal'){
     renderChal().catch(()=>{});
@@ -2156,11 +2158,14 @@ function switchTab(tab){
 let newsMainTab='news';
 function switchNewsMainTab(sub){
   newsMainTab=sub;
-  ['news','law','lunch','scrap'].forEach(t=>{
+  ['news','law','lunch'].forEach(t=>{
     $(`sub-${t}`).className='sub-tab'+(sub===t?' active':'');
     $(`${t}MainPane`).style.display=sub===t?'block':'none';
   });
-  if(sub==='news'&&!newsCache) loadNews();
+  if(sub==='news'){
+    if(newsCat==='scrap'){if(!scrapLoaded){scrapLoaded=true;loadScrap();}}
+    else if(newsCat==='local'||newsCat==='naver') loadNews();
+  }
   if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
   if(sub==='law') updateLawAskCounter();
   if(sub==='lunch'){
@@ -2170,7 +2175,6 @@ function switchNewsMainTab(sub){
     }));
     if(!lunchLoaded){ lunchLoaded=true; loadRestaurants(); }
   }
-  if(sub==='scrap'&&!scrapLoaded){ scrapLoaded=true; loadScrap(); }
   if(currentUserRole==='admin') $('addRestBtn').style.display=sub==='lunch'?'':'none';
 }
 // legacy stub
@@ -2236,14 +2240,36 @@ async function initApp(){
 }
 
 // ── 뉴스 ──
-let newsCat='labor', lawLoaded=false, lunchLoaded=false, scrapLoaded=false, localDistrict='all';
+let newsCat='scrap', lawLoaded=false, lunchLoaded=false, scrapLoaded=false, localDistrict='all';
+let _localMsgTimer=null;
+const LOCAL_PAPERS=['마포타임즈','마포시민신문','서부신문','서대문신문','은평신문','은평시민신문','새용산신문','마포구청','은평구청'];
+function _startLocalMsg(){
+  let i=0;
+  const el=$('localLoadingMsg');if(!el)return;
+  el.style.display='block';
+  const upd=()=>{ el.textContent=LOCAL_PAPERS[i%LOCAL_PAPERS.length]+'을 불러오는 중...'; };
+  upd();
+  _localMsgTimer=setInterval(()=>{i++;upd();},800);
+}
+function _stopLocalMsg(){
+  if(_localMsgTimer){clearInterval(_localMsgTimer);_localMsgTimer=null;}
+  const el=$('localLoadingMsg');if(el)el.style.display='none';
+}
 function switchNewsCat(cat){
   newsCat=cat;
-  $('nc-labor').className='sub-tab'+(cat==='labor'?' active':'');
-  $('nc-local').className='sub-tab'+(cat==='local'?' active':'');
+  ['scrap','local','naver'].forEach(t=>{
+    const el=$('nc-'+t); if(el) el.className='sub-tab'+(cat===t?' active':'');
+  });
   const ldf=$('localDistrictFilter');
   if(ldf) ldf.style.display=cat==='local'?'flex':'none';
-  newsCache=null;newsPage=1;loadNews();
+  const sp=$('newsScrapPane'), nc=$('newsContent');
+  if(sp) sp.style.display=cat==='scrap'?'block':'none';
+  if(nc) nc.style.display=cat==='scrap'?'none':'block';
+  if(cat==='scrap'){
+    if(!scrapLoaded){scrapLoaded=true;loadScrap();}
+  } else {
+    newsCache=null;newsPage=1;loadNews();
+  }
 }
 const DISTRICT_IDS={'all':'ld-all','은평':'ld-eunpyeong','서대문':'ld-sdm','마포':'ld-mapo','용산':'ld-yongsan'};
 function switchLocalDistrict(d){
@@ -2589,17 +2615,19 @@ async function loadNews(reset){
   if(reset){newsPage=1;}
   if(newsCache&&now-newsLastFetch<600000){renderNews(newsCache);return;}
   const _skNews=()=>`<div class="sk-card" style="padding:12px 14px"><div class="sk sk-line" style="width:80%;margin-bottom:8px"></div><div class="sk sk-line" style="width:50%;height:10px;margin-bottom:6px"></div><div class="sk sk-line" style="width:30%;height:10px;margin-bottom:0"></div></div>`;
+  if(newsCat==='local') _startLocalMsg(); else _stopLocalMsg();
   $('newsContent').innerHTML=Array(6).fill(0).map(_skNews).join('');
   np.start();
+  const apiCat=newsCat==='naver'?'headline':newsCat;
   try{
-    const r=await fetch(`${API}/api/news?category=${newsCat}`);
+    const r=await fetch(`${API}/api/news?category=${apiCat}`);
     if(!r.ok)throw new Error('서버 오류 '+r.status);
     const data=await r.json();
     if(data.error)throw new Error(data.error);
     if(!Array.isArray(data))throw new Error('잘못된 응답');
     newsCache=data;newsLastFetch=now;newsPage=1;renderNews(newsCache);
   }catch(e){$('newsContent').innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'뉴스를 불러오지 못했습니다.')}<br/><button class="btn-sm" onclick="newsCache=null;loadNews()" style="margin-top:12px">재시도</button></div>`;}
-  finally{np.done();}
+  finally{np.done();_stopLocalMsg();}
 }
 function newsRelDate(pubDate){
   if(!pubDate)return'';
@@ -5102,7 +5130,7 @@ function showRestMapInfo(r){
 }
 
 async function loadScrap(){
-  const box=$('scrapMainPane');
+  const box=$('newsScrapPane');
   box.innerHTML='<div style="padding:20px 16px;display:flex;flex-direction:column;gap:6px">'+Array(6).fill(0).map(()=>`<div class="sk-card" style="padding:12px 16px"><div class="sk sk-line" style="width:75%;margin-bottom:7px"></div><div class="sk sk-line" style="width:35%;height:10px"></div></div>`).join('')+'</div>';
   try{
     const d=await fetch(`${API}/api/scrapmaster`).then(r=>r.json());
