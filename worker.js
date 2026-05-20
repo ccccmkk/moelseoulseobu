@@ -405,12 +405,29 @@ export default {
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind('scrapmaster').first();
         if (cached && now - cached.cached_at < 3600) return json(JSON.parse(cached.data));
         try {
-          const r = await fetch('https://mnc.scrapmaster.co.kr/v1_6/mb_list.php?id=molab&flag=0', {
+          const BASE = 'http://mnc.scrapmaster.co.kr';
+          const LIST_URL = `${BASE}/v1_6/mb_list.php?id=molab&flag=0`;
+          const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+          // 1단계: go.php를 직접 호출해 세션 쿠키를 수동 수집
+          const goRes = await fetch(`${BASE}/go.php?id=molab`, {
+            redirect: 'manual',
+            headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Accept-Language': 'ko-KR,ko;q=0.9' },
+            signal: AbortSignal.timeout(6000),
+          });
+          const cookieHeader = goRes.headers.get('set-cookie') || '';
+          // Set-Cookie는 여러 개일 수 있으므로 이름=값 부분만 추출해 합침
+          const cookieStr = cookieHeader.split(/,(?=[^;]+=[^;]+)/).map(c => c.split(';')[0].trim()).join('; ');
+
+          // 2단계: 쿠키를 붙여 목록 페이지 직접 요청 (리다이렉트 차단)
+          const r = await fetch(LIST_URL, {
+            redirect: 'follow',
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'User-Agent': UA,
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
               'Accept-Language': 'ko-KR,ko;q=0.9',
-              'Referer': 'https://mnc.scrapmaster.co.kr/',
+              'Referer': BASE + '/',
+              ...(cookieStr ? { 'Cookie': cookieStr } : {}),
             },
             signal: AbortSignal.timeout(8000),
           });
@@ -428,7 +445,7 @@ export default {
             const srcM = dt.match(/class="reduce">[^<]+<\/a>[^<]*?<!--[^>]*-->\s*\n?\s*([^\n<]+)/);
             if (!hrefM || !titleM) continue;
             articles.push({
-              url: 'https://mnc.scrapmaster.co.kr/v1_6/' + hrefM[1].replace('./', ''),
+              url: BASE + '/v1_6/' + hrefM[1].replace('./', ''),
               title: titleM[1].trim(),
               source: srcM ? srcM[1].trim() : '',
             });
