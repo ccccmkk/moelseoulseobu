@@ -1124,6 +1124,17 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 </div>
 
+<!-- ════ 블로그 글 작성 페이지 ════ -->
+<div id="writeBlogPage" class="page" style="display:flex;flex-direction:column;background:var(--bg)">
+  <div style="position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;height:52px;gap:8px">
+    <button onclick="cancelBlogWrite()" style="background:none;border:none;font-size:24px;color:var(--text);padding:0 8px;cursor:pointer;line-height:1;flex-shrink:0">‹</button>
+    <span style="flex:1;font-weight:700;font-size:16px" id="writeBlogPageTitle">블로그 글 작성</span>
+    <button id="saveDraftBlog" style="background:none;border:1px solid #f57c00;color:#f57c00;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit">임시저장</button>
+    <button id="submitBlog" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;font-weight:700;font-family:inherit">등록</button>
+  </div>
+  <div id="writeBlogBody" style="flex:1;overflow-y:auto"></div>
+</div>
+
 <!-- ════ 댓글 모달 ════ -->
 <div class="modal-overlay" id="commentsModal">
   <div class="modal">
@@ -3625,6 +3636,7 @@ function renderEditor(){_writeMode==='blog'?renderBlogEditor():renderSimpleEdito
 let _writeMode='normal';
 let _blogThumbUrl='';
 function openWriteModal(prefillUrl,prefillTitle,prefillSource){
+  _writePrevPage='appPage';
   editingKey=null;_ogFetching=false;clearTimeout(_ogFetchTid);_writeMode='normal';
   $('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';
   updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
@@ -3650,21 +3662,40 @@ function _showWriteEditor(mode){
   _writeMode=mode;
   $('writeTypeSelector').style.display='none';
   $('writeEditorBody').style.display='';
-  $('modalFooter').style.display='';
+  $('modalFooter').style.display='none'; // footer hidden in blog page mode; visible only in normal modal
   $('blogThumbArea').style.display=mode==='blog'?'':'none';
   if(mode==='blog'){
     resetBlogThumb();
     _blogFullscreen=true;
-    $('writeModal').classList.add('fullscreen-modal');
+    // move editor into blog page (DOM move)
+    const body=$('writeBlogBody');
+    body.appendChild($('writeEditorBody'));
+    // close the write modal, show blog page instead
+    $('writeModal').classList.remove('open');
+    $('writeModal').classList.remove('fullscreen-modal');
+    $('writeBlogPageTitle').textContent=editingKey?'블로그 글 수정':'블로그 글 작성';
+    showPage('writeBlogPage');
   } else {
     _blogFullscreen=false;
+    // ensure editor body is back inside the modal
+    _ensureEditorInModal();
+    $('modalFooter').style.display='';
     $('writeModal').classList.remove('fullscreen-modal');
   }
   renderEditor();
 }
+function _ensureEditorInModal(){
+  const modal=$('writeModal').querySelector('.modal');
+  if($('writeEditorBody').parentNode!==modal){
+    const footer=$('modalFooter');
+    modal.appendChild($('writeEditorBody'));
+    modal.appendChild(footer);
+  }
+}
 function selectWriteType(type){ _showWriteEditor(type); }
 function editPost(key){
-  const p=posts.find(x=>x.id===key);if(!p)return;
+  const p=posts.find(x=>x.id===key)||_profilePostsMap[key];if(!p)return;
+  _writePrevPage=$('profilePage').classList.contains('active')?'profilePage':'appPage';
   editingKey=key;
   const allBlocks=p.blocks?p.blocks.map(b=>({...b})):[{type:'text',content:''}];
   const thumbBlock=allBlocks.find(b=>b.type==='thumbnail');
@@ -3678,7 +3709,7 @@ function editPost(key){
     $('blogThumbPlaceholder').style.display='none';$('blogThumbDel').style.display='flex';
     _blogThumbUrl=thumbBlock.url;
   }
-  $('writeModal').classList.add('open');
+  if(p.mode!=='blog')$('writeModal').classList.add('open');
 }
 function resetBlogThumb(){_blogThumbUrl='';$('blogThumbPreview').src='';$('blogThumbPreview').style.display='none';$('blogThumbPlaceholder').style.display='flex';$('blogThumbDel').style.display='none';}
 function removeBlogThumb(){resetBlogThumb();}
@@ -3720,10 +3751,26 @@ async function _setPostStatus(key,status){
     }
   }catch(e){alert('실패: '+e.message);}
 }
-function _closeWriteModal(){_blogFullscreen=false;$('writeModal').classList.remove('open');$('writeModal').classList.remove('fullscreen-modal');}
+function _closeWriteModal(){
+  _blogFullscreen=false;
+  $('writeModal').classList.remove('open');
+  $('writeModal').classList.remove('fullscreen-modal');
+  _ensureEditorInModal();
+  if($('writeBlogPage').classList.contains('active')){
+    showPage(_writePrevPage||'appPage');
+  }
+}
+function cancelBlogWrite(){
+  if(editorBlocks.some(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()))||_blogThumbUrl){
+    if(!confirm('작성 중인 내용이 있습니다. 나가시겠습니까?'))return;
+  }
+  _closeWriteModal();
+}
 let _modalJustOpened=false;
 $('modalClose').onclick=()=>_closeWriteModal();
 $('modalCancel').onclick=()=>_closeWriteModal();
+$('submitBlog').onclick=()=>$('submitPost').onclick();
+$('saveDraftBlog').onclick=()=>$('saveDraft').onclick();
 // 배경(overlay) 클릭으로는 닫지 않음 — 글 작성 중 실수로 닫혀 내용이 사라지는 것 방지
 async function compressImage(file,maxPx=1200,quality=0.78){
   return new Promise(resolve=>{
@@ -3799,8 +3846,13 @@ $('submitPost').onclick=async function(){
     const mode=_writeMode==='blog'?'blog':'normal';
     if(editingKey){
       await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'published'})});
-      const p=posts.find(x=>x.id===editingKey);if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='published';}
+      const p=posts.find(x=>x.id===editingKey)||_profilePostsMap[editingKey];if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='published';}
+      if(_profilePostsMap[editingKey]){_profilePostsMap[editingKey]={..._profilePostsMap[editingKey],blocks:finalBlocks,keyword:keyword||null,mode,status:'published'};}
       const el=$('pc-'+editingKey);if(el&&p){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}initCarousels();
+      const goProfile=_writePrevPage==='profilePage'||$('profilePage').classList.contains('active');
+      _closeWriteModal();
+      if(goProfile){_profileNextCursor=null;_loadProfilePosts(true);}
+      return;
     }else{
       const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'published'})});
       const d=await r.json();
@@ -3824,8 +3876,13 @@ $('saveDraft').onclick=async function(){
     const mode=_writeMode==='blog'?'blog':'normal';
     if(editingKey){
       await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'draft'})});
-      const p=posts.find(x=>x.id===editingKey);if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='draft';}
-      const el=$('pc-'+editingKey);if(el&&posts.find(x=>x.id===editingKey)){const div=document.createElement('div');div.innerHTML=postCardHtml(posts.find(x=>x.id===editingKey));el.replaceWith(div.firstChild);}initCarousels();
+      const p=posts.find(x=>x.id===editingKey)||_profilePostsMap[editingKey];if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='draft';}
+      if(_profilePostsMap[editingKey]){_profilePostsMap[editingKey]={..._profilePostsMap[editingKey],blocks:finalBlocks,keyword:keyword||null,mode,status:'draft'};}
+      const el=$('pc-'+editingKey);if(el&&p){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}initCarousels();
+      const goProfile2=_writePrevPage==='profilePage'||$('profilePage').classList.contains('active');
+      _closeWriteModal();
+      if(goProfile2){_profileNextCursor=null;_loadProfilePosts(true);}
+      return;
     }else{
       const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'draft'})});
       const d=await r.json();
@@ -5844,7 +5901,8 @@ async function toggleBadge(userId,badge,btn){
 }
 
 // ── 유저 프로필 카드 ──
-let _profileUserId=null,_profileTab='published',_profileNextCursor=null,_profileHasMore=false;
+let _profileUserId=null,_profileTab='published',_profileNextCursor=null,_profileHasMore=false,_profilePostsMap={};
+let _writePrevPage='appPage';
 
 async function openUserProfile(userId){
   _profileUserId=userId;
@@ -5909,7 +5967,8 @@ async function _loadProfilePosts(reset){
     _profileHasMore=d.has_more;
     _profileNextCursor=d.next_cursor||null;
     const cont=$('profilePagePosts');
-    if(reset)cont.innerHTML='';
+    if(reset){cont.innerHTML='';_profilePostsMap={};}
+    arr.forEach(p=>{_profilePostsMap[p.id]=p;});
     if(!arr.length&&reset){
       const msg=_profileTab==='draft'?'임시저장된 글이 없습니다':_profileTab==='hidden'?'숨긴 글이 없습니다':'아직 게시글이 없습니다';
       cont.innerHTML=`<div style="padding:60px 20px;text-align:center;color:var(--text-hint);font-size:13px">${msg}</div>`;
