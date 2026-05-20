@@ -2713,7 +2713,20 @@ function initYtPlayers(){
     new YT.Player('yt-p-'+uid,{
       videoId:vid,
       playerVars:{playsinline:1,mute:1,controls:1,rel:0,modestbranding:1},
-      events:{onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);}}
+      events:{
+        onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);},
+        onStateChange(e){
+          if(e.data===YT.PlayerState.PLAYING){
+            // 이 영상이 재생되면 다른 영상 모두 일시정지
+            Object.entries(_ytPlayers).forEach(([k,p])=>{
+              if(k!==uid){try{p.pauseVideo();}catch(err){}}
+            });
+            _activeYtUid=uid;
+          }else if(e.data===YT.PlayerState.PAUSED||e.data===YT.PlayerState.ENDED){
+            if(_activeYtUid===uid)_activeYtUid=null;
+          }
+        }
+      }
     });
   });
 }
