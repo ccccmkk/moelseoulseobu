@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네이버 지도 API 테스트</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 0 16px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; border-bottom: 2px solid #03c75a; padding-bottom: 4px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  input { flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  button { padding: 8px 14px; background: #03c75a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  pre { background: #f5f5f5; padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
+  .ok { color: #1b5e20; } .err { color: #b71c1c; } .wait { color: #555; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .badge-ok { background: #e8f5e9; color: #2e7d32; }
+  .badge-err { background: #ffebee; color: #c62828; }
+  .badge-wait { background: #fffde7; color: #827717; }
+</style>
+</head>
+<body>
+<h1 style="font-size:18px">🗺️ 네이버 지도 API 미니 테스트</h1>
+<p style="font-size:13px;color:#666">각 항목을 순서대로 테스트해서 어디서 막히는지 확인하세요.</p>
+
+<!-- 1. JS SDK 로딩 -->
+<h2>① JS SDK 로딩 <span id="sdkBadge" class="badge badge-wait">대기</span></h2>
+<pre id="sdkResult" class="wait">페이지 로드 후 자동 확인...</pre>
+
+<!-- 2. geocoder 서브모듈 -->
+<h2>② geocoder 서브모듈 <span id="geocoderBadge" class="badge badge-wait">대기</span></h2>
+<pre id="geocoderResult" class="wait">SDK 로딩 후 자동 확인...</pre>
+
+<!-- 3. JS SDK 주소 검색 -->
+<h2>③ JS SDK 주소 검색 (브라우저 직접 호출)</h2>
+<div class="row">
+  <input id="geocodeInput" value="서울시 마포구 마포대로63-8" />
+  <button onclick="testGeocode()">주소검색</button>
+</div>
+<pre id="geocodeResult" class="wait">결과 대기...</pre>
+
+<!-- 4. Worker /api/place-search -->
+<h2>④ Worker 장소검색 (/api/place-search)</h2>
+<div class="row">
+  <input id="placeInput" value="서울서부고용복지플러스센터" />
+  <button onclick="testPlaceSearch()">장소검색</button>
+</div>
+<pre id="placeResult" class="wait">결과 대기...</pre>
+
+<!-- 5. Worker /api/geocode -->
+<h2>⑤ Worker 주소→좌표 (/api/geocode)</h2>
+<div class="row">
+  <input id="workerGeocodeInput" value="서울시 마포구 마포대로63-8" />
+  <button onclick="testWorkerGeocode()">변환</button>
+</div>
+<pre id="workerGeocodeResult" class="wait">결과 대기...</pre>
+
+<script>
+const API = 'https://band-archive-api.cm99i.workers.dev';
+
+function setResult(id, badgeId, ok, text) {
+  const pre = document.getElementById(id);
+  pre.textContent = text;
+  pre.className = ok ? 'ok' : 'err';
+  if (badgeId) {
+    const b = document.getElementById(badgeId);
+    b.textContent = ok ? '✓ OK' : '✗ 실패';
+    b.className = 'badge ' + (ok ? 'badge-ok' : 'badge-err');
+  }
+}
+
+// ① SDK 로딩 확인
+function checkSDK() {
+  if (window.naver && window.naver.maps) {
+    setResult('sdkResult', 'sdkBadge', true,
+      'naver.maps 로드됨\nVersion: ' + (naver.maps.VERSION || '알 수 없음'));
+  } else {
+    setResult('sdkResult', 'sdkBadge', false, 'naver.maps 객체 없음 → SDK 로딩 실패');
+  }
+}
+
+// ② geocoder 서브모듈 확인
+function checkGeocoder() {
+  if (window.naver && naver.maps && naver.maps.Service) {
+    setResult('geocoderResult', 'geocoderBadge', true,
+      'naver.maps.Service 로드됨\n사용 가능한 메서드: ' + Object.keys(naver.maps.Service).filter(k=>typeof naver.maps.Service[k]==='function').join(', '));
+  } else {
+    setResult('geocoderResult', 'geocoderBadge', false,
+      'naver.maps.Service 없음\n→ submodules=geocoder 누락 또는 SDK 로딩 실패');
+  }
+}
+
+// ③ JS SDK 주소 검색
+function testGeocode() {
+  const q = document.getElementById('geocodeInput').value.trim();
+  document.getElementById('geocodeResult').textContent = '요청 중...';
+  document.getElementById('geocodeResult').className = 'wait';
+  if (!window.naver || !naver.maps || !naver.maps.Service) {
+    setResult('geocodeResult', null, false, '❌ naver.maps.Service 없음 → ②번 먼저 확인');
+    return;
+  }
+  naver.maps.Service.geocode({ query: q }, function(status, response) {
+    if (status === naver.maps.Service.Status.OK) {
+      const addr = response.v2?.addresses?.[0];
+      setResult('geocodeResult', null, true,
+        '✅ 성공\n' + JSON.stringify(response.v2?.addresses?.slice(0,2), null, 2));
+    } else {
+      setResult('geocodeResult', null, false,
+        '❌ 실패\nstatus: ' + status + '\nresponse: ' + JSON.stringify(response, null, 2));
+    }
+  });
+}
+
+// ④ Worker 장소검색
+async function testPlaceSearch() {
+  const q = document.getElementById('placeInput').value.trim();
+  document.getElementById('placeResult').textContent = '요청 중...';
+  document.getElementById('placeResult').className = 'wait';
+  try {
+    const r = await fetch(`${API}/api/place-search?q=${encodeURIComponent(q)}`);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { data = text; }
+    const ok = r.ok && (typeof data === 'object') && !data.error;
+    setResult('placeResult', null, ok,
+      `HTTP ${r.status}\n` + (typeof data === 'string' ? data : JSON.stringify(data, null, 2)));
+  } catch(e) {
+    setResult('placeResult', null, false, '❌ fetch 실패: ' + e.message);
+  }
+}
+
+// ⑤ Worker 주소→좌표
+async function testWorkerGeocode() {
+  const q = document.getElementById('workerGeocodeInput').value.trim();
+  document.getElementById('workerGeocodeResult').textContent = '요청 중...';
+  document.getElementById('workerGeocodeResult').className = 'wait';
+  try {
+    const r = await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { data = text; }
+    const ok = r.ok && data?.ok === true;
+    setResult('workerGeocodeResult', null, ok,
+      `HTTP ${r.status}\n` + (typeof data === 'string' ? data : JSON.stringify(data, null, 2)));
+  } catch(e) {
+    setResult('workerGeocodeResult', null, false, '❌ fetch 실패: ' + e.message);
+  }
+}
+
+// 페이지 로드 후 1초 대기하며 SDK 확인
+window.addEventListener('load', () => {
+  let tries = 0;
+  const check = setInterval(() => {
+    tries++;
+    checkSDK();
+    checkGeocoder();
+    if ((window.naver && naver.maps) || tries > 10) clearInterval(check);
+  }, 500);
+});
+</script>
+<script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=663rfknnj7&submodules=geocoder"></script>
+</body>
+</html>
