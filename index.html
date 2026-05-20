@@ -727,6 +727,16 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div id="newsScrapPane"></div>
       <div id="newsContent" style="display:none"></div>
+      <!-- 네이버뉴스 검색 패널 -->
+      <div id="naverSearchPane" style="display:none">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:8px">
+            <input id="naverSearchInput" type="text" placeholder="뉴스 검색어 입력..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit" onkeydown="if(event.key==='Enter')doNaverSearch()">
+            <button onclick="doNaverSearch()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">검색</button>
+          </div>
+        </div>
+        <div id="naverSearchResult"></div>
+      </div>
     </div>
     <!-- 법률 -->
     <div id="lawMainPane" style="display:none">
@@ -2255,6 +2265,24 @@ function _stopLocalMsg(){
   if(_localMsgTimer){clearInterval(_localMsgTimer);_localMsgTimer=null;}
   const el=$('localLoadingMsg');if(el)el.style.display='none';
 }
+async function doNaverSearch(){
+  const q=($('naverSearchInput')?.value||'').trim();
+  const box=$('naverSearchResult');
+  if(!q){box.innerHTML='<div style="padding:20px 16px;text-align:center;font-size:13px;color:var(--text-hint)">검색어를 입력해주세요.</div>';return;}
+  const _sk=()=>`<div class="sk-card" style="padding:12px 14px"><div class="sk sk-line" style="width:80%;margin-bottom:8px"></div><div class="sk sk-line" style="width:40%;height:10px"></div></div>`;
+  box.innerHTML=Array(6).fill(0).map(_sk).join('');
+  try{
+    const r=await fetch(`${API}/api/news/search?q=${encodeURIComponent(q)}`);
+    if(!r.ok) throw new Error('서버 오류 '+r.status);
+    const data=await r.json();
+    if(data.error) throw new Error(data.error);
+    if(!data.length){box.innerHTML='<div class="empty-state"><div class="ei">🔍</div>검색 결과가 없습니다.</div>';return;}
+    box.innerHTML=`<div style="padding:8px 16px;font-size:12px;color:var(--text-hint);border-bottom:1px solid var(--border)">"${escHtml(q)}" 검색 결과 ${data.length}건</div>`
+      +data.map(n=>newsCardHtml(n)).join('');
+  }catch(e){
+    box.innerHTML=`<div class="empty-state"><div class="ei">⚠️</div>${escHtml(e.message||'검색에 실패했습니다.')}<br/><button class="btn-sm" onclick="doNaverSearch()" style="margin-top:12px">재시도</button></div>`;
+  }
+}
 function switchNewsCat(cat){
   newsCat=cat;
   ['scrap','local','naver'].forEach(t=>{
@@ -2262,13 +2290,17 @@ function switchNewsCat(cat){
   });
   const ldf=$('localDistrictFilter');
   if(ldf) ldf.style.display=cat==='local'?'flex':'none';
-  const sp=$('newsScrapPane'), nc=$('newsContent');
+  const sp=$('newsScrapPane'), nc=$('newsContent'), np=$('naverSearchPane');
   if(sp) sp.style.display=cat==='scrap'?'block':'none';
-  if(nc) nc.style.display=cat==='scrap'?'none':'block';
+  if(nc) nc.style.display=cat==='local'?'block':'none';
+  if(np) np.style.display=cat==='naver'?'block':'none';
   if(cat==='scrap'){
     if(!scrapLoaded){scrapLoaded=true;loadScrap();}
-  } else {
+  } else if(cat==='local'){
     newsCache=null;newsPage=1;loadNews();
+  } else if(cat==='naver'){
+    // 검색창 포커스
+    setTimeout(()=>$('naverSearchInput')?.focus(),100);
   }
 }
 const DISTRICT_IDS={'all':'ld-all','은평':'ld-eunpyeong','서대문':'ld-sdm','마포':'ld-mapo','용산':'ld-yongsan'};
@@ -2618,7 +2650,7 @@ async function loadNews(reset){
   if(newsCat==='local') _startLocalMsg(); else _stopLocalMsg();
   $('newsContent').innerHTML=Array(6).fill(0).map(_skNews).join('');
   np.start();
-  const apiCat=newsCat==='naver'?'headline':newsCat;
+  const apiCat=newsCat;
   try{
     const r=await fetch(`${API}/api/news?category=${apiCat}`);
     if(!r.ok)throw new Error('서버 오류 '+r.status);
@@ -3576,7 +3608,14 @@ function _showWriteEditor(mode){
   $('writeEditorBody').style.display='';
   $('modalFooter').style.display='';
   $('blogThumbArea').style.display=mode==='blog'?'':'none';
-  if(mode==='blog'){resetBlogThumb();}
+  if(mode==='blog'){
+    resetBlogThumb();
+    _blogFullscreen=true;
+    $('writeModal').classList.add('fullscreen-modal');
+  } else {
+    _blogFullscreen=false;
+    $('writeModal').classList.remove('fullscreen-modal');
+  }
   renderEditor();
 }
 function selectWriteType(type){ _showWriteEditor(type); }
@@ -3636,7 +3675,7 @@ function _closeWriteModal(){_blogFullscreen=false;$('writeModal').classList.remo
 let _modalJustOpened=false;
 $('modalClose').onclick=()=>_closeWriteModal();
 $('modalCancel').onclick=()=>_closeWriteModal();
-$('writeModal').onclick=e=>{if(e.target===$('writeModal')&&!_modalJustOpened)_closeWriteModal();};
+// 배경(overlay) 클릭으로는 닫지 않음 — 글 작성 중 실수로 닫혀 내용이 사라지는 것 방지
 async function compressImage(file,maxPx=1200,quality=0.78){
   return new Promise(resolve=>{
     const img=new Image();
@@ -5135,14 +5174,24 @@ async function loadScrap(){
   try{
     const d=await fetch(`${API}/api/scrapmaster`).then(r=>r.json());
     if(d.error){box.innerHTML=`<div style="padding:30px;text-align:center;color:var(--danger);font-size:13px">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(d.error)}</small><br/><button onclick="scrapLoaded=false;loadScrap()" style="margin-top:12px;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px">다시 시도</button></div>`;return;}
-    if(!d.length){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint);font-size:13px">스크랩 기사가 없습니다</div>';return;}
-    box.innerHTML=`<div style="padding:10px 16px 4px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:var(--text-hint)">총 ${d.length}건</span>
+    // 응답 형식: 구버전(배열) 또는 신버전({articles, date})
+    const articles=Array.isArray(d)?d:(d.articles||[]);
+    const dateStr=(!Array.isArray(d)&&d.date)?d.date:null;
+    if(!articles.length){box.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-hint);font-size:13px">스크랩 기사가 없습니다</div>';return;}
+    const dateLbl=dateStr?(()=>{const [y,m,dy]=dateStr.split('-');return `📅 ${y}년 ${+m}월 ${+dy}일자`;})():'';
+    box.innerHTML=`<div style="padding:10px 16px 6px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${dateLbl?`<span style="font-size:13px;font-weight:600;color:var(--text)">${dateLbl}</span>`:''}
+        <span style="font-size:12px;color:var(--text-hint)">총 ${articles.length}건</span>
+      </div>
       <button onclick="scrapLoaded=false;loadScrap()" style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:0">새로고침</button>
-    </div>`+d.map(a=>`<a href="${escHtml(a.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:block;padding:11px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;transition:background .12s" onmouseover="this.style.background='#f7f7f7'" onmouseout="this.style.background=''">
-      <div style="font-size:14px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:4px">${escHtml(a.title)}</div>
-      ${a.source?`<div style="font-size:11px;color:var(--text-hint)">${escHtml(a.source)}</div>`:''}
-    </a>`).join('');
+    </div>`+articles.map(a=>`<div style="position:relative;border-bottom:1px solid var(--border)">
+      <a href="${escHtml(a.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:block;padding:11px 52px 11px 16px;text-decoration:none;color:inherit;transition:background .12s" onmouseover="this.style.background='#f7f7f7'" onmouseout="this.style.background=''">
+        <div style="font-size:14px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:4px">${escHtml(a.title)}</div>
+        ${a.source?`<div style="font-size:11px;color:var(--text-hint)">${escHtml(a.source)}</div>`:''}
+      </a>
+      <button class="news-quote-btn" onclick="openWriteModal('${escHtml(a.url)}','${escHtml(a.title)}','${escHtml(a.source||'')}')">피드 공유</button>
+    </div>`).join('');
   }catch(e){box.innerHTML=`<div style="padding:30px;text-align:center;color:var(--danger);font-size:13px">네트워크 오류<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 async function loadRestaurants(){
