@@ -120,7 +120,7 @@ async function testPlaceSearch() {
     const text = await r.text();
     let data;
     try { data = JSON.parse(text); } catch(e) { data = text; }
-    const ok = r.ok && (typeof data === 'object') && !data.error;
+    const ok = r.ok && (typeof data === 'object') && data.ok && data.places?.length > 0;
     setResult('placeResult', null, ok,
       `HTTP ${r.status}\n` + (typeof data === 'string' ? data : JSON.stringify(data, null, 2)));
   } catch(e) {
