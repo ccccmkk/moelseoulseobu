@@ -124,7 +124,7 @@ function parseRSS(xml) {
   const isAtom = /<entry[\s>]/i.test(xml);
   if (isAtom) {
     const entries = xml.match(/<entry[\s>]([\s\S]*?)<\/entry>/gi) || [];
-    for (const e of entries.slice(0, 40)) {
+    for (const e of entries.slice(0, 60)) {
       const tag = (t) => {
         const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(e);
         if (cd) return cd[1].trim();
@@ -143,7 +143,7 @@ function parseRSS(xml) {
   }
   // RSS feed (<item>)
   const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
-  for (const b of blocks.slice(0, 40)) {
+  for (const b of blocks.slice(0, 60)) {
     const tag = (t) => {
       const cd = new RegExp(`<${t}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${t}>`, 'i').exec(b);
       if (cd) return cd[1].trim();
@@ -321,6 +321,7 @@ async function initDB(env) {
     "CREATE TABLE IF NOT EXISTS naver_usage (date TEXT PRIMARY KEY, calls INTEGER DEFAULT 0)",
     `CREATE TABLE IF NOT EXISTS workers_ai_usage (id INTEGER PRIMARY KEY, calls INTEGER DEFAULT 0, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS law_usage (id INTEGER PRIMARY KEY, search_calls INTEGER DEFAULT 0, content_calls INTEGER DEFAULT 0, ask_calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
+    "ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'published'",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -505,15 +506,23 @@ export default {
                 'yongsannews.kr',
                 'mapo.go.kr','sdm.go.kr','yongsan.go.kr','ep.go.kr',
               ]);
+              // 언론사 → 구별 매핑
+              const OUTLET_DISTRICT = {
+                '마포타임즈':'마포','마포시민신문':'마포','마포신문':'마포','마포구청':'마포',
+                '서부신문':'서대문','서대문자치신문':'서대문','서대문인터넷뉴스':'서대문','서대문신문':'서대문','서대문구청':'서대문',
+                '은평신문':'은평','은평시민신문':'은평','은평구청':'은평',
+                '새용산신문':'용산','용산구청':'용산',
+              };
               // 각 언론사/구청별로 URL 순서대로 시도, 첫 성공 반환
               const fetchOutletRSS = async ({ name, urls, isGov }) => {
+                const district = OUTLET_DISTRICT[name] || '';
                 for (const feedUrl of urls) {
                   try {
                     const r = await fetchTimeout(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }, 6000);
                     if (!r.ok) continue;
                     const xml = await r.text();
                     const arts = parseRSS(xml);
-                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov }));
+                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov, district }));
                   } catch(e) { /* 다음 URL 시도 */ }
                 }
                 return [];
@@ -547,7 +556,7 @@ export default {
             } else if (cat === 'law') {
               items = await fetchNaverSearchRaw('근로기준법 OR 노동법 OR 산업재해', 100);
             }
-            items = dedup(items).slice(0, 100);
+            items = dedup(items).slice(0, cat === 'local' ? 200 : 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
               .bind(cat, JSON.stringify(items), now, JSON.stringify(items), now).run());
             if (naverCalls > 0) {
@@ -956,10 +965,25 @@ export default {
       if (p === '/api/posts' && m === 'GET') {
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '20'), 50);
         const before = parseInt(url.searchParams.get('before') || '0');
+        // 본인 토큰으로 본인 임시저장 포함 여부 확인
+        const tok = url.searchParams.get('token') || '';
+        let meId = null;
+        if (tok) {
+          const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(tok).first().catch(()=>null);
+          meId = sess?.user_id || null;
+        }
         const baseSQL = 'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
-        const rows = before > 0
-          ? await env.DB.prepare(baseSQL + ' WHERE p.created_at < ? ORDER BY p.created_at DESC LIMIT ?').bind(before, limit + 1).all()
-          : await env.DB.prepare(baseSQL + ' ORDER BY p.created_at DESC LIMIT ?').bind(limit + 1).all();
+        // published(또는 null) + 본인 draft/hidden 포함, 남의 draft/hidden 제외
+        const statusFilter = meId
+          ? `(p.status IS NULL OR p.status='published' OR p.status='hidden' AND p.author=? OR p.status='draft' AND p.author=?)`
+          : `(p.status IS NULL OR p.status='published')`;
+        const bindMe = meId ? [meId, meId] : [];
+        let rows;
+        if (before > 0) {
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${statusFilter} AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).bind(...bindMe, before, limit + 1).all();
+        } else {
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${statusFilter} ORDER BY p.created_at DESC LIMIT ?`).bind(...bindMe, limit + 1).all();
+        }
         const items = rows.results || [];
         const has_more = items.length > limit;
         if (has_more) items.pop();
@@ -971,8 +995,9 @@ export default {
         const b = await request.json();
         const id = 'post_' + Date.now();
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at,mode) VALUES(?,?,?,?,?)')
-          .bind(id, b.author, JSON.stringify(b.blocks), now, b.mode||'normal').run();
+        const postStatus = b.status === 'draft' ? 'draft' : (b.status === 'hidden' ? 'hidden' : 'published');
+        await env.DB.prepare('INSERT INTO posts(id,author,blocks,created_at,mode,status) VALUES(?,?,?,?,?,?)')
+          .bind(id, b.author, JSON.stringify(b.blocks), now, b.mode||'normal', postStatus).run();
         if (b.keyword) {
           await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
             .bind(id, b.keyword, b.keyword).run();
@@ -1050,7 +1075,12 @@ export default {
       if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'PUT') {
         const id = p.split('/')[3];
         const b = await request.json();
-        await env.DB.prepare('UPDATE posts SET blocks=?,mode=? WHERE id=?').bind(JSON.stringify(b.blocks), b.mode||'normal', id).run();
+        const updStatus = b.status === 'draft' ? 'draft' : (b.status === 'hidden' ? 'hidden' : (b.status === 'published' ? 'published' : null));
+        if (updStatus) {
+          await env.DB.prepare('UPDATE posts SET blocks=?,mode=?,status=? WHERE id=?').bind(JSON.stringify(b.blocks), b.mode||'normal', updStatus, id).run();
+        } else {
+          await env.DB.prepare('UPDATE posts SET blocks=?,mode=? WHERE id=?').bind(JSON.stringify(b.blocks), b.mode||'normal', id).run();
+        }
         if (b.keyword !== undefined) {
           if (b.keyword) {
             await env.DB.prepare('INSERT INTO post_keywords(post_id,keyword) VALUES(?,?) ON CONFLICT(post_id) DO UPDATE SET keyword=?')
@@ -1060,6 +1090,22 @@ export default {
           }
         }
         return json({ ok: true });
+      }
+
+      // ── 글 상태 변경 (임시저장↔공개, 숨김↔공개) ──
+      if (p.match(/^\/api\/posts\/[^/]+\/status$/) && m === 'PATCH') {
+        const postId = p.split('/')[3];
+        const { status, token } = await request.json();
+        if (!['published','draft','hidden'].includes(status)) return json({ error: 'invalid status' }, 400);
+        const sess = token ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token).first().catch(()=>null) : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const post = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(postId).first();
+        if (!post) return json({ error: 'not found' }, 404);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        const isAdmin = role?.role === 'admin' || role?.role === 'sub_admin';
+        if (!isAdmin && post.author !== sess.user_id) return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('UPDATE posts SET status=? WHERE id=?').bind(status, postId).run();
+        return json({ ok: true, status });
       }
 
       // ── 글 삭제 ──
