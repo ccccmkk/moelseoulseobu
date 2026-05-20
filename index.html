@@ -3576,7 +3576,14 @@ function _showWriteEditor(mode){
   $('writeEditorBody').style.display='';
   $('modalFooter').style.display='';
   $('blogThumbArea').style.display=mode==='blog'?'':'none';
-  if(mode==='blog'){resetBlogThumb();}
+  if(mode==='blog'){
+    resetBlogThumb();
+    _blogFullscreen=true;
+    $('writeModal').classList.add('fullscreen-modal');
+  } else {
+    _blogFullscreen=false;
+    $('writeModal').classList.remove('fullscreen-modal');
+  }
   renderEditor();
 }
 function selectWriteType(type){ _showWriteEditor(type); }
@@ -3636,7 +3643,7 @@ function _closeWriteModal(){_blogFullscreen=false;$('writeModal').classList.remo
 let _modalJustOpened=false;
 $('modalClose').onclick=()=>_closeWriteModal();
 $('modalCancel').onclick=()=>_closeWriteModal();
-$('writeModal').onclick=e=>{if(e.target===$('writeModal')&&!_modalJustOpened)_closeWriteModal();};
+// 배경(overlay) 클릭으로는 닫지 않음 — 글 작성 중 실수로 닫혀 내용이 사라지는 것 방지
 async function compressImage(file,maxPx=1200,quality=0.78){
   return new Promise(resolve=>{
     const img=new Image();
