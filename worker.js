@@ -652,8 +652,11 @@ export default {
             local: '은평시민신문 OR 마포시민신문 OR 서대문신문 OR 용산신문 OR 마포구 OR 은평구 OR 서대문구 OR 용산구',
             health: '질병관리청 OR 보건복지부 건강',
             law: '근로기준법 OR 노동법 OR 산업재해 OR 노동부 법률',
+            headline: '속보 뉴스',
           };
-          const feedUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(googleQueries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
+          const feedUrl = cat === 'headline'
+            ? 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko'
+            : 'https://news.google.com/rss/search?q=' + encodeURIComponent(googleQueries[cat]) + '&hl=ko&gl=KR&ceid=KR:ko';
           const resp = await fetchTimeout(feedUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
           }, 8000);
