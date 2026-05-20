@@ -5918,6 +5918,7 @@ async function _loadProfilePosts(reset){
     }
     arr.forEach(p=>{const div=document.createElement('div');div.innerHTML=postCardHtml(p);cont.appendChild(div.firstChild);});
     $('profilePageLoadMore').style.display=_profileHasMore?'':'none';
+    initYtPlayers();
   }catch(e){
     $('profilePagePosts').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">불러오지 못했습니다</div>';
   }
