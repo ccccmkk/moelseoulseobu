@@ -2163,7 +2163,7 @@ export default {
           try {
             const dr = await fetch(
               `https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
-              { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+              { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
             );
             const dd = await dr.json();
             walkSec = dd?.route?.traoptimal?.[0]?.summary?.duration || null;
@@ -2172,7 +2172,7 @@ export default {
             try {
               const wr = await fetch(
                 `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
-                { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+                { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
               );
               const wd = await wr.json();
               walkSec = wd?.route?.traoptimal?.[0]?.summary?.duration || null;
@@ -2195,7 +2195,7 @@ export default {
         try {
           const r = await fetch(
             `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(q)}`,
-            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
           );
           const raw = await r.text();
           let d; try { d = JSON.parse(raw); } catch(e) { return json({ ok: false, error: 'API 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }
@@ -2216,7 +2216,7 @@ export default {
           // 좌표 반경 제한 없이 전국 검색 (반경 제한 시 결과 없는 경우 있음)
           const r = await fetch(
             `https://naveropenapi.apigw.ntruss.com/map-place/v1/search?query=${encodeURIComponent(q)}`,
-            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET, 'Referer': 'https://moelseoulseobu.cloud/' } }
           );
           const raw = await r.text();
           let d; try { d = JSON.parse(raw); } catch(e) { return json({ error: 'API 응답 파싱 실패', raw: raw.slice(0,300), status: r.status }, 500); }
