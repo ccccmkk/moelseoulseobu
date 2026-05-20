@@ -2146,6 +2146,20 @@ function updateAvatarEl(el,u){
   else{el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av||initials(u);}
 }
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function sanitizeHtml(html){
+  const div=document.createElement('div');
+  div.innerHTML=html||'';
+  // Remove dangerous elements and attributes
+  div.querySelectorAll('script,iframe,object,embed,form,input,button,link,meta,style,base').forEach(el=>el.remove());
+  div.querySelectorAll('*').forEach(el=>{
+    [...el.attributes].forEach(attr=>{
+      const n=attr.name.toLowerCase(),v=attr.value;
+      if(n.startsWith('on'))el.removeAttribute(attr.name);
+      else if(['href','src','action','data','formaction'].includes(n)&&/^\s*(javascript|vbscript|data):/i.test(v))el.removeAttribute(attr.name);
+    });
+  });
+  return div.innerHTML;
+}
 function imgUrl(u){return(u&&u.startsWith('/'))?API+u:(u||'');}
 function renderMd(s){
   if(!s)return'';
@@ -5124,7 +5138,7 @@ function openFullPost(key){
   const isBlogMode=p.mode==='blog';
   (p.blocks||[]).forEach(b=>{
     if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(b.url)}')"><img src="${imgUrl(b.url)}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
-    else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${isBlogMode?b.content:renderMd(b.content)}</div>`;}
+    else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${isBlogMode?sanitizeHtml(b.content):renderMd(b.content)}</div>`;}
     else if(b.type==='link'){html+=linkPreviewHtml(b);}
     else if(b.type==='youtube'){html+=youtubeBlockHtml(b);}
   });

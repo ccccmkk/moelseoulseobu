@@ -162,6 +162,33 @@ function parseRSS(xml) {
   return out;
 }
 
+// ── 비밀번호 해싱 (PBKDF2-SHA256) ──
+async function hashPassword(password, salt) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    key, 256
+  );
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function genSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function makePasswordHash(password) {
+  const salt = genSalt();
+  return salt + ':' + await hashPassword(password, salt);
+}
+async function verifyPasswordHash(password, stored) {
+  if (!stored) return false;
+  if (!stored.includes(':')) {
+    // 레거시 평문 — 일치 여부 반환 후 상위에서 재해시
+    return stored === password ? 'legacy' : false;
+  }
+  const [salt, hash] = stored.split(':');
+  return await hashPassword(password, salt) === hash ? true : false;
+}
+
 async function fetchOG(targetUrl, env) {
   try {
     const _u = new URL(targetUrl);
@@ -341,10 +368,6 @@ async function initDB(env) {
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM users WHERE id='관리자'"); } catch(e) {}
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000001','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000001','관리자','9999','active',0),
-    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('050007557','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('050007557','김창민','1234','active',0),
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000099','user','user'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000099','건강봇','__agent__','active',0),
   ]);
@@ -1816,8 +1839,9 @@ export default {
         if (!name || !name.trim()) return json({ error: '이름을 입력해주세요.' }, 400);
         const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
         if (exists) return json({ error: '이미 등록된 사번입니다.' }, 409);
+        const newUserHash = await makePasswordHash(password || '1234');
         await env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?)')
-          .bind(id, name.trim(), (dept||'').trim(), password || '1234', 'active', Math.floor(Date.now() / 1000)).run();
+          .bind(id, name.trim(), (dept||'').trim(), newUserHash, 'active', Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(id, 'user').run();
         return json({ ok: true });
       }
@@ -1844,9 +1868,14 @@ export default {
         // batch도 50명(=100 statements)씩 나눠 처리
         for (let i = 0; i < toInsert.length; i += 50) {
           const chunk = toInsert.slice(i, i + 50);
+          // bulk에서 비밀번호 해시 (병렬)
+          const hashedChunk = await Promise.all(chunk.map(async u => ({
+            ...u,
+            upw: await makePasswordHash(u.upw)
+          })));
           await env.DB.batch([
-            ...chunk.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
-            ...chunk.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
+            ...hashedChunk.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
+            ...hashedChunk.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
           ]);
         }
         return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
@@ -1854,7 +1883,8 @@ export default {
       if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
         const _s4 = await requireAdmin(); if (_s4 instanceof Response) return _s4;
         const userId = decodeURIComponent(p.split('/')[3]);
-        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind('1234', userId).run();
+        const resetHash = await makePasswordHash('1234');
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(resetHash, userId).run();
         await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
         return json({ ok: true });
       }
@@ -1871,11 +1901,13 @@ export default {
           const _s8 = await requireSession();
           if (_s8 instanceof Response) return _s8;
           if (_s8.user_id !== userId) return json({ error: 'forbidden' }, 403);
-          if (user.password !== old_password) return json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400);
+          const oldCheck = await verifyPasswordHash(old_password, user.password);
+          if (!oldCheck) return json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400);
         }
         if (!new_password || new_password.length < 4) return json({ error: '새 비밀번호는 4자 이상이어야 합니다.' }, 400);
         if (new_password === '1234') return json({ error: '초기 비밀번호는 사용할 수 없습니다.' }, 400);
-        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(new_password, userId).run();
+        const newHash = await makePasswordHash(new_password);
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(newHash, userId).run();
         // 비밀번호 변경 후 모든 세션 무효화 (재로그인 강제)
         await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
         return json({ ok: true });
@@ -1923,7 +1955,8 @@ export default {
           return json({ error: '로그인 시도가 너무 많습니다. 5분 후 다시 시도해 주세요.' }, 429);
         }
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
-        if (!user || user.password !== password) { ctx.waitUntil(logResult(id, 'fail')); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
+        const pwCheck = await verifyPasswordHash(password, user?.password);
+        if (!user || !pwCheck) { ctx.waitUntil(logResult(id, 'fail')); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
         if (user.status === 'pending') { ctx.waitUntil(logResult(id, 'pending')); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
         const token = crypto.randomUUID();
         await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, now).run();
@@ -1931,7 +1964,12 @@ export default {
           env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run(),
           logResult(id, 'ok'),
         ]));
-        return json({ ok: true, id: user.id, name: user.name || user.id, dept: user.dept || '', token, must_change_password: user.password === '1234' });
+        // 레거시 평문 비밀번호 → 자동 해시 업그레이드
+        if (pwCheck === 'legacy') {
+          const newHash = await makePasswordHash(password);
+          env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(newHash, user.id).run().catch(()=>{});
+        }
+        return json({ ok: true, id: user.id, name: user.name || user.id, dept: user.dept || '', token, must_change_password: password === '1234' });
       }
       if (p === '/api/verify-session' && m === 'POST') {
         const { token } = await request.json();
