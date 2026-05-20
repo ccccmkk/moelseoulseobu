@@ -322,6 +322,9 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS workers_ai_usage (id INTEGER PRIMARY KEY, calls INTEGER DEFAULT 0, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS law_usage (id INTEGER PRIMARY KEY, search_calls INTEGER DEFAULT 0, content_calls INTEGER DEFAULT 0, ask_calls INTEGER DEFAULT 0, updated_at INTEGER DEFAULT 0)`,
     "ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'published'",
+    "ALTER TABLE restaurants ADD COLUMN lat REAL DEFAULT NULL",
+    "ALTER TABLE restaurants ADD COLUMN lng REAL DEFAULT NULL",
+    "ALTER TABLE restaurants ADD COLUMN walk_sec INTEGER DEFAULT NULL",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -2082,10 +2085,52 @@ export default {
         const b = await request.json();
         if (!b.name) return json({ error: '이름 필수' }, 400);
         const id = 'rst_' + Date.now();
-        await env.DB.prepare('INSERT INTO restaurants(id,name,address,category,walk_min,note,added_by,created_at) VALUES(?,?,?,?,?,?,?,?)')
-          .bind(id, b.name, b.address||'', b.category||'기타', b.walk_min||5, b.note||'', b.added_by||'', Math.floor(Date.now()/1000)).run();
-        return json({ id });
+        const lat = b.lat != null ? parseFloat(b.lat) : null;
+        const lng = b.lng != null ? parseFloat(b.lng) : null;
+        // 도보 시간 자동 계산 (센터 좌표 기준)
+        let walkSec = null;
+        if (lat && lng && env.NAVER_MAP_CLIENT_ID && env.NAVER_MAP_CLIENT_SECRET) {
+          const CENTER_LNG = 126.9510, CENTER_LAT = 37.5430;
+          try {
+            const dr = await fetch(
+              `https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
+              { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+            );
+            const dd = await dr.json();
+            walkSec = dd?.route?.traoptimal?.[0]?.summary?.duration || null;
+          } catch(e) {}
+          if (!walkSec) {
+            try {
+              const wr = await fetch(
+                `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${CENTER_LNG},${CENTER_LAT}&goal=${lng},${lat}&option=traoptimal`,
+                { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+              );
+              const wd = await wr.json();
+              walkSec = wd?.route?.traoptimal?.[0]?.summary?.duration || null;
+            } catch(e) {}
+          }
+        }
+        await env.DB.prepare('INSERT INTO restaurants(id,name,address,category,walk_min,note,added_by,created_at,lat,lng,walk_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+          .bind(id, b.name, b.address||'', b.category||'기타', b.walk_min||5, b.note||'', b.added_by||'', Math.floor(Date.now()/1000), lat, lng, walkSec).run();
+        return json({ id, lat, lng, walk_sec: walkSec });
       }
+      // ── 주소 → 좌표 변환 (Geocoding) ──
+      if (p === '/api/geocode' && m === 'GET') {
+        const q = url.searchParams.get('q');
+        if (!q) return json({ error: 'q 필수' }, 400);
+        if (!env.NAVER_MAP_CLIENT_ID || !env.NAVER_MAP_CLIENT_SECRET) return json({ error: 'API 키 미설정' }, 503);
+        try {
+          const r = await fetch(
+            `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(q)}`,
+            { headers: { 'X-NCP-APIGW-API-KEY-ID': env.NAVER_MAP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': env.NAVER_MAP_CLIENT_SECRET } }
+          );
+          const d = await r.json();
+          const addr = d?.addresses?.[0];
+          if (!addr) return json({ ok: false, message: '주소를 찾을 수 없습니다' });
+          return json({ ok: true, lat: parseFloat(addr.y), lng: parseFloat(addr.x), roadAddress: addr.roadAddress, jibunAddress: addr.jibunAddress });
+        } catch(e) { return json({ error: e.message }, 500); }
+      }
+
       if (p.match(/^\/api\/restaurants\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];
         await env.DB.prepare('DELETE FROM restaurants WHERE id=?').bind(id).run();
