@@ -399,6 +399,49 @@ export default {
         return json({ url: `${new URL(request.url).origin}/${key}` });
       }
 
+      // ── 신문스크랩 (scrapmaster.co.kr 파싱, 1시간 캐시) ──
+      if (p === '/api/scrapmaster' && m === 'GET') {
+        const now = Math.floor(Date.now() / 1000);
+        const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind('scrapmaster').first();
+        if (cached && now - cached.cached_at < 3600) return json(JSON.parse(cached.data));
+        try {
+          const r = await fetch('https://mnc.scrapmaster.co.kr/v1_6/mb_list.php?id=molab&flag=0', {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'ko-KR,ko;q=0.9',
+              'Referer': 'https://mnc.scrapmaster.co.kr/',
+            },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!r.ok) {
+            if (cached) return json(JSON.parse(cached.data));
+            return json({ error: `HTTP ${r.status}` }, r.status);
+          }
+          const html = await r.text();
+          const articles = [];
+          // <dt class="title"> 블록에서 href, 제목, 신문사 추출
+          const dtBlocks = html.match(/<dt class="title"[\s\S]*?<\/dt>/g) || [];
+          for (const dt of dtBlocks) {
+            const hrefM = dt.match(/href="(\.\/mb_display\.php[^"]+)"/);
+            const titleM = dt.match(/class="reduce">([^<]+)<\/a>/);
+            const srcM = dt.match(/class="reduce">[^<]+<\/a>[^<]*?<!--[^>]*-->\s*\n?\s*([^\n<]+)/);
+            if (!hrefM || !titleM) continue;
+            articles.push({
+              url: 'https://mnc.scrapmaster.co.kr/v1_6/' + hrefM[1].replace('./', ''),
+              title: titleM[1].trim(),
+              source: srcM ? srcM[1].trim() : '',
+            });
+          }
+          ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+            .bind('scrapmaster', JSON.stringify(articles), now, JSON.stringify(articles), now).run());
+          return json(articles);
+        } catch (e) {
+          if (cached) return json(JSON.parse(cached.data));
+          return json({ error: e.message }, 500);
+        }
+      }
+
       // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
