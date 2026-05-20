@@ -462,7 +462,7 @@ export default {
       // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
-        const validCats = ['labor','local','health','law'];
+        const validCats = ['labor','local','health','law','headline'];
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
@@ -619,6 +619,19 @@ export default {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
               items = await fetchNaverSearchRaw('근로기준법 OR 노동법 OR 산업재해', 100);
+            } else if (cat === 'headline') {
+              // 헤드라인 뉴스 - 노동 필터 없이 다양한 분야 최신 뉴스
+              const [r1,r2,r3] = await Promise.allSettled([
+                fetchNaverSearchRaw('사회 뉴스', 40),
+                fetchNaverSearchRaw('경제 뉴스', 40),
+                fetchNaverSearchRaw('정치 뉴스', 30),
+              ]);
+              naverCalls = 3;
+              items = dedup([
+                ...(r1.status==='fulfilled'?r1.value:[]),
+                ...(r2.status==='fulfilled'?r2.value:[]),
+                ...(r3.status==='fulfilled'?r3.value:[]),
+              ].sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0)));
             }
             items = dedup(items).slice(0, cat === 'local' ? 200 : 100);
             ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
