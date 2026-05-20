@@ -580,6 +580,10 @@ button,a,[role="button"]{touch-action:manipulation}
 .nl-card-title{font-size:15px;font-weight:600;color:var(--text)}
 .nl-card-sub{font-size:12px;color:var(--text-hint);margin-top:3px}
 /* 링크 프리뷰 */
+.yt-player-wrap{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:var(--radius-sm);margin:0 0 10px;background:#000}
+.editor-yt-wrap{padding:8px 16px 4px;}
+.yt-mute-btn{position:absolute;bottom:10px;right:10px;z-index:10;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.yt-mute-btn:hover{background:rgba(0,0,0,.8)}
 .link-preview{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;text-decoration:none;color:inherit;background:#fafafa;margin:0 14px 10px;transition:box-shadow .15s;padding:10px 12px}
 .link-preview:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .link-preview-img{width:56px;height:56px;object-fit:cover;display:block;flex-shrink:0;border-radius:6px}
@@ -632,6 +636,8 @@ button,a,[role="button"]{touch-action:manipulation}
 .post-status-badge.draft{background:#fff8e1;color:#f57c00;}
 .post-status-badge.hidden{background:#f5f5f5;color:#888;}
 </style>
+<script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=663rfknnj7"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 
@@ -755,38 +761,47 @@ button,a,[role="button"]{touch-action:manipulation}
     <div id="lunchMainPane" style="display:none">
       <div class="section-hd">
         <span class="section-title">공덕·마포역 맛집</span>
-        <button class="btn-sm primary" id="addRestBtn" style="display:none" onclick="openAddRestModal()">+ 맛집 추가</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-sm" id="restViewListBtn" onclick="switchRestView('list')" style="font-size:11px;padding:4px 10px">목록</button>
+          <button class="btn-sm" id="restViewMapBtn" onclick="switchRestView('map')" style="font-size:11px;padding:4px 10px">지도</button>
+          <button class="btn-sm primary" id="addRestBtn" style="display:none;font-size:11px;padding:4px 10px" onclick="openAddRestModal()">+ 추가</button>
+        </div>
       </div>
-      <a href="https://map.naver.com/v5/search/%EA%B3%B5%EB%8D%95%EC%97%AD%20%EB%A7%9B%EC%A7%91" target="_blank" rel="noopener" id="naverMapLink" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;width:100%;height:160px;border-radius:var(--radius);border:1px solid var(--border);background:linear-gradient(135deg,#e0f4f6,#eaf8fa);text-decoration:none;margin-bottom:14px;color:var(--green-dark)">
-        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="var(--green)" stroke-width="1.8"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-        <div style="font-size:14px;font-weight:700">네이버 지도에서 보기</div>
-        <div style="font-size:12px;color:var(--text-hint)">공덕역 · 마포역 주변 맛집</div>
-      </a>
-      <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
+      <div id="restListView">
+        <div id="restaurantList"><div style="padding:40px;text-align:center;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+      <div id="restMapView" style="display:none">
+        <div id="naverMapContainer" style="width:100%;height:420px;border-radius:var(--radius);overflow:hidden;margin-bottom:0"></div>
+        <div id="restMapInfo" style="padding:12px 16px;border-top:1px solid var(--border);display:none">
+          <div id="restMapInfoContent"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- 맛집 추가 모달 -->
   <div class="modal-overlay" id="addRestModal">
-    <div class="modal-card" style="max-width:400px">
+    <div class="modal-card" style="max-width:420px">
       <div class="modal-header">
         <span class="modal-title">맛집 추가</span>
         <button class="modal-close" onclick="$('addRestModal').classList.remove('open')">×</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
-        <input id="restName" type="text" placeholder="식당 이름 *" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
-        <input id="restAddress" type="text" placeholder="주소 (예: 마포구 공덕동 123)" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
-        <div style="display:flex;gap:8px">
-          <select id="restCategory" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
-            <option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>분식</option><option>카페</option><option>기타</option>
-          </select>
-          <div style="display:flex;align-items:center;gap:6px;flex:1;border:1px solid var(--border);border-radius:8px;padding:0 10px">
-            <span style="font-size:13px;white-space:nowrap;color:var(--text-sub)">도보</span>
-            <input id="restWalk" type="number" value="5" min="1" max="30" style="width:40px;border:none;font-size:14px;text-align:center;font-family:inherit"/>
-            <span style="font-size:13px;color:var(--text-sub)">분</span>
-          </div>
+        <input id="restName" type="text" placeholder="식당 이름 *" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box"/>
+        <div style="display:flex;gap:6px">
+          <input id="restAddress" type="text" placeholder="주소 검색 후 핀으로 확인" style="flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit"/>
+          <button onclick="geocodeRestAddress()" style="white-space:nowrap;padding:0 12px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">검색</button>
         </div>
-        <textarea id="restNote" placeholder="한줄 설명 (예: 된장찌개 맛집, 점심 특선 7000원)" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none"></textarea>
+        <div id="addRestMapWrap" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+          <div id="addRestMap" style="width:100%;height:200px"></div>
+          <div id="addRestMapMsg" style="font-size:11px;color:var(--text-hint);padding:5px 10px;background:#fafafa;text-align:center">지도를 클릭하거나 주소를 검색해서 위치를 지정하세요</div>
+        </div>
+        <input type="hidden" id="restLat"/>
+        <input type="hidden" id="restLng"/>
+        <select id="restCategory" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box">
+          <option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>분식</option><option>카페</option><option>기타</option>
+        </select>
+        <textarea id="restNote" placeholder="한줄 설명 (예: 된장찌개 맛집, 점심 특선 7000원)" rows="2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;box-sizing:border-box"></textarea>
         <button onclick="submitAddRest()" class="btn-primary" style="width:100%;padding:12px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">추가</button>
       </div>
     </div>
@@ -1026,6 +1041,9 @@ button,a,[role="button"]{touch-action:manipulation}
       <div class="add-img-row">
         <button class="btn-add-img" id="addImgBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>사진 추가
+        </button>
+        <button class="btn-add-img" id="addYtBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.96A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/></svg>유튜브 영상
         </button>
         <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none"/>
         <input type="file" id="imgCameraInput" accept="image/*" capture="environment" style="display:none"/>
@@ -2630,8 +2648,70 @@ function renderBlocksInCard(p,blogMode){
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   const linkBlocks=p.blocks.filter(b=>b.type==='link');
   linkBlocks.forEach(b=>{html+=linkPreviewHtml(b);});
+  const ytBlocks=p.blocks.filter(b=>b.type==='youtube');
+  ytBlocks.forEach(b=>{html+=youtubeBlockHtml(b);});
   return html;
 }
+function ytVideoId(url){
+  try{
+    const u=new URL(url);
+    if(u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+    if(u.hostname.includes('youtube.com')){
+      if(u.pathname.startsWith('/shorts/')) return u.pathname.split('/shorts/')[1].split('?')[0];
+      return u.searchParams.get('v')||'';
+    }
+  }catch(e){}
+  return '';
+}
+
+// ── YouTube IFrame Player API ──
+let _ytUid=0;
+const _ytPlayers={};
+let _ytObserver=null;
+
+function onYouTubeIframeAPIReady(){ initYtPlayers(); }
+
+function getYtObserver(){
+  if(_ytObserver) return _ytObserver;
+  _ytObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      const uid=entry.target.dataset.ytUid;
+      const p=_ytPlayers[uid];
+      if(!p) return;
+      try{ entry.isIntersecting&&entry.intersectionRatio>=0.4 ? p.playVideo() : p.pauseVideo(); }catch(e){}
+    });
+  },{threshold:0.4});
+  return _ytObserver;
+}
+
+function initYtPlayers(){
+  if(!window.YT||!YT.Player) return;
+  document.querySelectorAll('.yt-player-wrap:not([data-yt-ready])').forEach(wrap=>{
+    const vid=wrap.dataset.ytid; if(!vid) return;
+    wrap.dataset.ytReady='1';
+    const uid=wrap.dataset.ytUid;
+    new YT.Player('yt-p-'+uid,{
+      videoId:vid,
+      playerVars:{playsinline:1,mute:1,controls:1,rel:0,modestbranding:1},
+      events:{onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);}}
+    });
+  });
+}
+
+function toggleYtMute(btn){
+  const uid=btn.dataset.ytUid;
+  const p=_ytPlayers[uid]; if(!p) return;
+  try{
+    if(p.isMuted()){p.unMute();btn.textContent='🔊';}
+    else{p.mute();btn.textContent='🔇';}
+  }catch(e){}
+}
+
+function cleanupYtPlayers(){
+  if(_ytObserver){_ytObserver.disconnect();_ytObserver=null;}
+  Object.keys(_ytPlayers).forEach(k=>{try{_ytPlayers[k].destroy();}catch(e){}delete _ytPlayers[k];});
+}
+
 function linkPreviewHtml(b){
   const img=b.image?`<img class="link-preview-img" src="${escHtml(b.image)}" loading="lazy" onerror="this.style.display='none'"/>`:'';
   let site=b.site_name||'';
@@ -2639,6 +2719,14 @@ function linkPreviewHtml(b){
   return`<a class="link-preview" href="${escHtml(b.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
     ${img}<div class="link-preview-body"><div class="link-preview-site">${escHtml(site)}</div><div class="link-preview-title">${escHtml(b.title||b.url)}</div></div>
   </a>`;
+}
+function youtubeBlockHtml(b){
+  const vid=b.vid||ytVideoId(b.url||'');if(!vid)return'';
+  const uid=++_ytUid;
+  return`<div class="yt-player-wrap" data-ytid="${escHtml(vid)}" data-yt-uid="${uid}" onclick="event.stopPropagation()">
+    <div id="yt-p-${uid}" style="position:absolute;top:0;left:0;width:100%;height:100%"></div>
+    <button class="yt-mute-btn" data-yt-uid="${uid}" onclick="event.stopPropagation();toggleYtMute(this)">🔇</button>
+  </div>`;
 }
 function postCardHtml(p){
   const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
@@ -2694,6 +2782,7 @@ function postCardHtml(p){
   </div>`;
 }
 function renderFeed(){
+  cleanupYtPlayers();
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
   if(!posts.length){feed.innerHTML=compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
@@ -2702,6 +2791,7 @@ function renderFeed(){
   initCarousels();
   setupFeedObserver();
   setupViewObserver();
+  initYtPlayers();
 }
 function appendFeedCards(newPosts){
   const feed=$('feed');
@@ -2712,6 +2802,7 @@ function appendFeedCards(newPosts){
   });
   initCarousels();
   setupViewObserver();
+  initYtPlayers();
 }
 // ── 소식지 ──
 let _nlData=[];
@@ -3262,6 +3353,10 @@ function renderBlogEditor(){
       ce.innerHTML=b.content;
       ce.oninput=()=>{editorBlocks[i].content=ce.innerHTML;};
       div.appendChild(ce);
+    }else if(b.type==='youtube'){
+      const vid=b.vid||ytVideoId(b.url||'');
+      div.innerHTML=`<div style="position:relative;padding-top:56.25%;background:#000;border-radius:8px;overflow:hidden"><img src="https://img.youtube.com/vi/${escHtml(vid)}/hqdefault.jpg" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" loading="lazy"/><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><svg width="48" height="48" viewBox="0 0 24 24" fill="rgba(255,255,255,.85)"><path d="M8 5v14l11-7z"/></svg></div></div><div class="caption-wrap"><span style="font-size:12px;color:var(--text-sub)">유튜브 영상</span><button class="block-del">×</button></div>`;
+      div.querySelector('.block-del').onclick=()=>{editorBlocks.splice(i,1);renderBlogEditor();};
     }else{
       div.draggable=true;
       div.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><div class="caption-wrap"><input class="caption-input" type="text" placeholder="사진 설명 (선택)" value="${escHtml(b.caption||'')}"/><button class="block-del">×</button></div>`;
@@ -3360,6 +3455,14 @@ function renderSimpleEditor(){
     });
     editor.appendChild(grid);
   }
+  // 유튜브 블록
+  editorBlocks.filter(b=>b.type==='youtube').forEach(b=>{
+    const vid=b.vid||ytVideoId(b.url||'');if(!vid)return;
+    const yw=document.createElement('div');yw.className='editor-yt-wrap';
+    yw.innerHTML=`<div class="editor-yt-thumb" style="background:#000;position:relative;padding-top:56.25%;border-radius:8px;overflow:hidden"><img src="https://img.youtube.com/vi/${escHtml(vid)}/hqdefault.jpg" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" loading="lazy"/><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><svg width="48" height="48" viewBox="0 0 24 24" fill="rgba(255,255,255,.85)"><path d="M8 5v14l11-7z"/></svg></div></div><div style="display:flex;align-items:center;justify-content:space-between;padding:6px 2px 0"><span style="font-size:12px;color:var(--text-sub)">유튜브 영상</span><button class="editor-yt-del" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;line-height:1;padding:0">×</button></div>`;
+    yw.querySelector('.editor-yt-del').onclick=()=>{const idx=editorBlocks.indexOf(b);if(idx>=0)editorBlocks.splice(idx,1);renderSimpleEditor();};
+    editor.appendChild(yw);
+  });
 }
 let _dragSrcIdx=-1;
 function renderEditor(){_writeMode==='blog'?renderBlogEditor():renderSimpleEditor();}
@@ -3472,6 +3575,14 @@ async function compressImage(file,maxPx=1200,quality=0.78){
 function openPhotoPicker(){const s=$('photoPickerSheet').style;s.opacity='1';s.pointerEvents='auto';}
 function closePhotoPicker(){const s=$('photoPickerSheet').style;s.opacity='0';s.pointerEvents='none';}
 $('addImgBtn').onclick=openPhotoPicker;
+$('addYtBtn').onclick=function(){
+  const url=(prompt('유튜브 영상 URL을 입력하세요:')||'').trim();
+  if(!url)return;
+  const vid=ytVideoId(url);
+  if(!vid){alert('유효한 유튜브 URL이 아닙니다.\n(youtube.com, youtu.be, Shorts 링크 지원)');return;}
+  editorBlocks.push({type:'youtube',url,vid});
+  renderEditor();
+};
 async function _handleImgFiles(files){
   if(!files.length)return;
   const isBlog=_writeMode==='blog';
@@ -3510,10 +3621,10 @@ async function _handleImgFiles(files){
 $('imgCameraInput').onchange=async function(e){const files=Array.from(e.target.files);this.value='';await _handleImgFiles(files);};
 $('imgFileInput').onchange=async function(e){const files=Array.from(e.target.files);this.value='';await _handleImgFiles(files);};
 $('submitPost').onclick=async function(){
-  const hasContent=editorBlocks.some(b=>b.type==='image'||b.type==='link'||(b.type==='text'&&b.content.trim()));
+  const hasContent=editorBlocks.some(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()));
   if(!hasContent){alert('내용을 입력해주세요.');return;}
   const thumbBlocks=(_writeMode==='blog'&&_blogThumbUrl)?[{type:'thumbnail',url:_blogThumbUrl}]:[];
-  const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||(b.type==='text'&&b.content.trim()))];
+  const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()))];
   $('submitPost').disabled=true;
   const keyword=$('postKeyword').value.trim();
   try{
@@ -3537,7 +3648,7 @@ $('submitPost').onclick=async function(){
 };
 $('saveDraft').onclick=async function(){
   const thumbBlocks=(_writeMode==='blog'&&_blogThumbUrl)?[{type:'thumbnail',url:_blogThumbUrl}]:[];
-  const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||(b.type==='text'&&b.content.trim()))];
+  const finalBlocks=[...thumbBlocks,...editorBlocks.filter(b=>b.type==='image'||b.type==='link'||b.type==='youtube'||(b.type==='text'&&b.content.trim()))];
   if(!finalBlocks.length&&!_blogThumbUrl){alert('내용을 입력해주세요.');return;}
   $('saveDraft').disabled=true;
   const keyword=$('postKeyword').value.trim();
@@ -4770,10 +4881,12 @@ function openFullPost(key){
     if(b.type==='image'){html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(b.url)}')"><img src="${imgUrl(b.url)}" loading="lazy"/></div>`;if(b.caption)html+=`<div class="block-caption">${escHtml(b.caption)}</div>`;}
     else if(b.type==='text'&&b.content.trim()){html+=`<div class="block-text">${isBlogMode?b.content:renderMd(b.content)}</div>`;}
     else if(b.type==='link'){html+=linkPreviewHtml(b);}
+    else if(b.type==='youtube'){html+=youtubeBlockHtml(b);}
   });
   if(p.keyword)html+=`<div class="post-tag" style="margin:4px 14px 8px">#${escHtml(p.keyword)}</div>`;
   $('fullPostBody').innerHTML=html;
   $('fullPostModal').classList.add('open');
+  initYtPlayers();
 }
 // ── 알림 ──
 let notiLastSeen = parseInt(localStorage.getItem('noti_last_seen')||'0');
@@ -4858,6 +4971,76 @@ async function agentHealthReply(){
 
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
+const CENTER_LAT=37.5430, CENTER_LNG=126.9510; // 서울서부고용복지플러스센터
+let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='list';
+
+function switchRestView(v){
+  _restView=v;
+  $('restListView').style.display=v==='list'?'':'none';
+  $('restMapView').style.display=v==='map'?'':'none';
+  $('restViewListBtn').style.background=v==='list'?'var(--green)':'';
+  $('restViewListBtn').style.color=v==='list'?'#fff':'';
+  $('restViewMapBtn').style.background=v==='map'?'var(--green)':'';
+  $('restViewMapBtn').style.color=v==='map'?'#fff':'';
+  if(v==='map') initRestMap();
+}
+function initRestMap(){
+  if(!window.naver||!naver.maps) return;
+  if(!_restMap){
+    _restMap=new naver.maps.Map('naverMapContainer',{
+      center:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
+      zoom:16,
+      mapTypeControl:false,
+      scaleControl:false,
+      logoControl:false,
+      mapDataControl:false,
+    });
+    // 센터 마커
+    new naver.maps.Marker({
+      position:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),
+      map:_restMap,
+      icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">🏢 센터</div>`,anchor:new naver.maps.Point(30,14)},
+      title:'서울서부고용복지플러스센터',zIndex:10,
+    });
+  }
+  renderRestMapMarkers();
+}
+function renderRestMapMarkers(){
+  _restMarkers.forEach(m=>m.setMap(null));
+  _restMarkers=[];
+  _restData.filter(r=>r.lat&&r.lng).forEach(r=>{
+    const catColor=CAT_COLORS[r.category]||'#90a4ae';
+    const walkStr=r.walk_sec?`${Math.round(r.walk_sec/60)}분`:(r.walk_min?`${r.walk_min}분`:'');
+    const m=new naver.maps.Marker({
+      position:new naver.maps.LatLng(r.lat,r.lng),
+      map:_restMap,
+      icon:{content:`<div style="background:${catColor};color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer">${escHtml(r.name)}</div>`,anchor:new naver.maps.Point(0,12)},
+      title:r.name,
+    });
+    naver.maps.Event.addListener(m,'click',()=>showRestMapInfo(r));
+    _restMarkers.push(m);
+  });
+}
+function showRestMapInfo(r){
+  const catColor=CAT_COLORS[r.category]||'#90a4ae';
+  const walkStr=r.walk_sec?`도보 약 ${Math.round(r.walk_sec/60)}분`:(r.walk_min?`도보 ${r.walk_min}분`:'');
+  $('restMapInfo').style.display='';
+  $('restMapInfoContent').innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:700">${escHtml(r.name)}</span>
+      <span style="font-size:11px;font-weight:600;color:#fff;background:${catColor};padding:2px 7px;border-radius:10px">${escHtml(r.category)}</span>
+      ${walkStr?`<span style="font-size:12px;color:var(--text-hint)">🚶 ${walkStr}</span>`:''}
+    </div>
+    ${r.address?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px">📍 ${escHtml(r.address)}</div>`:''}
+    ${r.note?`<div style="font-size:13px;margin-top:4px">${escHtml(r.note)}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <span style="font-size:12px;color:var(--green)">👍 ${r.up_count}</span>
+      <span style="font-size:12px;color:#e53935">👎 ${r.down_count}</span>
+      <a href="https://map.naver.com/v5/search/${encodeURIComponent(r.name)}" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;margin-left:auto">네이버 지도 →</a>
+    </div>`;
+  _restMap.panTo(new naver.maps.LatLng(r.lat,r.lng));
+}
+
 async function loadRestaurants(){
   const box=$('restaurantList');
   const _skRest=()=>`<div class="sk-card" style="padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="flex:1"><div class="sk sk-line" style="width:55%;margin-bottom:7px"></div><div class="sk sk-line" style="width:35%;height:10px;margin-bottom:0"></div></div><div class="sk" style="width:40px;height:40px;border-radius:8px"></div></div><div class="sk sk-line" style="width:90%;height:10px;margin-bottom:5px"></div><div class="sk sk-line" style="width:70%;height:10px;margin-bottom:0"></div></div>`;
@@ -4866,29 +5049,31 @@ async function loadRestaurants(){
     const res=await fetch(`${API}/api/restaurants?user_id=${encodeURIComponent(currentUser)}`);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const list=await res.json();
-    if(!Array.isArray(list)||!list.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
-    box.innerHTML=list.map(r=>renderRestCard(r)).join('');
+    _restData=Array.isArray(list)?list:[];
+    if(!_restData.length){box.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint)">아직 등록된 맛집이 없습니다.<br/>관리자가 추가할 수 있습니다.</div>';return;}
+    box.innerHTML=_restData.map(r=>renderRestCard(r)).join('');
+    if(_restView==='map') renderRestMapMarkers();
   }catch(e){box.innerHTML=`<div style="padding:40px;text-align:center;color:var(--danger)">불러오기 실패<br/><small style="color:var(--text-hint)">${escHtml(e.message)}</small></div>`;}
 }
 function renderRestCard(r){
   const catColor=CAT_COLORS[r.category]||'#90a4ae';
-  const upActive=r.my_vote===1?'background:var(--green);color:#fff;':'';
-  const dnActive=r.my_vote===-1?'background:#e53935;color:#fff;':'';
+  const walkLabel=r.walk_sec?`도보 약 ${Math.round(r.walk_sec/60)}분`:`도보 ${r.walk_min}분`;
   return `<div class="rest-card" id="rc-${r.id}">
     <div style="display:flex;align-items:flex-start;gap:10px">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
           <span style="font-size:15px;font-weight:700">${escHtml(r.name)}</span>
           <span style="font-size:11px;font-weight:600;color:#fff;background:${catColor};padding:2px 7px;border-radius:10px">${escHtml(r.category)}</span>
-          <span style="font-size:12px;color:var(--text-hint)">도보 ${r.walk_min}분</span>
+          <span style="font-size:12px;color:var(--text-hint)">🚶 ${walkLabel}</span>
+          ${r.lat&&r.lng?`<button onclick="switchRestView('map');showRestMapInfo(_restData.find(x=>x.id==='${r.id}'))" style="font-size:11px;padding:2px 7px;border:1px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;color:var(--text-sub)">지도</button>`:''}
         </div>
-        ${r.address?`<div style="font-size:12px;color:var(--text-sub);margin-bottom:3px">${escHtml(r.address)}</div>`:''}
+        ${r.address?`<div style="font-size:12px;color:var(--text-sub);margin-bottom:3px">📍 ${escHtml(r.address)}</div>`:''}
         ${r.note?`<div style="font-size:13px;color:var(--text)">${escHtml(r.note)}</div>`:''}
       </div>
       ${currentUserRole==='admin'?`<button onclick="deleteRest('${r.id}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0">×</button>`:''}
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <button onclick="voteRest('${r.id}',1)" style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px;${upActive}background:${r.my_vote===1?'var(--green)':'#fff'};color:${r.my_vote===1?'#fff':'var(--text-sub)'}">
+      <button onclick="voteRest('${r.id}',1)" style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:13px;background:${r.my_vote===1?'var(--green)':'#fff'};color:${r.my_vote===1?'#fff':'var(--text-sub)'}">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
         추천 ${r.up_count}
       </button>
@@ -4944,16 +5129,54 @@ async function deleteRest(id){
   await fetch(`${API}/api/restaurants/${id}`,{method:'DELETE'});
   loadRestaurants();
 }
-function openAddRestModal(){ $('addRestModal').classList.add('open'); }
+function openAddRestModal(){
+  $('restName').value='';$('restAddress').value='';$('restNote').value='';
+  $('restLat').value='';$('restLng').value='';
+  $('addRestMapMsg').textContent='지도를 클릭하거나 주소를 검색해서 위치를 지정하세요';
+  $('addRestModal').classList.add('open');
+  setTimeout(()=>{
+    if(!window.naver||!naver.maps)return;
+    if(!_addRestMap){
+      _addRestMap=new naver.maps.Map('addRestMap',{
+        center:new naver.maps.LatLng(CENTER_LAT,CENTER_LNG),zoom:16,
+        mapTypeControl:false,scaleControl:false,logoControl:false,mapDataControl:false,
+      });
+      naver.maps.Event.addListener(_addRestMap,'click',e=>{
+        const {y:lat,x:lng}=e.coord;
+        setAddRestPin(lat,lng);
+        $('addRestMapMsg').textContent=`위치 선택됨 (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+      });
+    } else { _addRestMap.updateSize(); }
+  },200);
+}
+function setAddRestPin(lat,lng){
+  $('restLat').value=lat;$('restLng').value=lng;
+  if(_addRestMarker) _addRestMarker.setMap(null);
+  _addRestMarker=new naver.maps.Marker({position:new naver.maps.LatLng(lat,lng),map:_addRestMap});
+}
+async function geocodeRestAddress(){
+  const q=$('restAddress').value.trim();
+  if(!q){alert('주소를 입력해주세요.');return;}
+  try{
+    const d=await fetch(`${API}/api/geocode?q=${encodeURIComponent(q)}`).then(r=>r.json());
+    if(!d.ok){alert(d.message||'주소를 찾을 수 없습니다.');return;}
+    setAddRestPin(d.lat,d.lng);
+    $('restAddress').value=d.roadAddress||d.jibunAddress||q;
+    _addRestMap.setCenter(new naver.maps.LatLng(d.lat,d.lng));
+    _addRestMap.setZoom(17);
+    $('addRestMapMsg').textContent=`✅ ${d.roadAddress||d.jibunAddress}`;
+  }catch(e){alert('Geocoding 실패: '+e.message);}
+}
 async function submitAddRest(){
   const name=$('restName').value.trim();
   if(!name){alert('식당 이름을 입력해주세요.');return;}
-  await fetch(`${API}/api/restaurants`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    name, address:$('restAddress').value.trim(), category:$('restCategory').value,
-    walk_min:parseInt($('restWalk').value)||5, note:$('restNote').value.trim(), added_by:currentUser
-  })});
+  const lat=$('restLat').value?parseFloat($('restLat').value):null;
+  const lng=$('restLng').value?parseFloat($('restLng').value):null;
+  const body={name,address:$('restAddress').value.trim(),category:$('restCategory').value,
+    walk_min:5,note:$('restNote').value.trim(),added_by:currentUser,lat,lng};
+  await fetch(`${API}/api/restaurants`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   $('addRestModal').classList.remove('open');
-  ['restName','restAddress','restNote'].forEach(id=>$(id).value='');
+  _restMap=null; // 지도 재초기화 트리거
   loadRestaurants();
 }
 
