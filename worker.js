@@ -450,9 +450,13 @@ export default {
               source: srcM ? srcM[1].trim() : '',
             });
           }
+          // 신문 날짜: HTML 내 search_date 파라미터에서 추출
+          const dateM = html.match(/search_date=(\d{4}-\d{2}-\d{2})/);
+          const newsDate = dateM ? dateM[1] : new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+          const result = { articles, date: newsDate };
           ctx.waitUntil(env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
-            .bind('scrapmaster', JSON.stringify(articles), now, JSON.stringify(articles), now).run());
-          return json(articles);
+            .bind('scrapmaster', JSON.stringify(result), now, JSON.stringify(result), now).run());
+          return json(result);
         } catch (e) {
           if (cached) return json(JSON.parse(cached.data));
           return json({ error: e.message }, 500);
