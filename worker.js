@@ -2845,12 +2845,13 @@ export default {
   async scheduled(event, env, ctx) {
     await initDB(env);
     const cron = event.cron;
+    const agentHeaders = { 'Content-Type': 'application/json', ...(env.AGENT_SECRET ? { 'X-Agent-Secret': env.AGENT_SECRET } : {}) };
     // 하루 2회 건강 정보 글 자동 게시 (10:00 / 16:00 KST)
     if (cron === '0 1 * * *' || cron === '0 7 * * *') {
       ctx.waitUntil(
         fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/post', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: agentHeaders,
           body: '{}',
         }).catch(() => {})
       );
@@ -2863,7 +2864,7 @@ export default {
     ctx.waitUntil(
       fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: agentHeaders,
         body: '{}',
       }).catch(() => {})
     );
