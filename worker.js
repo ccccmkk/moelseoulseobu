@@ -364,6 +364,89 @@ async function initDB(env) {
   _dbReady = true;
 }
 
+// ── 지역뉴스 캐시 갱신 (module-level — stale-while-revalidate 및 Cron에서 공유) ──
+async function refreshLocalNews(env) {
+  const now = Math.floor(Date.now() / 1000);
+  const naverHeaders = env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET ? {
+    'X-Naver-Client-Id': env.NAVER_CLIENT_ID,
+    'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET,
+  } : null;
+  const decode = s => s ? s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim() : '';
+  const dedup = arr => { const seen=new Set(); return arr.filter(x=>{if(seen.has(x.link))return false;seen.add(x.link);return true;}); };
+  const fetchNaverSearchRaw = async (q, display=50) => {
+    if (!naverHeaders) return [];
+    const r = await fetchTimeout(`https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(q)}&display=${display}&sort=date`, { headers: naverHeaders }, 6000);
+    if (!r.ok) throw new Error(`Naver API ${r.status}`);
+    const d = await r.json();
+    return (d.items||[]).map(item=>({ title:decode(item.title), link:item.originallink||item.link, pubDate:item.pubDate, source:(()=>{try{return new URL(item.originallink||item.link).hostname.replace(/^www\./,'');}catch(e){return '';}})() }));
+  };
+  const mkUrls = domain => [
+    `https://www.${domain}/rss/allArticle.xml`, `https://${domain}/rss/allArticle.xml`,
+    `http://www.${domain}/rss/allArticle.xml`, `https://www.${domain}/feed/`,
+  ];
+  const LOCAL_OUTLETS = [
+    { name:'마포타임즈',      urls:['http://www.mapotimes.co.kr/rss/allArticle.xml',...mkUrls('mapotimes.co.kr')] },
+    { name:'마포시민신문',    urls:mkUrls('maponews.kr') },
+    { name:'마포신문',        urls:mkUrls('maposhinmoon.com') },
+    { name:'서부신문',        urls:mkUrls('seobunews.co.kr') },
+    { name:'서대문자치신문',  urls:mkUrls('newsjj.net') },
+    { name:'서대문인터넷뉴스',urls:mkUrls('sdminews.co.kr') },
+    { name:'서대문신문',      urls:['http://www.sdmsinmun.com/rss/allArticle.xml',...mkUrls('sdmsinmun.com')] },
+    { name:'은평신문',        urls:mkUrls('ieps.co.kr') },
+    { name:'은평시민신문',    urls:['https://www.epnews.net/rss/allArticle.xml','https://epnews.net/rss/allArticle.xml','https://www.epnews.net/rss/S1N1.xml'] },
+    { name:'새용산신문',      urls:['http://m.yongsannews.kr/rss/allArticle.xml','http://www.yongsannews.kr/rss/allArticle.xml',...mkUrls('yongsannews.kr')] },
+  ];
+  const GOV_FEEDS = [
+    { name:'마포구청',   urls:['https://www.mapo.go.kr/user/atom_rss.do','https://www.mapo.go.kr/cms/news/rss.do'] },
+    { name:'서대문구청', urls:['https://www.sdm.go.kr/user/atom_rss.do','https://www.sdm.go.kr/rss/rssInfo.do'] },
+    { name:'용산구청',   urls:['https://www.yongsan.go.kr/user/atom_rss.do','https://www.yongsan.go.kr/rss/rssInfo.do'] },
+    { name:'은평구청',   urls:['https://www.ep.go.kr/user/atom_rss.do','https://www.ep.go.kr/rss/rssInfo.do'] },
+  ];
+  const OUTLET_DISTRICT = {
+    '마포타임즈':'마포','마포시민신문':'마포','마포신문':'마포','마포구청':'마포',
+    '서부신문':'서대문','서대문자치신문':'서대문','서대문인터넷뉴스':'서대문','서대문신문':'서대문','서대문구청':'서대문',
+    '은평신문':'은평','은평시민신문':'은평','은평구청':'은평',
+    '새용산신문':'용산','용산구청':'용산',
+  };
+  const localDomains = new Set(['mapotimes.co.kr','maponews.kr','maposhinmoon.com','seobunews.co.kr','newsjj.net','sdminews.co.kr','sdmsinmun.com','ieps.co.kr','epnews.net','yongsannews.kr','mapo.go.kr','sdm.go.kr','yongsan.go.kr','ep.go.kr']);
+  const domainOf = u => { try{return new URL(u).hostname.replace(/^(?:www|m)\./,'');}catch(e){return '';} };
+  // 각 소스별 RSS 시도 (타임아웃 3s로 단축)
+  const fetchOutletRSS = async ({ name, urls, isGov }) => {
+    const district = OUTLET_DISTRICT[name] || '';
+    for (const feedUrl of urls) {
+      try {
+        const r = await fetchTimeout(feedUrl, { headers:{'User-Agent':'Mozilla/5.0 (compatible; Googlebot/2.1)'} }, 3000);
+        if (!r.ok) continue;
+        const xml = await r.text();
+        const arts = parseRSS(xml);
+        if (arts.length > 0) return arts.map(item=>({ title:item.title, link:item.link, pubDate:item.pubDate, source:name, isLocal:true, isGov:!!isGov, district }));
+      } catch(e) { /* 다음 URL 시도 */ }
+    }
+    return [];
+  };
+  const naverOutletQuery = '마포타임즈 OR 서부신문 OR 서대문자치신문 OR 서대문인터넷뉴스 OR 서대문신문 OR 마포신문 OR 은평신문 OR 은평시민신문 OR 새용산신문';
+  const rssResults = await Promise.allSettled([
+    ...LOCAL_OUTLETS.map(o => fetchOutletRSS(o)),
+    ...GOV_FEEDS.map(o => fetchOutletRSS({ ...o, isGov:true })),
+    fetchNaverSearchRaw(naverOutletQuery, 50),
+    fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
+  ]);
+  const numOutlets = LOCAL_OUTLETS.length + GOV_FEEDS.length;
+  const rssArts = rssResults.slice(0, numOutlets).filter(r=>r.status==='fulfilled').flatMap(r=>r.value);
+  const na1 = rssResults[numOutlets]?.status==='fulfilled' ? rssResults[numOutlets].value : [];
+  const na2 = rssResults[numOutlets+1]?.status==='fulfilled' ? rssResults[numOutlets+1].value : [];
+  const naverLocalArts = [...na1,...na2].filter(a=>localDomains.has(domainOf(a.link)));
+  const naverGeneral = na2.filter(a=>!localDomains.has(domainOf(a.link)));
+  const items = dedup([...rssArts,...naverLocalArts.map(a=>({...a,isLocal:true})),...naverGeneral].sort((a,b)=>new Date(b.pubDate||0)-new Date(a.pubDate||0))).slice(0,200);
+  await env.DB.prepare('INSERT INTO news_cache(category,data,cached_at) VALUES(?,?,?) ON CONFLICT(category) DO UPDATE SET data=?,cached_at=?')
+    .bind('local', JSON.stringify(items), now, JSON.stringify(items), now).run();
+  if (naverHeaders) {
+    const today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+    await env.DB.prepare('INSERT INTO naver_usage(date,calls) VALUES(?,2) ON CONFLICT(date) DO UPDATE SET calls=calls+2').bind(today).run().catch(()=>{});
+  }
+  return items;
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -499,15 +582,33 @@ export default {
         }
       }
 
-      // ── 뉴스 (네이버 뉴스 + D1 캐시 10분) ──
+      // ── 뉴스 (네이버 뉴스 + D1 캐시) ──
       if (p === '/api/news' && m === 'GET') {
         const cat = url.searchParams.get('category') || 'labor';
         const validCats = ['labor','local','health','law','headline'];
         if (!validCats.includes(cat)) return json({ error: 'unknown' }, 400);
         const cached = await env.DB.prepare('SELECT data, cached_at FROM news_cache WHERE category=?').bind(cat).first();
         const now = Math.floor(Date.now() / 1000);
-        // 캐시 유효: 10분 이내
-        if (cached && (now - cached.cached_at) < 600) {
+        const age = cached ? (now - cached.cached_at) : Infinity;
+        // 지역뉴스: stale-while-revalidate (30분 이내 신선, 4시간 이내는 즉시 반환 + 백그라운드 갱신)
+        if (cat === 'local') {
+          if (age < 1800) return json(JSON.parse(cached.data)); // 신선
+          if (age < 14400 && cached) {
+            // 오래됐지만 데이터 있음: 즉시 반환 + 백그라운드 갱신
+            ctx.waitUntil(refreshLocalNews(env).catch(() => {}));
+            return json(JSON.parse(cached.data));
+          }
+          // 캐시 없거나 너무 오래됨: 동기 fetch (첫 로드 또는 4시간 이상 경과)
+          try {
+            const items = await refreshLocalNews(env);
+            return json(items);
+          } catch(e) {
+            if (cached) return json(JSON.parse(cached.data));
+            return json({ error: '지역뉴스를 불러오지 못했습니다.' }, 502);
+          }
+        }
+        // 다른 카테고리: 기존 10분 캐시
+        if (age < 600) {
           return json(JSON.parse(cached.data));
         }
         // 네이버 뉴스 API
@@ -563,98 +664,7 @@ export default {
               }));
             };
             if (cat === 'labor') {
-              // 단순하게: "노동" 단일 키워드 100개, sort=date
-              // 네이버가 최신순으로 정렬해서 줌 — 필터 없음
               items = await fetchNaverSearchRaw('노동 OR 고용', 100);
-            } else if (cat === 'local') {
-              // 지역언론사 RSS + 구청 공지 + 네이버 검색 병렬 집계
-              const mkUrls = (domain) => [
-                `https://www.${domain}/rss/allArticle.xml`,
-                `https://${domain}/rss/allArticle.xml`,
-                `http://www.${domain}/rss/allArticle.xml`,
-                `https://www.${domain}/feed/`,
-                `https://${domain}/feed/`,
-              ];
-              const LOCAL_OUTLETS = [
-                // 마포 권역
-                { name: '마포타임즈',      urls: ['http://www.mapotimes.co.kr/rss/allArticle.xml', ...mkUrls('mapotimes.co.kr')] },
-                { name: '마포시민신문',    urls: mkUrls('maponews.kr') },
-                { name: '마포신문',        urls: mkUrls('maposhinmoon.com') },
-                // 서대문 권역
-                { name: '서부신문',        urls: mkUrls('seobunews.co.kr') },
-                { name: '서대문자치신문',  urls: mkUrls('newsjj.net') },
-                { name: '서대문인터넷뉴스',urls: mkUrls('sdminews.co.kr') },
-                { name: '서대문신문',      urls: ['http://www.sdmsinmun.com/rss/allArticle.xml', ...mkUrls('sdmsinmun.com')] },
-                // 은평 권역
-                { name: '은평신문',        urls: mkUrls('ieps.co.kr') },
-                { name: '은평시민신문',    urls: [
-                  'https://www.epnews.net/rss/allArticle.xml',
-                  'https://epnews.net/rss/allArticle.xml',
-                  'https://www.epnews.net/rss/S1N1.xml',
-                ]},
-                // 용산 권역
-                { name: '새용산신문',      urls: ['http://m.yongsannews.kr/rss/allArticle.xml', 'http://www.yongsannews.kr/rss/allArticle.xml', ...mkUrls('yongsannews.kr')] },
-              ];
-              // 구청 공지사항 피드 (서울시 구청 공통 Atom 패턴)
-              const GOV_FEEDS = [
-                { name: '마포구청',   urls: ['https://www.mapo.go.kr/user/atom_rss.do','https://www.mapo.go.kr/cms/news/rss.do','https://www.mapo.go.kr/rss/rssInfo.do'] },
-                { name: '서대문구청', urls: ['https://www.sdm.go.kr/user/atom_rss.do','https://www.sdm.go.kr/rss/rssInfo.do'] },
-                { name: '용산구청',   urls: ['https://www.yongsan.go.kr/user/atom_rss.do','https://www.yongsan.go.kr/rss/rssInfo.do'] },
-                { name: '은평구청',   urls: ['https://www.ep.go.kr/user/atom_rss.do','https://www.ep.go.kr/rss/rssInfo.do'] },
-              ];
-              const domainOf = u => { try { return new URL(u).hostname.replace(/^(?:www|m)\./,''); } catch(e) { return ''; } };
-              const localDomains = new Set([
-                'mapotimes.co.kr','maponews.kr','maposhinmoon.com',
-                'seobunews.co.kr','newsjj.net','sdminews.co.kr','sdmsinmun.com',
-                'ieps.co.kr','epnews.net',
-                'yongsannews.kr',
-                'mapo.go.kr','sdm.go.kr','yongsan.go.kr','ep.go.kr',
-              ]);
-              // 언론사 → 구별 매핑
-              const OUTLET_DISTRICT = {
-                '마포타임즈':'마포','마포시민신문':'마포','마포신문':'마포','마포구청':'마포',
-                '서부신문':'서대문','서대문자치신문':'서대문','서대문인터넷뉴스':'서대문','서대문신문':'서대문','서대문구청':'서대문',
-                '은평신문':'은평','은평시민신문':'은평','은평구청':'은평',
-                '새용산신문':'용산','용산구청':'용산',
-              };
-              // 각 언론사/구청별로 URL 순서대로 시도, 첫 성공 반환
-              const fetchOutletRSS = async ({ name, urls, isGov }) => {
-                const district = OUTLET_DISTRICT[name] || '';
-                for (const feedUrl of urls) {
-                  try {
-                    const r = await fetchTimeout(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }, 6000);
-                    if (!r.ok) continue;
-                    const xml = await r.text();
-                    const arts = parseRSS(xml);
-                    if (arts.length > 0) return arts.map(item => ({ title: item.title, link: item.link, pubDate: item.pubDate, source: name, isLocal: true, isGov: !!isGov, district }));
-                  } catch(e) { /* 다음 URL 시도 */ }
-                }
-                return [];
-              };
-              // 모든 언론사 + 구청 + 네이버 검색 병렬 실행
-              const naverOutletQuery = '마포타임즈 OR 서부신문 OR 서대문자치신문 OR 서대문인터넷뉴스 OR 서대문신문 OR 마포신문 OR 은평신문 OR 은평시민신문 OR 새용산신문';
-              const rssResults = await Promise.allSettled([
-                ...LOCAL_OUTLETS.map(o => fetchOutletRSS(o)),
-                ...GOV_FEEDS.map(o => fetchOutletRSS({ ...o, isGov: true })),
-                fetchNaverSearchRaw(naverOutletQuery, 50),
-                fetchNaverSearchRaw('마포구 OR 용산구 OR 서대문구 OR 은평구', 50),
-              ]);
-              naverCalls = 2;
-              const numOutlets = LOCAL_OUTLETS.length + GOV_FEEDS.length;
-              // RSS 기사 (성공한 언론사만)
-              const rssArts = rssResults.slice(0, numOutlets)
-                .filter(r => r.status === 'fulfilled')
-                .flatMap(r => r.value);
-              // 네이버 결과 분리
-              const na1 = rssResults[numOutlets]?.status === 'fulfilled' ? rssResults[numOutlets].value : [];
-              const na2 = rssResults[numOutlets+1]?.status === 'fulfilled' ? rssResults[numOutlets+1].value : [];
-              const naverLocalArts = [...na1, ...na2].filter(a => localDomains.has(domainOf(a.link)));
-              const naverGeneral = na2.filter(a => !localDomains.has(domainOf(a.link)));
-              items = [
-                ...rssArts,
-                ...naverLocalArts.map(a => ({ ...a, isLocal: true })),
-                ...naverGeneral,
-              ].sort((a, b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
             } else if (cat === 'health') {
               items = await fetchNaverSearchRaw('건강 OR 보건 OR 의료', 100);
             } else if (cat === 'law') {
@@ -2736,6 +2746,10 @@ export default {
           body: '{}',
         }).catch(() => {})
       );
+    }
+    // 30분마다 지역뉴스 캐시 선제 갱신 (*/30 * * * *)
+    if (cron === '*/30 * * * *') {
+      ctx.waitUntil(refreshLocalNews(env).catch(() => {}));
     }
     // 10분마다 댓글 자동 답변
     ctx.waitUntil(
