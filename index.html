@@ -2790,7 +2790,7 @@ function initYtPlayers(){
     const uid=wrap.dataset.ytUid;
     new YT.Player('yt-p-'+uid,{
       videoId:vid,
-      playerVars:{playsinline:1,mute:1,controls:1,rel:0,modestbranding:1},
+      playerVars:{playsinline:1,mute:1,controls:0,rel:0,modestbranding:1},
       events:{
         onReady(e){_ytPlayers[uid]=e.target;getYtObserver().observe(wrap);},
         onStateChange(e){
