@@ -382,10 +382,12 @@ body.font-xl .modal{max-height:65dvh!important}
 .upload-bar{height:100%;background:var(--green);border-radius:4px;transition:width .15s}
 .upload-pct{font-size:13px;color:var(--text-sub);margin-top:8px}
 /* ── 간편 모드 사진 그리드 ── */
-.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px}
-.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0}
-.simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
+.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
+.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0;touch-action:none}
+.simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;pointer-events:none}
 .simple-photo-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+.simple-photo-item.dragging-src{opacity:.35;transform:scale(.95)}
+.simple-photo-item.drag-placeholder{border:2px dashed var(--green);background:#e8f5e9;opacity:.8}
 /* ── iOS / 모바일 호환성 ── */
 *{-webkit-tap-highlight-color:transparent}
 button,a,[role="button"]{touch-action:manipulation}
@@ -3672,21 +3674,42 @@ function renderSimpleEditor(){
   if(imgBlocks.length){
     const grid=document.createElement('div');grid.className='simple-photos';
     imgBlocks.forEach((b,imgIdx)=>{
-      const w=document.createElement('div');w.className='simple-photo-item';w.draggable=true;
-      w.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><button class="simple-photo-del" title="삭제">×</button><span class="simple-drag-handle">⠿</span>`;
+      const w=document.createElement('div');w.className='simple-photo-item';
+      w.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><button class="simple-photo-del" title="삭제">×</button><span class="simple-drag-handle" style="touch-action:none;cursor:grab">⠿</span>`;
       w.querySelector('.simple-photo-del').onclick=()=>{const idx=editorBlocks.indexOf(b);if(idx>=0)editorBlocks.splice(idx,1);renderSimpleEditor();};
-      w.addEventListener('dragstart',e=>{_dragSrcIdx=imgIdx;e.dataTransfer.effectAllowed='move';});
-      w.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';w.classList.add('drag-over');});
-      w.addEventListener('dragleave',()=>w.classList.remove('drag-over'));
-      w.addEventListener('drop',e=>{
-        e.preventDefault();w.classList.remove('drag-over');
-        if(_dragSrcIdx===imgIdx)return;
-        const srcBlock=imgBlocks[_dragSrcIdx];
-        const tgtBlock=imgBlocks[imgIdx];
-        const srcIdx=editorBlocks.indexOf(srcBlock);
-        const tgtIdx=editorBlocks.indexOf(tgtBlock);
-        if(srcIdx>=0&&tgtIdx>=0){editorBlocks.splice(srcIdx,1);editorBlocks.splice(tgtIdx<srcIdx?tgtIdx:tgtIdx,0,srcBlock);}
-        renderSimpleEditor();
+      // pointer-event 기반 드래그 (모바일/데스크톱 통합)
+      const handle=w.querySelector('.simple-drag-handle');
+      handle.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
+        let srcIdx=imgIdx,over=-1;
+        const items=[...grid.querySelectorAll('.simple-photo-item')];
+        w.classList.add('dragging-src');
+        function onMove(ev){
+          ev.preventDefault();
+          const el=document.elementFromPoint(ev.clientX,ev.clientY);
+          const tgt=el&&el.closest('.simple-photo-item');
+          items.forEach(it=>it.classList.remove('drag-placeholder'));
+          if(tgt&&tgt!==w){tgt.classList.add('drag-placeholder');over=items.indexOf(tgt);}
+          else over=-1;
+        }
+        function onUp(){
+          handle.removeEventListener('pointermove',onMove);
+          handle.removeEventListener('pointerup',onUp);
+          handle.removeEventListener('pointercancel',onUp);
+          w.classList.remove('dragging-src');
+          items.forEach(it=>it.classList.remove('drag-placeholder'));
+          if(over>=0&&over!==srcIdx){
+            const srcBlock=imgBlocks[srcIdx];
+            const tgtBlock=imgBlocks[over];
+            const sI=editorBlocks.indexOf(srcBlock),tI=editorBlocks.indexOf(tgtBlock);
+            if(sI>=0&&tI>=0){editorBlocks.splice(sI,1);editorBlocks.splice(tI,0,srcBlock);}
+            renderSimpleEditor();
+          }
+        }
+        handle.addEventListener('pointermove',onMove,{passive:false});
+        handle.addEventListener('pointerup',onUp);
+        handle.addEventListener('pointercancel',onUp);
       });
       grid.appendChild(w);
     });
@@ -3701,7 +3724,7 @@ function renderSimpleEditor(){
     editor.appendChild(yw);
   });
 }
-let _dragSrcIdx=-1;
+
 function renderEditor(){_writeMode==='blog'?renderBlogEditor():renderSimpleEditor();}
 let _writeMode='normal';
 let _blogThumbUrl='';
