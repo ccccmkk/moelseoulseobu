@@ -1606,7 +1606,7 @@ export default {
           let photos = [];
           if (cids.length) {
             const ph = cids.map(() => '?').join(',');
-            const photoRows = await env.DB.prepare(`SELECT img_url FROM photo_entries WHERE contest_id IN (${ph}) ORDER BY created_at DESC LIMIT 4`).bind(...cids).all();
+            const photoRows = await env.DB.prepare(`SELECT img_url FROM photo_entries WHERE contest_id IN (${ph}) ORDER BY created_at DESC`).bind(...cids).all();
             photos = (photoRows.results || []).map(r => r.img_url);
           }
           return { ...f, contest_count: cids.length, preview_photos: photos };
