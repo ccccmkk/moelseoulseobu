@@ -371,6 +371,21 @@ async function initDB(env) {
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000099','user','user'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000099','건강봇','__agent__','active',0),
   ]);
+  // 환경변수로 초기 관리자 계정 자동 생성 (이미 존재하면 건드리지 않음)
+  if (env.INITIAL_ADMIN_ID && env.INITIAL_ADMIN_PASSWORD) {
+    try {
+      const exists = await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(env.INITIAL_ADMIN_ID).first();
+      if (!exists) {
+        const initHash = await makePasswordHash(env.INITIAL_ADMIN_PASSWORD);
+        await env.DB.batch([
+          env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING')
+            .bind(env.INITIAL_ADMIN_ID, env.INITIAL_ADMIN_NAME || '관리자', initHash, 'active', Math.floor(Date.now()/1000)),
+          env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?')
+            .bind(env.INITIAL_ADMIN_ID, 'admin', 'admin'),
+        ]);
+      }
+    } catch(e) {}
+  }
   // 인덱스 (쿼리 속도 최적화)
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)',
