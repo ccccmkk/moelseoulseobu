@@ -162,7 +162,41 @@ function parseRSS(xml) {
   return out;
 }
 
+// ── 비밀번호 해싱 (PBKDF2-SHA256) ──
+async function hashPassword(password, salt) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    key, 256
+  );
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function genSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function makePasswordHash(password) {
+  const salt = genSalt();
+  return salt + ':' + await hashPassword(password, salt);
+}
+async function verifyPasswordHash(password, stored) {
+  if (!stored) return false;
+  if (!stored.includes(':')) {
+    // 레거시 평문 — 일치 여부 반환 후 상위에서 재해시
+    return stored === password ? 'legacy' : false;
+  }
+  const [salt, hash] = stored.split(':');
+  return await hashPassword(password, salt) === hash ? true : false;
+}
+
 async function fetchOG(targetUrl, env) {
+  try {
+    const _u = new URL(targetUrl);
+    if (!['http:', 'https:'].includes(_u.protocol)) return null;
+    const h = _u.hostname.toLowerCase();
+    // Block private/internal IPs
+    if (/^(localhost|.*\.local)$/.test(h) || /^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|169\.254\.|0\.|::1)/.test(h)) return null;
+  } catch { return null; }
   const cached = await env.DB.prepare('SELECT * FROM og_cache WHERE url=?').bind(targetUrl).first().catch(()=>null);
   const isGoogleUrl = /news\.google\.com/i.test(targetUrl);
   if (cached && (Math.floor(Date.now()/1000) - (cached.cached_at||0)) < 86400
@@ -334,13 +368,24 @@ async function initDB(env) {
   try { await env.DB.exec("DELETE FROM user_roles WHERE user_id='관리자'"); } catch(e) {}
   try { await env.DB.exec("DELETE FROM users WHERE id='관리자'"); } catch(e) {}
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000001','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000001','관리자','9999','active',0),
-    env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('050007557','admin','admin'),
-    env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('050007557','김창민','1234','active',0),
     env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?').bind('000000099','user','user'),
     env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('000000099','건강봇','__agent__','active',0),
   ]);
+  // 환경변수로 초기 관리자 계정 자동 생성 (이미 존재하면 건드리지 않음)
+  if (env.INITIAL_ADMIN_ID && env.INITIAL_ADMIN_PASSWORD) {
+    try {
+      const exists = await env.DB.prepare('SELECT id FROM users WHERE id=?').bind(env.INITIAL_ADMIN_ID).first();
+      if (!exists) {
+        const initHash = await makePasswordHash(env.INITIAL_ADMIN_PASSWORD);
+        await env.DB.batch([
+          env.DB.prepare('INSERT INTO users(id,name,password,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING')
+            .bind(env.INITIAL_ADMIN_ID, env.INITIAL_ADMIN_NAME || '관리자', initHash, 'active', Math.floor(Date.now()/1000)),
+          env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?')
+            .bind(env.INITIAL_ADMIN_ID, 'admin', 'admin'),
+        ]);
+      }
+    } catch(e) {}
+  }
   // 인덱스 (쿼리 속도 최적화)
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)',
@@ -457,6 +502,23 @@ export default {
 
     try {
       await initDB(env);
+      // ── 인증 헬퍼 (url/request 클로저) ──
+      const getToken = () => url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ','') || '';
+      const getSession = async () => {
+        const t = getToken();
+        if (!t) return null;
+        return env.DB.prepare('SELECT s.user_id, r.role FROM sessions s LEFT JOIN user_roles r ON s.user_id=r.user_id WHERE s.token=? AND s.created_at>?').bind(t, Math.floor(Date.now()/1000)-3600).first();
+      };
+      const requireSession = async () => {
+        const s = await getSession();
+        if (!s) return json({error:'unauthorized'},401);
+        return s;
+      };
+      const requireAdmin = async () => {
+        const s = await getSession();
+        if (!s || (s.role !== 'admin' && s.role !== 'sub_admin')) return json({error:'forbidden'},403);
+        return s;
+      };
       // ── 이미지 서빙 ──
       if (p.startsWith('/img/') && m === 'GET') {
         const obj = await env.R2.get(p.slice(1));
@@ -468,6 +530,7 @@ export default {
 
       // ── 이미지 업로드 ──
       if (p === '/api/upload' && m === 'POST') {
+        const _s13 = await requireSession(); if (_s13 instanceof Response) return _s13;
         const row = await env.DB.prepare('SELECT bytes FROM usage WHERE id=1').first();
         const used = row?.bytes || 0;
         const fd = await request.formData();
@@ -1135,7 +1198,9 @@ export default {
 
       // ── 글 작성 ──
       if (p === '/api/posts' && m === 'POST') {
+        const _s15 = await requireSession(); if (_s15 instanceof Response) return _s15;
         const b = await request.json();
+        b.author = _s15.user_id; // 클라이언트가 보낸 author 무시, 세션 기준
         const id = 'post_' + Date.now();
         const now = Math.floor(Date.now() / 1000);
         const postStatus = b.status === 'draft' ? 'draft' : (b.status === 'hidden' ? 'hidden' : 'published');
@@ -1217,6 +1282,10 @@ export default {
       // ── 글 수정 ──
       if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'PUT') {
         const id = p.split('/')[3];
+        const _s16 = await requireSession(); if (_s16 instanceof Response) return _s16;
+        const _post16 = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(id).first();
+        if (!_post16) return json({error:'not found'},404);
+        if (_post16.author !== _s16.user_id && _s16.role !== 'admin' && _s16.role !== 'sub_admin') return json({error:'forbidden'},403);
         const b = await request.json();
         const updStatus = b.status === 'draft' ? 'draft' : (b.status === 'hidden' ? 'hidden' : (b.status === 'published' ? 'published' : null));
         if (updStatus) {
@@ -1259,6 +1328,9 @@ export default {
       // ── 글 삭제 ──
       if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];
+        const _s17 = await requireSession(); if (_s17 instanceof Response) return _s17;
+        const _post17 = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(id).first();
+        if (_post17 && _post17.author !== _s17.user_id && _s17.role !== 'admin' && _s17.role !== 'sub_admin') return json({error:'forbidden'},403);
         await env.DB.prepare('DELETE FROM posts WHERE id=?').bind(id).run();
         await env.DB.prepare('DELETE FROM comments WHERE post_id=?').bind(id).run();
         await env.DB.prepare('DELETE FROM likes WHERE post_id=?').bind(id).run();
@@ -1329,6 +1401,9 @@ export default {
       // ── 대댓글 삭제 ──
       if (p.match(/^\/api\/replies\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];
+        const _s19 = await requireSession(); if (_s19 instanceof Response) return _s19;
+        const _rpl19 = await env.DB.prepare('SELECT author FROM comment_replies WHERE id=?').bind(id).first();
+        if (_rpl19 && _rpl19.author !== _s19.user_id && _s19.role !== 'admin' && _s19.role !== 'sub_admin') return json({error:'forbidden'},403);
         await env.DB.prepare('DELETE FROM comment_replies WHERE id=?').bind(id).run();
         return json({ ok: true });
       }
@@ -1336,6 +1411,9 @@ export default {
       // ── 댓글 삭제 ──
       if (p.match(/^\/api\/comments\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];
+        const _s18 = await requireSession(); if (_s18 instanceof Response) return _s18;
+        const _cmt18 = await env.DB.prepare('SELECT author FROM comments WHERE id=?').bind(id).first();
+        if (_cmt18 && _cmt18.author !== _s18.user_id && _s18.role !== 'admin' && _s18.role !== 'sub_admin') return json({error:'forbidden'},403);
         await env.DB.prepare('DELETE FROM comments WHERE id=?').bind(id).run();
         await env.DB.prepare('DELETE FROM comment_replies WHERE comment_id=?').bind(id).run();
         await env.DB.prepare('DELETE FROM comment_likes WHERE comment_id=?').bind(id).run();
@@ -1743,6 +1821,7 @@ export default {
         return json(rows.results);
       }
       if (p.match(/^\/api\/roles\/[^/]+$/) && m === 'PUT') {
+        const _s1 = await requireAdmin(); if (_s1 instanceof Response) return _s1;
         const userId = decodeURIComponent(p.split('/')[3]);
         const { role } = await request.json();
         await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET role=?')
@@ -1752,6 +1831,7 @@ export default {
 
       // ── 사용자 관리 ──
       if (p === '/api/users' && m === 'GET') {
+        const _s7 = await requireSession(); if (_s7 instanceof Response) return _s7;
         const rows = await env.DB.prepare('SELECT u.id, u.name, u.dept, u.status, u.created_at, up.last_seen FROM users u LEFT JOIN user_presence up ON u.id=up.user_id ORDER BY u.created_at ASC').all();
         return json(rows.results);
       }
@@ -1768,17 +1848,20 @@ export default {
         return json(rows.results || []);
       }
       if (p === '/api/users' && m === 'POST') {
+        const _s2 = await requireAdmin(); if (_s2 instanceof Response) return _s2;
         const { id, name, password, dept } = await request.json();
         if (!id || !/^\d{9}$/.test(id)) return json({ error: '온나라 사번은 9자리 숫자입니다.' }, 400);
         if (!name || !name.trim()) return json({ error: '이름을 입력해주세요.' }, 400);
         const exists = await env.DB.prepare('SELECT 1 FROM users WHERE id=?').bind(id).first();
         if (exists) return json({ error: '이미 등록된 사번입니다.' }, 409);
+        const newUserHash = await makePasswordHash(password || '1234');
         await env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?)')
-          .bind(id, name.trim(), (dept||'').trim(), password || '1234', 'active', Math.floor(Date.now() / 1000)).run();
+          .bind(id, name.trim(), (dept||'').trim(), newUserHash, 'active', Math.floor(Date.now() / 1000)).run();
         await env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(id, 'user').run();
         return json({ ok: true });
       }
       if (p === '/api/users/bulk' && m === 'POST') {
+        const _s3 = await requireAdmin(); if (_s3 instanceof Response) return _s3;
         const { users: list } = await request.json();
         if (!Array.isArray(list)) return json({ error: 'invalid' }, 400);
         const now = Math.floor(Date.now() / 1000);
@@ -1800,16 +1883,23 @@ export default {
         // batch도 50명(=100 statements)씩 나눠 처리
         for (let i = 0; i < toInsert.length; i += 50) {
           const chunk = toInsert.slice(i, i + 50);
+          // bulk에서 비밀번호 해시 (병렬)
+          const hashedChunk = await Promise.all(chunk.map(async u => ({
+            ...u,
+            upw: await makePasswordHash(u.upw)
+          })));
           await env.DB.batch([
-            ...chunk.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
-            ...chunk.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
+            ...hashedChunk.map(u => env.DB.prepare('INSERT INTO users(id,name,dept,password,status,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind(u.uid, u.uname, u.udept, u.upw, 'active', now)),
+            ...hashedChunk.map(u => env.DB.prepare('INSERT INTO user_roles(user_id,role) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING').bind(u.uid, 'user')),
           ]);
         }
         return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
       }
       if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
+        const _s4 = await requireAdmin(); if (_s4 instanceof Response) return _s4;
         const userId = decodeURIComponent(p.split('/')[3]);
-        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind('1234', userId).run();
+        const resetHash = await makePasswordHash('1234');
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(resetHash, userId).run();
         await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
         return json({ ok: true });
       }
@@ -1821,21 +1911,31 @@ export default {
         if (token) {
           const sess = await env.DB.prepare('SELECT 1 FROM sessions WHERE token=? AND user_id=?').bind(token, userId).first();
           if (!sess) return json({ error: '인증 오류' }, 401);
-        } else if (user.password !== old_password) {
-          return json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400);
+        } else {
+          // 토큰 미제공: 본인 확인 (세션 + 현재 비밀번호)
+          const _s8 = await requireSession();
+          if (_s8 instanceof Response) return _s8;
+          if (_s8.user_id !== userId) return json({ error: 'forbidden' }, 403);
+          const oldCheck = await verifyPasswordHash(old_password, user.password);
+          if (!oldCheck) return json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400);
         }
         if (!new_password || new_password.length < 4) return json({ error: '새 비밀번호는 4자 이상이어야 합니다.' }, 400);
         if (new_password === '1234') return json({ error: '초기 비밀번호는 사용할 수 없습니다.' }, 400);
-        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(new_password, userId).run();
+        const newHash = await makePasswordHash(new_password);
+        await env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(newHash, userId).run();
+        // 비밀번호 변경 후 모든 세션 무효화 (재로그인 강제)
+        await env.DB.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/users\/[^/]+\/dept$/) && m === 'PUT') {
+        const _s6 = await requireAdmin(); if (_s6 instanceof Response) return _s6;
         const userId = decodeURIComponent(p.split('/')[3]);
         const { dept } = await request.json();
         await env.DB.prepare('UPDATE users SET dept=? WHERE id=?').bind((dept||'').trim(), userId).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/users\/[^/]+$/) && m === 'DELETE') {
+        const _s5 = await requireAdmin(); if (_s5 instanceof Response) return _s5;
         const userId = decodeURIComponent(p.split('/')[3]);
         if (userId === '관리자') return json({ error: '관리자는 삭제할 수 없습니다.' }, 400);
         await env.DB.batch([
@@ -1861,8 +1961,17 @@ export default {
             await env.DB.prepare('DELETE FROM login_logs WHERE created_at < (SELECT created_at FROM login_logs ORDER BY created_at DESC LIMIT 1 OFFSET 999)').run();
           } catch(e) {}
         };
+        // 무차별 대입 차단: 같은 IP 또는 사번에서 5분 내 실패 5회 이상이면 차단
+        const since = Math.floor(Date.now()/1000) - 300;
+        const bfCount = await env.DB.prepare(
+          "SELECT COUNT(*) as c FROM login_logs WHERE (user_id=? OR ip=?) AND result='fail' AND created_at>?"
+        ).bind(id, ip, since).first();
+        if ((bfCount?.c || 0) >= 5) {
+          return json({ error: '로그인 시도가 너무 많습니다. 5분 후 다시 시도해 주세요.' }, 429);
+        }
         const user = await env.DB.prepare('SELECT * FROM users WHERE id=?').bind(id).first();
-        if (!user || user.password !== password) { ctx.waitUntil(logResult(id, 'fail')); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
+        const pwCheck = await verifyPasswordHash(password, user?.password);
+        if (!user || !pwCheck) { ctx.waitUntil(logResult(id, 'fail')); return json({ error: '사번 또는 비밀번호가 올바르지 않습니다.' }, 401); }
         if (user.status === 'pending') { ctx.waitUntil(logResult(id, 'pending')); return json({ error: '관리자 승인 대기 중입니다.' }, 403); }
         const token = crypto.randomUUID();
         await env.DB.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').bind(token, id, now).run();
@@ -1870,7 +1979,12 @@ export default {
           env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 5)').bind(id, id).run(),
           logResult(id, 'ok'),
         ]));
-        return json({ ok: true, id: user.id, name: user.name || user.id, dept: user.dept || '', token, must_change_password: user.password === '1234' });
+        // 레거시 평문 비밀번호 → 자동 해시 업그레이드
+        if (pwCheck === 'legacy') {
+          const newHash = await makePasswordHash(password);
+          env.DB.prepare('UPDATE users SET password=? WHERE id=?').bind(newHash, user.id).run().catch(()=>{});
+        }
+        return json({ ok: true, id: user.id, name: user.name || user.id, dept: user.dept || '', token, must_change_password: password === '1234' });
       }
       if (p === '/api/verify-session' && m === 'POST') {
         const { token } = await request.json();
@@ -1957,8 +2071,15 @@ export default {
         });
       }
       if (p.match(/^\/api\/profile\/[^/]+$/) && m === 'PUT') {
+        const _s12 = await requireSession(); if (_s12 instanceof Response) return _s12;
         const userId = decodeURIComponent(p.split('/')[3]);
+        if (_s12.user_id !== userId && _s12.role !== 'admin') return json({error:'forbidden'},403);
         const body = await request.json();
+        // 뱃지 부여는 관리자만 설정 가능
+        if (_s12.role !== 'admin') {
+          delete body.granted_badge_admin;
+          delete body.granted_badge_top;
+        }
         const existing = await env.DB.prepare('SELECT * FROM user_profiles WHERE user_id=?').bind(userId).first();
         const avatar_url = body.avatar_url !== undefined ? body.avatar_url : (existing?.avatar_url ?? null);
         const show_badge_admin = body.show_badge_admin !== undefined ? (body.show_badge_admin ? 1 : 0) : (existing?.show_badge_admin ?? 1);
@@ -2050,7 +2171,7 @@ export default {
           });
           return json({ ...result, ok: true, response: wRes?.response || '', raw: wRes });
         } catch (e) {
-          return json({ ...result, ok: false, error: e.message, stack: e.stack?.slice(0, 300) });
+          return json({ ...result, ok: false, error: e.message });
         }
       }
 
@@ -2071,8 +2192,10 @@ export default {
         return json(rows.results);
       }
       if (p === '/api/chat' && m === 'POST') {
-        const { author, content } = await request.json();
-        if (!author || !content?.trim()) return json({ error: '내용을 입력하세요' }, 400);
+        const _s20 = await requireSession(); if (_s20 instanceof Response) return _s20;
+        const { content } = await request.json();
+        const author = _s20.user_id; // 세션 기준, 클라이언트 author 무시
+        if (!content?.trim()) return json({ error: '내용을 입력하세요' }, 400);
         const id = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
         const now = Math.floor(Date.now() / 1000);
         await env.DB.prepare('INSERT INTO chat_messages(id,author,content,created_at) VALUES(?,?,?,?)').bind(id, author, content.trim(), now).run();
@@ -2087,6 +2210,11 @@ export default {
       // ── 건강봇 에이전트 ──
       const AGENT_ID = '000000099';
       if (p === '/api/agent/health/post' && m === 'POST') {
+        const agentSecret = env.AGENT_SECRET;
+        if (agentSecret) {
+          const provided = request.headers.get('X-Agent-Secret') || url.searchParams.get('agent_secret');
+          if (provided !== agentSecret) return json({ error: 'forbidden' }, 403);
+        }
         // KDCA API는 행정망 전용이라 외부에서 접근 불가 → AI로 직접 생성
         const KDCA_CONTENTS = [
           // 감염·호흡기
@@ -2182,6 +2310,11 @@ export default {
         return json({ ok: true, id: postId, title: chosen.name, via: aiResult.model });
       }
       if (p === '/api/agent/health/reply' && m === 'POST') {
+        const agentSecret = env.AGENT_SECRET;
+        if (agentSecret) {
+          const provided = request.headers.get('X-Agent-Secret') || url.searchParams.get('agent_secret');
+          if (provided !== agentSecret) return json({ error: 'forbidden' }, 403);
+        }
         const replyBody = await request.json().catch(() => ({}));
         const isDebugMode = replyBody.debug === true; // 관리자 수동 실행 시 Claude 사용 금지
         // 에이전트 게시글에 달린 미답변 댓글 찾기
@@ -2217,6 +2350,7 @@ export default {
         return json(obj);
       }
       if (p.match(/^\/api\/settings\/[^/]+$/) && m === 'POST') {
+        const _s11 = await requireAdmin(); if (_s11 instanceof Response) return _s11;
         const key = p.split('/')[3];
         const { value } = await request.json();
         await env.DB.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=?').bind(key, value, value).run();
@@ -2764,12 +2898,13 @@ export default {
   async scheduled(event, env, ctx) {
     await initDB(env);
     const cron = event.cron;
+    const agentHeaders = { 'Content-Type': 'application/json', ...(env.AGENT_SECRET ? { 'X-Agent-Secret': env.AGENT_SECRET } : {}) };
     // 하루 2회 건강 정보 글 자동 게시 (10:00 / 16:00 KST)
     if (cron === '0 1 * * *' || cron === '0 7 * * *') {
       ctx.waitUntil(
         fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/post', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: agentHeaders,
           body: '{}',
         }).catch(() => {})
       );
@@ -2782,7 +2917,7 @@ export default {
     ctx.waitUntil(
       fetch('https://band-archive-api.cm99i.workers.dev/api/agent/health/reply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: agentHeaders,
         body: '{}',
       }).catch(() => {})
     );
