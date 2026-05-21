@@ -4714,7 +4714,7 @@ async function openEventModal(){
   $('evtTitle').value='';$('evtContent').value='';
   const sel=$('evtTaggedUser');sel.innerHTML='<option value="">-- 선택 안 함 --</option>';
   try{
-    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const users=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
     const depts=DEPT_OPTIONS;
     users.filter(u=>u.status==='active').forEach(u=>{
       const opt=document.createElement('option');opt.value=u.id;opt.textContent=(u.name||u.id)+(u.dept?` (${u.dept})`:'');sel.appendChild(opt);
@@ -4767,7 +4767,7 @@ async function openKudosModal(){
   $('kudosTag').value='홈페이지';$('kudosSource').value='';$('kudosContent').value='';$('kudosSourceRow').style.display='none';
   $('kudosUserTarget').value='';$('kudosUserRow').style.display='none';$('kudosDeptOptions').innerHTML='<span style="font-size:13px;color:var(--text-hint)">불러오는 중...</span>';
   try{
-    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const users=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
     window._kudosAllUsers=users.filter(u=>u.status==='active');
     const usedDepts=[...new Set(window._kudosAllUsers.map(u=>u.dept||'').filter(Boolean))];
     const deptList=DEPT_OPTIONS.filter(d=>usedDepts.includes(d));
@@ -4799,7 +4799,7 @@ async function openAwardEdit(id,title,winner){
   $('awardEditId').value=id;$('awardEditTitle').value=title;
   const sel=$('awardEditWinner');sel.innerHTML='<option value="">-- 없음 --</option>';
   try{
-    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const users=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
     users.filter(u=>u.status==='active').forEach(u=>{
       const opt=document.createElement('option');opt.value=u.id;opt.textContent=u.name||u.id;
       if(u.id===winner)opt.selected=true;
@@ -4947,7 +4947,7 @@ async function openNominateModal(cid){
   $('nomUserRow').style.display='none';$('nomineeOptions').innerHTML='';
   $('nominateModal').classList.add('open');
   try{
-    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const users=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
     window._nomAllUsers=users.filter(u=>u.id!==currentUser&&u.status==='active');
     const usedDepts=[...new Set(window._nomAllUsers.map(u=>u.dept||'').filter(Boolean))];
     const deptList=DEPT_OPTIONS.filter(d=>usedDepts.includes(d));
@@ -5767,7 +5767,7 @@ async function openAdminModal(){
   if($('userSearchInput')) $('userSearchInput').value='';
   $('userRoleList').innerHTML='<div style="padding:16px;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
   try{
-    const users=await fetch(`${API}/api/users`).then(r=>r.json());
+    const users=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`).then(r=>r.json());
     const pending=users.filter(u=>u.status==='pending');
     const active=users.filter(u=>u.status==='active');
     if(pending.length){
@@ -5790,7 +5790,7 @@ async function createUserAdmin(){
   if(!/^\d{9}$/.test(id)){msg.style.color='var(--danger)';msg.textContent='온나라 사번은 9자리 숫자입니다.';return;}
   if(!name){msg.style.color='var(--danger)';msg.textContent='이름을 입력해주세요.';return;}
   try{
-    const r=await fetch(`${API}/api/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,dept,password:'1234'})});
+    const r=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,dept,password:'1234'})});
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
     msg.style.color='#2e7d32';msg.textContent=`✓ ${name}(${id}) 계정 생성 완료. 초기 비밀번호: 1234`;
@@ -5804,7 +5804,7 @@ async function bulkCreateUsers(){
   const lines=csv.split('\n').filter(l=>l.trim());
   const users=lines.map(l=>{const cols=l.split(',').map(c=>c.trim());return{id:cols[0],name:cols[1],password:cols[2]||'1234',dept:cols[3]||''};});
   try{
-    const r=await fetch(`${API}/api/users/bulk`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({users})});
+    const r=await fetch(`${API}/api/users/bulk?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({users})});
     const d=await r.json();
     if(d.error){msg.style.color='var(--danger)';msg.textContent=d.error;return;}
     msg.style.color='#2e7d32';msg.textContent=`✓ ${d.created}명 등록 완료${d.skipped>0?`, ${d.skipped}명 건너뜀(중복/형식오류)`:''}`;
@@ -5820,16 +5820,16 @@ function loadCsvFile(input){
 }
 async function resetPasswordAdmin(userId){
   if(!confirm(`${userId}의 비밀번호를 1234로 초기화할까요?`))return;
-  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'PUT'});
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/reset-password?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT'});
   alert('초기화되었습니다. 다음 로그인 시 비밀번호 변경 안내가 표시됩니다.');
 }
 async function approveUser(userId){
-  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/approve`,{method:'PUT'});
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}/approve?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT'});
   openAdminModal();
 }
 async function deleteUserAdmin(userId){
   if(!confirm(userId+'을(를) 삭제할까요?'))return;
-  await fetch(`${API}/api/users/${encodeURIComponent(userId)}`,{method:'DELETE'});
+  await fetch(`${API}/api/users/${encodeURIComponent(userId)}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});
   openAdminModal();
 }
 const DEPT_OPTIONS=['서울서부고용센터','지역협력과','고용관리과','노동기준조사1과','노동기준조사2과','노동기준조사3과','노동기준감독과','산재예방감독과'];
@@ -5844,13 +5844,13 @@ async function changeDeptAdmin(userId,currentDept){
 async function confirmDeptChange(userId){
   const dept=$('deptSelectTmp').value;
   try{
-    const r=await fetch(`${API}/api/users/${encodeURIComponent(userId)}/dept`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dept})});
+    const r=await fetch(`${API}/api/users/${encodeURIComponent(userId)}/dept?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dept})});
     const d=await r.json();if(d.error){alert(d.error);return;}
     $('deptChangeModal').classList.remove('open');openAdminModal();
   }catch(e){alert('오류: '+e.message);}
 }
 async function setUserRole(userId,role,btn){
-  await fetch(`${API}/api/roles/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
+  await fetch(`${API}/api/roles/${encodeURIComponent(userId)}?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});
   userRoles[userId]=role;
   btn.closest('.role-btns').querySelectorAll('.role-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
 }

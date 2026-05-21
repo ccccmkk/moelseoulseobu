@@ -1895,6 +1895,12 @@ export default {
         }
         return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
       }
+      if (p.match(/^\/api\/users\/[^/]+\/approve$/) && m === 'PUT') {
+        const _sApprove = await requireAdmin(); if (_sApprove instanceof Response) return _sApprove;
+        const userId = decodeURIComponent(p.split('/')[3]);
+        await env.DB.prepare("UPDATE users SET status='active' WHERE id=?").bind(userId).run();
+        return json({ ok: true });
+      }
       if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
         const _s4 = await requireAdmin(); if (_s4 instanceof Response) return _s4;
         const userId = decodeURIComponent(p.split('/')[3]);
