@@ -507,6 +507,11 @@ button,a,[role="button"]{touch-action:manipulation}
 .pc-status.draft{background:#fff8e1;color:#f57c00}
 .pc-desc-clamped{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .pc-desc-expanded{display:block;overflow:visible}
+.folder-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.folder-card:active{opacity:.85}
+.folder-preview{display:grid;grid-template-columns:1fr 1fr;gap:2px;border-radius:8px;overflow:hidden;margin-top:10px;aspect-ratio:2/1}
+.folder-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.folder-preview-empty{background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:var(--text-hint);font-size:24px}
 .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}
 .photo-grid.text-grid{grid-template-columns:1fr}
 .text-entry-body{padding:14px 14px 10px;font-size:14px;line-height:1.6;color:var(--text-main);min-height:70px;white-space:pre-wrap;word-break:break-word}
@@ -928,6 +933,7 @@ button,a,[role="button"]{touch-action:manipulation}
       <div class="section-hd">
         <span class="section-title">사진 투표 행사</span>
         <button class="btn-sm primary" id="photoEventAddBtn" style="display:none" onclick="openCreatePhotoContest()">+ 행사 만들기</button>
+        <button class="btn-sm" id="photoFolderAddBtn" style="display:none" onclick="openCreatePhotoContestFolder()">📁 폴더 만들기</button>
       </div>
       <div id="photoContestList"><div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div></div>
     </div>
@@ -2166,6 +2172,8 @@ let voteMsgContestId=null;
 let newsCache=null,newsLastFetch=0,newsPage=1;
 const NEWS_PER_PAGE=10;
 let photoContests=[],currentPhotoContestId=null,photoUploadFile=null,_myVotes=[],_voteSelections=new Set(),_voteMinMax={min:1,max:1},_voteEnabled=false;
+let photoFolders=[];
+let _photoFolderView=null; // null=root, folderId=inside folder
 let _photoQueue=[]; // {file, dataUrl}[]
 let _lbUrls=[],_lbIdx=0,_lbCap='',_lbTouchX=0,_lbDragDist=0;
 let currentUserDept='',currentPhotoGroup=null;
@@ -4034,31 +4042,115 @@ async function loadPhotoContests(){
   np.start();
   try{
     const qs=sessionToken?`?token=${encodeURIComponent(sessionToken)}`:'';
-    const d=await fetch(`${API}/api/photo-contests${qs}`).then(r=>r.json());
+    const [d,fd]=await Promise.all([
+      fetch(`${API}/api/photo-contests${qs}`).then(r=>r.json()),
+      fetch(`${API}/api/photo-contest-folders`).then(r=>r.json()),
+    ]);
     photoContests=Array.isArray(d)?d:[];
+    photoFolders=Array.isArray(fd)?fd:[];
     renderPhotoContestList();
   }catch(e){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>불러오지 못했습니다</div>';}
   finally{np.done();}
 }
 function renderPhotoContestList(){
   const c=$('photoContestList'); if(!c) return;
-  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdminOrSub()?'':'none';
-  if(!photoContests.length){c.innerHTML='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';return;}
+  const isAdm=isAdminOrSub();
+  if($('photoEventAddBtn')) $('photoEventAddBtn').style.display=isAdm?'':'none';
+  if($('photoFolderAddBtn')) $('photoFolderAddBtn').style.display=isAdm?'':'none';
+
+  // inside a folder view
+  if(_photoFolderView){
+    const folder=photoFolders.find(f=>f.id===_photoFolderView);
+    const folderContests=photoContests.filter(pc=>pc.folder_id===_photoFolderView);
+    const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
+    const grpColor={center:'#1565c0',branch:'#2e7d32'};
+    const grpBg={center:'#e3f2fd',branch:'#e8f5e9'};
+    const grpLabel={center:'센터',branch:'지청'};
+    let html=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0 12px">
+      <button onclick="_exitFolderView()" style="background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:2px 4px;color:var(--text)">←</button>
+      <div style="font-size:15px;font-weight:700;flex:1">${escHtml(folder?.title||'폴더')}</div>
+      ${isAdm?`<button onclick="openCreatePhotoContestFolder()" style="font-size:11px;padding:4px 10px;background:var(--green);color:#fff;border:none;border-radius:8px;cursor:pointer">+ 새 폴더</button>`:''}
+    </div>`;
+    if(!folderContests.length){
+      html+='<div class="empty-state"><div class="ei">📷</div>이 폴더에 행사가 없습니다</div>';
+    }else{
+      html+=folderContests.map(pc=>{
+        const moveBtn=isAdm?`<button onclick="event.stopPropagation();openFolderMoveModal('${pc.id}')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text-sub);flex-shrink:0">폴더 변경</button>`:'';
+        return`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1">
+              <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
+              ${pc.contest_group?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${grpBg[pc.contest_group]||'#f5f5f5'};color:${grpColor[pc.contest_group]||'#555'}">${grpLabel[pc.contest_group]||pc.contest_group}</span>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">${moveBtn}<span class="pc-status ${pc.status}" style="flex-shrink:0">${stLabel[pc.status]||pc.status}</span></div>
+          </div>
+          ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
+          <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
+        </div>`;
+      }).join('');
+    }
+    c.innerHTML=html;
+    return;
+  }
+
+  // root view: folders + ungrouped contests
   const stLabel={draft:'초안',open:'참여 중',closed:'마감'};
   const grpColor={center:'#1565c0',branch:'#2e7d32'};
   const grpBg={center:'#e3f2fd',branch:'#e8f5e9'};
   const grpLabel={center:'센터',branch:'지청'};
-  c.innerHTML=photoContests.map(pc=>`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
-        ${pc.contest_group?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${grpBg[pc.contest_group]||'#f5f5f5'};color:${grpColor[pc.contest_group]||'#555'}">${grpLabel[pc.contest_group]||pc.contest_group}</span>`:''}
-      </div>
-      <span class="pc-status ${pc.status}" style="flex-shrink:0">${stLabel[pc.status]||pc.status}</span>
-    </div>
-    ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
-    <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
-  </div>`).join('');
+  const ungrouped=photoContests.filter(pc=>!pc.folder_id);
+  let html='';
+
+  // folder cards
+  if(photoFolders.length){
+    photoFolders.forEach(f=>{
+      const delBtn=isAdm?`<button onclick="event.stopPropagation();deletePhotoContestFolder('${f.id}')" style="background:none;border:none;color:var(--text-hint);font-size:18px;cursor:pointer;padding:0 2px;line-height:1">×</button>`:'';
+      const photos=f.preview_photos||[];
+      let previewHtml='';
+      if(photos.length>=2){
+        const cells=photos.slice(0,4);
+        while(cells.length<4)cells.push(null);
+        previewHtml=`<div class="folder-preview">${cells.map(url=>url?`<img src="${escHtml(url)}" loading="lazy"/>`:'<div class="folder-preview-empty">📷</div>').join('')}</div>`;
+      }else if(photos.length===1){
+        previewHtml=`<div style="border-radius:8px;overflow:hidden;margin-top:10px;height:120px"><img src="${escHtml(photos[0])}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy"/></div>`;
+      }else{
+        previewHtml=`<div style="height:80px;background:#f5f5f5;border-radius:8px;margin-top:10px;display:flex;align-items:center;justify-content:center;color:var(--text-hint);font-size:13px">사진 없음</div>`;
+      }
+      html+=`<div class="folder-card" onclick="_enterFolderView('${f.id}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">📁</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;color:var(--text)">${escHtml(f.title)}</div>
+            <div style="font-size:11px;color:var(--text-hint);margin-top:1px">행사 ${f.contest_count}개</div>
+          </div>
+          ${delBtn}
+        </div>
+        ${previewHtml}
+      </div>`;
+    });
+  }
+
+  // ungrouped contests
+  if(ungrouped.length){
+    if(photoFolders.length) html+=`<div style="font-size:11px;font-weight:600;color:var(--text-hint);padding:4px 2px 6px;margin-top:4px">기타 행사</div>`;
+    html+=ungrouped.map(pc=>{
+      const moveBtn=isAdm?`<button onclick="event.stopPropagation();openFolderMoveModal('${pc.id}')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text-sub);flex-shrink:0">폴더 지정</button>`:'';
+      return`<div class="photo-contest-card" onclick="openPhotoContest('${pc.id}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1">
+            <div style="font-size:15px;font-weight:700;color:var(--text)">${escHtml(pc.title)}</div>
+            ${pc.contest_group?`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${grpBg[pc.contest_group]||'#f5f5f5'};color:${grpColor[pc.contest_group]||'#555'}">${grpLabel[pc.contest_group]||pc.contest_group}</span>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">${moveBtn}<span class="pc-status ${pc.status}" style="flex-shrink:0">${stLabel[pc.status]||pc.status}</span></div>
+        </div>
+        ${pc.description?`<div style="font-size:12px;color:var(--text-sub);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${escHtml(pc.description)}</div>`:''}
+        <div style="font-size:12px;color:var(--text-hint);margin-top:8px">${pc.entry_type==='text'?`✏️ ${pc.entry_count}개`:`📷 ${pc.entry_count}장`} &nbsp;·&nbsp; 🗳️ ${pc.vote_count}표</div>
+      </div>`;
+    }).join('');
+  }
+
+  if(!photoFolders.length&&!ungrouped.length) html='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';
+  c.innerHTML=html;
 }
 async function openPhotoContest(id){
   currentPhotoContestId=id;

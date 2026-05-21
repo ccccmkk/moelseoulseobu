@@ -315,6 +315,7 @@ async function initDB(env) {
     `CREATE TABLE IF NOT EXISTS photo_contests (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', status TEXT DEFAULT 'draft', created_by TEXT, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS photo_entries (id TEXT PRIMARY KEY, contest_id TEXT NOT NULL, uploader TEXT NOT NULL, img_url TEXT NOT NULL, caption TEXT DEFAULT '', created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS photo_votes (contest_id TEXT, voter TEXT, photo_id TEXT, PRIMARY KEY(contest_id, voter))`,
+    `CREATE TABLE IF NOT EXISTS photo_contest_folders (id TEXT PRIMARY KEY, title TEXT NOT NULL, created_by TEXT, created_at INTEGER)`,
   ];
   await env.DB.batch(tables.map(t => env.DB.prepare(t)));
   // 마이그레이션: 모든 ALTER TABLE을 병렬 실행해 cold start 지연 최소화
@@ -360,6 +361,7 @@ async function initDB(env) {
     "ALTER TABLE restaurants ADD COLUMN lat REAL DEFAULT NULL",
     "ALTER TABLE restaurants ADD COLUMN lng REAL DEFAULT NULL",
     "ALTER TABLE restaurants ADD COLUMN walk_sec INTEGER DEFAULT NULL",
+    "ALTER TABLE photo_contests ADD COLUMN folder_id TEXT DEFAULT NULL",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -1592,6 +1594,52 @@ export default {
         const rows = await env.DB.prepare('SELECT nominee, COUNT(*) as count FROM contest_votes WHERE contest_id=? GROUP BY nominee ORDER BY count DESC').bind(contestId).all();
         const myVote = voter ? (await env.DB.prepare('SELECT nominee FROM contest_votes WHERE contest_id=? AND voter=?').bind(contestId, voter).first())?.nominee : null;
         return json({ results: rows.results, my_vote: myVote });
+      }
+
+      // ── 사진 행사 폴더 ──
+      // GET /api/photo-contest-folders
+      if (p === '/api/photo-contest-folders' && m === 'GET') {
+        const folders = await env.DB.prepare('SELECT * FROM photo_contest_folders ORDER BY created_at DESC').all();
+        const result = await Promise.all((folders.results || []).map(async f => {
+          const contests = await env.DB.prepare('SELECT id FROM photo_contests WHERE folder_id=?').bind(f.id).all();
+          const cids = (contests.results || []).map(c => c.id);
+          let photos = [];
+          if (cids.length) {
+            const ph = cids.map(() => '?').join(',');
+            const photoRows = await env.DB.prepare(`SELECT img_url FROM photo_entries WHERE contest_id IN (${ph}) ORDER BY created_at DESC LIMIT 4`).bind(...cids).all();
+            photos = (photoRows.results || []).map(r => r.img_url);
+          }
+          return { ...f, contest_count: cids.length, preview_photos: photos };
+        }));
+        return json(result);
+      }
+
+      // POST /api/photo-contest-folders
+      if (p === '/api/photo-contest-folders' && m === 'POST') {
+        const _sFc1 = await requireAdmin(); if (_sFc1 instanceof Response) return _sFc1;
+        const { title } = await request.json();
+        if (!title) return json({ error: '제목 필요' }, 400);
+        const fid = 'pf_' + Date.now();
+        await env.DB.prepare('INSERT INTO photo_contest_folders(id,title,created_by,created_at) VALUES(?,?,?,?)').bind(fid, title.trim(), _sFc1.user_id, Math.floor(Date.now()/1000)).run();
+        return json({ ok: true, id: fid });
+      }
+
+      // DELETE /api/photo-contest-folders/:id
+      if (p.match(/^\/api\/photo-contest-folders\/[^/]+$/) && m === 'DELETE') {
+        const _sFc2 = await requireAdmin(); if (_sFc2 instanceof Response) return _sFc2;
+        const folderId = decodeURIComponent(p.split('/')[3]);
+        await env.DB.prepare('UPDATE photo_contests SET folder_id=NULL WHERE folder_id=?').bind(folderId).run();
+        await env.DB.prepare('DELETE FROM photo_contest_folders WHERE id=?').bind(folderId).run();
+        return json({ ok: true });
+      }
+
+      // PUT /api/photo-contests/:id/folder  (assign/remove from folder)
+      if (p.match(/^\/api\/photo-contests\/[^/]+\/folder$/) && m === 'PUT') {
+        const _sFc3 = await requireAdmin(); if (_sFc3 instanceof Response) return _sFc3;
+        const cid = decodeURIComponent(p.split('/')[3]);
+        const { folder_id } = await request.json();
+        await env.DB.prepare('UPDATE photo_contests SET folder_id=? WHERE id=?').bind(folder_id || null, cid).run();
+        return json({ ok: true });
       }
 
       // ── 사진 투표 행사 ──
