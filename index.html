@@ -4152,6 +4152,41 @@ function renderPhotoContestList(){
   if(!photoFolders.length&&!ungrouped.length) html='<div class="empty-state"><div class="ei">📷</div>등록된 행사가 없습니다</div>';
   c.innerHTML=html;
 }
+function _enterFolderView(folderId){_photoFolderView=folderId;renderPhotoContestList();}
+function _exitFolderView(){_photoFolderView=null;renderPhotoContestList();}
+async function deletePhotoContestFolder(id){
+  if(!confirm('폴더를 삭제할까요? 안에 있는 행사는 폴더에서 제거됩니다.'))return;
+  await fetch(`${API}/api/photo-contest-folders/${id}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});
+  await loadPhotoContests();
+}
+function openCreatePhotoContestFolder(){
+  const title=prompt('폴더 이름을 입력하세요');
+  if(!title?.trim())return;
+  fetch(`${API}/api/photo-contest-folders?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title.trim()})})
+    .then(()=>loadPhotoContests());
+}
+function openFolderMoveModal(contestId){
+  const opts=photoFolders.map(f=>`<option value="${escHtml(f.id)}">${escHtml(f.title)}</option>`).join('');
+  const current=photoContests.find(pc=>pc.id===contestId)?.folder_id||'';
+  const modal=document.createElement('div');
+  modal.className='modal-overlay center open';
+  modal.innerHTML=`<div class="modal" style="max-width:320px;border-radius:var(--radius);padding:20px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">폴더 지정</div>
+    <select id="_folderMoveSelect" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:14px">
+      <option value="">-- 폴더 없음 --</option>${opts}
+    </select>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-sm" onclick="this.closest('.modal-overlay').remove()">취소</button>
+      <button class="btn-sm primary" onclick="
+        const v=document.getElementById('_folderMoveSelect').value;
+        fetch('${API}/api/photo-contests/${contestId}/folder?token=${encodeURIComponent(sessionToken||'')}',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder_id:v||null})})
+          .then(()=>{this.closest('.modal-overlay').remove();loadPhotoContests();});
+      ">확인</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  if(current) document.getElementById('_folderMoveSelect').value=current;
+}
 async function openPhotoContest(id){
   currentPhotoContestId=id;
   $('photoContestGrid').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text-hint)">불러오는 중...</div>';
