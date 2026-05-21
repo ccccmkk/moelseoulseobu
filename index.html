@@ -657,12 +657,6 @@ button,a,[role="button"]{touch-action:manipulation}
         <div style="font-size:10px;color:var(--text-hint);letter-spacing:.3px;margin-top:1px">Seobu Together Empathy Platform</div>
       </div>
     </div>
-    <!-- 보안 공지 -->
-    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.6;color:#5d4037">
-      <div style="font-weight:700;margin-bottom:4px">🔒 보안 업데이트 안내</div>
-      시스템 보안 강화를 위해 비밀번호를 일괄 초기화하였습니다.<br>
-      기존에 발송된 <b>문자 또는 메일</b>의 초기 비밀번호로 로그인 후 변경해주세요.
-    </div>
     <!-- 로그인 폼 -->
     <form class="lf" id="loginForm" onsubmit="return false">
       <label>온나라 사번 (9자리)</label>
@@ -2292,7 +2286,7 @@ async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
 async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1,granted_badge_admin:x.granted_badge_admin??0,granted_badge_top:x.granted_badge_top??0};});}catch(e){}}
-async function fetchUserNames(){try{const r=await fetch(`${API}/api/users`);const a=await r.json();userNames={};a.forEach(u=>{if(u.name)userNames[u.id]=u.name;});}catch(e){}}
+async function fetchUserNames(){try{const r=await fetch(`${API}/api/users?token=${encodeURIComponent(sessionToken||'')}`);const a=await r.json();if(!Array.isArray(a))return;userNames={};a.forEach(u=>{if(u.name)userNames[u.id]=u.name;});}catch(e){}}
 function badgeHtml(userId){
   const prefs=badgePrefs[userId]||{};
   let b='';
@@ -2952,7 +2946,7 @@ function postCardHtml(p){
     const title=metaBlock?.title||_stripHtml(textBlocks[0]?.content)?.split('\n')[0]||p.keyword||'블로그 글';
     const excerpt=metaBlock?.description||_stripHtml(textBlocks.map(b=>b.content).join(' ')).slice(0,150);
     return`<div class="post-card" id="pc-${key}">
-      <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
+      <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
       <div class="blog-og-card" onclick="openFullPost('${key}')">
         ${thumbBlock?.url?`<img class="blog-og-thumb" src="${imgUrl(thumbBlock.url)}" loading="lazy" decoding="async"/>`:
           (p.blocks?.find(b=>b.type==='image')?`<img class="blog-og-thumb" src="${imgUrl(p.blocks.find(b=>b.type==='image').url)}" loading="lazy" decoding="async"/>`:'') }
@@ -2970,7 +2964,7 @@ function postCardHtml(p){
     </div>`;
   }
   return`<div class="post-card" id="pc-${key}">
-    <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
+    <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
     ${renderBlocksInCard(p,false)}
     ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
     <div class="post-actions">
@@ -5139,7 +5133,7 @@ function initCarousels(){
 // ── 전체 글 보기 ──
 function openFullPost(key){
   const p=posts.find(x=>x.id===key);if(!p)return;
-  $('fullPostTitle').textContent=userName(p.author)+' · '+relDate(p.created_at);
+  $('fullPostTitle').textContent=p.author_name||userName(p.author)+' · '+relDate(p.created_at);
   let html='';
   const isBlogMode=p.mode==='blog';
   (p.blocks||[]).forEach(b=>{
