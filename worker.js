@@ -1166,7 +1166,7 @@ export default {
           const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(tok).first().catch(()=>null);
           meId = sess?.user_id || null;
         }
-        const baseSQL = 'SELECT p.*, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
+        const baseSQL = 'SELECT p.*, u.name as author_name, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN users u ON p.author=u.id LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
         let whereClause, bindArgs;
         if (authorParam) {
           const isOwnProfile = meId && meId === authorParam;
@@ -1894,6 +1894,12 @@ export default {
           ]);
         }
         return json({ ok: true, created: toInsert.length, skipped: list.length - toInsert.length });
+      }
+      if (p.match(/^\/api\/users\/[^/]+\/approve$/) && m === 'PUT') {
+        const _sApprove = await requireAdmin(); if (_sApprove instanceof Response) return _sApprove;
+        const userId = decodeURIComponent(p.split('/')[3]);
+        await env.DB.prepare("UPDATE users SET status='active' WHERE id=?").bind(userId).run();
+        return json({ ok: true });
       }
       if (p.match(/^\/api\/users\/[^/]+\/reset-password$/) && m === 'PUT') {
         const _s4 = await requireAdmin(); if (_s4 instanceof Response) return _s4;
