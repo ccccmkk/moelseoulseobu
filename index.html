@@ -90,6 +90,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .act-views{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-hint);margin-left:auto;padding:8px 4px}.act-views svg{width:14px;height:14px;flex-shrink:0}
 .post-header{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--green-dark);flex-shrink:0}
+.avatar svg.default-person{width:60%;height:60%;opacity:.7}
 .post-author{font-size:14px;font-weight:600}
 .post-date{font-size:11px;color:var(--text-hint);margin-top:1px}
 .post-header-info{flex:1}
@@ -311,6 +312,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .emoji-opt:hover,.emoji-opt.selected{border-color:var(--green);background:var(--green-light)}
 /* 유저 프로필 카드 */
 .userprofile-avatar{width:72px;height:72px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--green-dark);margin:0 auto 12px;overflow:hidden;flex-shrink:0}
+.userprofile-avatar svg.default-person{width:55%;height:55%;opacity:.7}
 .userprofile-avatar img{width:100%;height:100%;object-fit:cover;display:block}
 .userprofile-name{font-size:18px;font-weight:700;text-align:center;margin-bottom:4px}
 .userprofile-stats{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:14px 0}
@@ -400,6 +402,7 @@ button,a,[role="button"]{touch-action:manipulation}
 /* ── 더보기 탭 ── */
 .more-user-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;display:flex;align-items:center;gap:14px;margin-bottom:14px}
 .more-user-avatar{width:52px;height:52px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--green-dark);overflow:hidden;flex-shrink:0}
+.more-user-avatar svg.default-person{width:58%;height:58%;opacity:.7}
 .more-user-avatar img{width:100%;height:100%;object-fit:cover}
 .more-user-name{font-size:16px;font-weight:700;margin-bottom:3px}
 .more-user-sub{font-size:12px;color:var(--text-hint)}
@@ -1079,7 +1082,7 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div class="modal-body" id="writeEditorBody">
       <div class="modal-author-row">
-        <div class="avatar" id="modalAvatar">?</div>
+        <div class="avatar" id="modalAvatar"></div>
         <span class="modal-author-name" id="modalAuthorName"></span>
       </div>
       <!-- 블로그 썸네일 (블로그 모드에서만 표시) -->
@@ -2130,20 +2133,23 @@ let _lbUrls=[],_lbIdx=0,_lbCap='',_lbTouchX=0,_lbDragDist=0;
 let currentUserDept='',currentPhotoGroup=null;
 
 function $(id){return document.getElementById(id)}
-function initials(n){return(n||'?').charAt(0)}
+const _PERSON_SVG=`<svg class="default-person" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4"/><path d="M20 19c0-3.314-3.582-6-8-6s-8 2.686-8 6"/></svg>`;
+function initials(n){return(n||'').charAt(0)||''}
 function userName(id){return userNames[id]||id;}
-function getAvatar(u){return profiles[u]||initials(userName(u));}
+function getAvatar(u){return profiles[u]||null;}
 function avatarEl(u,style=''){
   const av=profiles[u];
   const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
   if(isImg)return`<div class="avatar" style="${style}overflow:hidden;padding:0"><img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/></div>`;
-  return`<div class="avatar" style="${style}">${av||initials(u)}</div>`;
+  if(av)return`<div class="avatar" style="${style}">${av}</div>`;
+  return`<div class="avatar" style="${style}">${_PERSON_SVG}</div>`;
 }
 function updateAvatarEl(el,u){
   const av=profiles[u];
   const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
   if(isImg){el.style.cssText=(el.getAttribute('style')||'')+';overflow:hidden;padding:0';el.innerHTML=`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/>`;}
-  else{el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av||initials(u);}
+  else if(av){el.style.overflow='';el.style.padding='';el.innerHTML='';el.textContent=av;}
+  else{el.style.overflow='';el.style.padding='';el.innerHTML=_PERSON_SVG;}
 }
 function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function sanitizeHtml(html){
@@ -3353,7 +3359,7 @@ $('submitComment').onclick=async function(){
   const myAvatar=getAvatar(currentUser);
   const myName=userNames[currentUser]||currentUser;
   const isImg=myAvatar&&(myAvatar.startsWith('/')||myAvatar.startsWith('http'));
-  const avHtml=isImg?`<div class="avatar" style="overflow:hidden;padding:0"><img src="${escHtml(myAvatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/></div>`:`<div class="avatar">${myAvatar||initials(myName)}</div>`;
+  const avHtml=isImg?`<div class="avatar" style="overflow:hidden;padding:0"><img src="${escHtml(myAvatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" loading="lazy"/></div>`:`<div class="avatar">${myAvatar||_PERSON_SVG}</div>`;
   const tempEl=document.createElement('div');
   tempEl.id=tempId;tempEl.className='comment-item';tempEl.style.opacity='.6';
   tempEl.innerHTML=`<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 16px">${avHtml}<div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${escHtml(myName)}</div><div style="font-size:14px">${renderMd(txt)}</div></div></div>`;
@@ -3949,7 +3955,7 @@ async function renderSearch(q){
       const preview=txt.length>100?txt.slice(0,100)+'...':txt;
       const displayName=p.author_name||userNames[p.author]||p.author||'';
       return`<div class="post-card" style="cursor:pointer" onclick="switchTab('Feed')">
-        <div class="post-header"><div class="avatar">${initials(displayName)}</div><div class="post-header-info"><div class="post-author">${escHtml(displayName)}</div><div class="post-date">${relDate(p.created_at)}</div></div></div>
+        <div class="post-header">${avatarEl(p.author)}<div class="post-header-info"><div class="post-author">${escHtml(displayName)}</div><div class="post-date">${relDate(p.created_at)}</div></div></div>
         ${preview?`<div class="block-text">${escHtml(preview)}</div>`:''}
       </div>`;
     }).join('');
@@ -5877,7 +5883,8 @@ function updateProfilePreview(val){
   const prev=$('profilePhotoPreview');
   const isImg=val&&(val.startsWith('/')||val.startsWith('http'));
   if(isImg){prev.style.cssText='overflow:hidden;padding:0;'+(prev.getAttribute('data-base-style')||'');prev.innerHTML=`<img src="${escHtml(val)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;}
-  else{prev.style.overflow='';prev.style.padding='';prev.innerHTML='';prev.textContent=val||initials(currentUser);}
+  else if(val){prev.style.overflow='';prev.style.padding='';prev.innerHTML='';prev.textContent=val;}
+  else{prev.style.overflow='';prev.style.padding='';prev.innerHTML=_PERSON_SVG;}
 }
 async function openProfileModal(){
   selectedAvatar=profiles[currentUser]||null;
@@ -5951,7 +5958,7 @@ async function openUserProfile(userId){
   // 프로필 헤더
   const av=profiles[userId];
   const isImg=av&&(av.startsWith('/')||av.startsWith('http'));
-  $('profilePageAvatar').innerHTML=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover"/>`:(av||initials(userName(userId)||userId));
+  $('profilePageAvatar').innerHTML=isImg?`<img src="${escHtml(av)}" style="width:100%;height:100%;object-fit:cover"/>`:av||_PERSON_SVG;
   $('profilePageName').innerHTML=escHtml(userName(userId)||userId)+badgeHtml(userId);
   $('profilePageStats').innerHTML='<div style="text-align:center"><div style="font-weight:700;font-size:18px">-</div><div style="font-size:11px;color:var(--text-hint)">게시글</div></div>';
   $('profilePagePosts').innerHTML='<div style="padding:60px 20px;text-align:center;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
