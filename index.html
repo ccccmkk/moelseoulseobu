@@ -382,10 +382,12 @@ body.font-xl .modal{max-height:65dvh!important}
 .upload-bar{height:100%;background:var(--green);border-radius:4px;transition:width .15s}
 .upload-pct{font-size:13px;color:var(--text-sub);margin-top:8px}
 /* ── 간편 모드 사진 그리드 ── */
-.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px}
-.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0}
-.simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block}
+.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
+.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0;touch-action:none}
+.simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;pointer-events:none}
 .simple-photo-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+.simple-photo-item.dragging-src{opacity:.35;transform:scale(.95)}
+.simple-photo-item.drag-placeholder{border:2px dashed var(--green);background:#e8f5e9;opacity:.8}
 /* ── iOS / 모바일 호환성 ── */
 *{-webkit-tap-highlight-color:transparent}
 button,a,[role="button"]{touch-action:manipulation}
@@ -3205,7 +3207,7 @@ async function submitNewsletter(){
       btn.textContent=`업로드 중... (${i+1}/${_nlFiles.length})`;
       const fd=new FormData();fd.append('file',_nlFiles[i]);
       let r;
-      try{r=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(res=>res.json());}
+      try{r=await fetch(`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',body:fd}).then(res=>res.json());}
       catch(e){throw new Error(`이미지 업로드 실패 (${i+1}번째): ${e.message}`);}
       if(!r.url)throw new Error(`이미지 업로드 실패 (${i+1}번째): ${r.error||'알 수 없는 오류'}`);
       pages.push(r.url);
@@ -3426,7 +3428,7 @@ async function deleteComment(id){
   if(el)el.remove();
   updatePostCommentCount(commentingPostId,-(1+replies.length));
   try{
-    const r=await fetch(`${API}/api/comments/${id}`,{method:'DELETE'});
+    const r=await fetch(`${API}/api/comments/${id}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});
     if(!r.ok)throw new Error();
   }catch(e){
     if(snapshot&&el?.parentNode===null){
@@ -3459,7 +3461,7 @@ async function submitReply(cid){
 }
 async function deleteReply(replyId,cid){
   if(!confirm('삭제할까요?'))return;
-  await fetch(`${API}/api/replies/${replyId}`,{method:'DELETE'});
+  await fetch(`${API}/api/replies/${replyId}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});
   commentRepliesCache[cid]=(commentRepliesCache[cid]||[]).filter(r=>r.id!==replyId);
   const ra=$(`ra-${cid}`);const inputRow=ra.querySelector('.reply-input-row');
   ra.innerHTML=buildRepliesHtml(cid,commentRepliesCache[cid],ra.dataset.expanded==='1');
@@ -3672,21 +3674,42 @@ function renderSimpleEditor(){
   if(imgBlocks.length){
     const grid=document.createElement('div');grid.className='simple-photos';
     imgBlocks.forEach((b,imgIdx)=>{
-      const w=document.createElement('div');w.className='simple-photo-item';w.draggable=true;
-      w.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><button class="simple-photo-del" title="삭제">×</button><span class="simple-drag-handle">⠿</span>`;
+      const w=document.createElement('div');w.className='simple-photo-item';
+      w.innerHTML=`<img src="${escHtml(b.url)}" loading="lazy"/><button class="simple-photo-del" title="삭제">×</button><span class="simple-drag-handle" style="touch-action:none;cursor:grab">⠿</span>`;
       w.querySelector('.simple-photo-del').onclick=()=>{const idx=editorBlocks.indexOf(b);if(idx>=0)editorBlocks.splice(idx,1);renderSimpleEditor();};
-      w.addEventListener('dragstart',e=>{_dragSrcIdx=imgIdx;e.dataTransfer.effectAllowed='move';});
-      w.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';w.classList.add('drag-over');});
-      w.addEventListener('dragleave',()=>w.classList.remove('drag-over'));
-      w.addEventListener('drop',e=>{
-        e.preventDefault();w.classList.remove('drag-over');
-        if(_dragSrcIdx===imgIdx)return;
-        const srcBlock=imgBlocks[_dragSrcIdx];
-        const tgtBlock=imgBlocks[imgIdx];
-        const srcIdx=editorBlocks.indexOf(srcBlock);
-        const tgtIdx=editorBlocks.indexOf(tgtBlock);
-        if(srcIdx>=0&&tgtIdx>=0){editorBlocks.splice(srcIdx,1);editorBlocks.splice(tgtIdx<srcIdx?tgtIdx:tgtIdx,0,srcBlock);}
-        renderSimpleEditor();
+      // pointer-event 기반 드래그 (모바일/데스크톱 통합)
+      const handle=w.querySelector('.simple-drag-handle');
+      handle.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
+        let srcIdx=imgIdx,over=-1;
+        const items=[...grid.querySelectorAll('.simple-photo-item')];
+        w.classList.add('dragging-src');
+        function onMove(ev){
+          ev.preventDefault();
+          const el=document.elementFromPoint(ev.clientX,ev.clientY);
+          const tgt=el&&el.closest('.simple-photo-item');
+          items.forEach(it=>it.classList.remove('drag-placeholder'));
+          if(tgt&&tgt!==w){tgt.classList.add('drag-placeholder');over=items.indexOf(tgt);}
+          else over=-1;
+        }
+        function onUp(){
+          handle.removeEventListener('pointermove',onMove);
+          handle.removeEventListener('pointerup',onUp);
+          handle.removeEventListener('pointercancel',onUp);
+          w.classList.remove('dragging-src');
+          items.forEach(it=>it.classList.remove('drag-placeholder'));
+          if(over>=0&&over!==srcIdx){
+            const srcBlock=imgBlocks[srcIdx];
+            const tgtBlock=imgBlocks[over];
+            const sI=editorBlocks.indexOf(srcBlock),tI=editorBlocks.indexOf(tgtBlock);
+            if(sI>=0&&tI>=0){editorBlocks.splice(sI,1);editorBlocks.splice(tI,0,srcBlock);}
+            renderSimpleEditor();
+          }
+        }
+        handle.addEventListener('pointermove',onMove,{passive:false});
+        handle.addEventListener('pointerup',onUp);
+        handle.addEventListener('pointercancel',onUp);
       });
       grid.appendChild(w);
     });
@@ -3701,7 +3724,7 @@ function renderSimpleEditor(){
     editor.appendChild(yw);
   });
 }
-let _dragSrcIdx=-1;
+
 function renderEditor(){_writeMode==='blog'?renderBlogEditor():renderSimpleEditor();}
 let _writeMode='normal';
 let _blogThumbUrl='';
@@ -3802,7 +3825,7 @@ $('thumbFileInput') && ($('thumbFileInput').onchange=async function(e){
   });
   reader.readAsDataURL(file);
 });
-async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);const el=$('pc-'+key);if(el)el.remove();}
+async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);const el=$('pc-'+key);if(el)el.remove();}
 async function publishPost(key){await _setPostStatus(key,'published');}
 async function draftPost(key){await _setPostStatus(key,'draft');}
 async function hidePost(key){if(!confirm('이 글을 숨기겠습니까?'))return;await _setPostStatus(key,'hidden');}
@@ -3920,7 +3943,8 @@ $('submitPost').onclick=async function(){
   try{
     const mode=_writeMode==='blog'?'blog':'normal';
     if(editingKey){
-      await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'published'})});
+      const _putRes=await fetch(`${API}/api/posts/${editingKey}?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'published'})});
+      if(!_putRes.ok){const _err=await _putRes.json().catch(()=>({}));throw new Error(_err.error||`저장 실패 (${_putRes.status})`);}
       const p=posts.find(x=>x.id===editingKey)||_profilePostsMap[editingKey];if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='published';}
       if(_profilePostsMap[editingKey]){_profilePostsMap[editingKey]={..._profilePostsMap[editingKey],blocks:finalBlocks,keyword:keyword||null,mode,status:'published'};}
       const el=$('pc-'+editingKey);if(el&&p){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}initCarousels();
@@ -3929,7 +3953,7 @@ $('submitPost').onclick=async function(){
       if(goProfile){_profileNextCursor=null;_loadProfilePosts(true);}
       return;
     }else{
-      const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'published'})});
+      const r=await fetch(`${API}/api/posts?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'published'})});
       const d=await r.json();
       const newPost={id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,comment_count:0,keyword:keyword||null,mode,status:'published'};
       posts.unshift(newPost);
@@ -3952,7 +3976,7 @@ $('saveDraft').onclick=async function(){
   try{
     const mode=_writeMode==='blog'?'blog':'normal';
     if(editingKey){
-      await fetch(`${API}/api/posts/${editingKey}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'draft'})});
+      await fetch(`${API}/api/posts/${editingKey}?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:finalBlocks,keyword,mode,status:'draft'})});
       const p=posts.find(x=>x.id===editingKey)||_profilePostsMap[editingKey];if(p){p.blocks=finalBlocks;p.keyword=keyword||null;p.mode=mode;p.status='draft';}
       if(_profilePostsMap[editingKey]){_profilePostsMap[editingKey]={..._profilePostsMap[editingKey],blocks:finalBlocks,keyword:keyword||null,mode,status:'draft'};}
       const el=$('pc-'+editingKey);if(el&&p){const div=document.createElement('div');div.innerHTML=postCardHtml(p);el.replaceWith(div.firstChild);}initCarousels();
@@ -3961,7 +3985,7 @@ $('saveDraft').onclick=async function(){
       if(goProfile2){_profileNextCursor=null;_loadProfilePosts(true);}
       return;
     }else{
-      const r=await fetch(`${API}/api/posts`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'draft'})});
+      const r=await fetch(`${API}/api/posts?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,blocks:finalBlocks,keyword,mode,status:'draft'})});
       const d=await r.json();
       const newPost={id:d.id,author:currentUser,blocks:finalBlocks,created_at:Math.floor(Date.now()/1000),like_count:0,comment_count:0,keyword:keyword||null,mode,status:'draft'};
       posts.unshift(newPost);
@@ -4379,7 +4403,7 @@ async function saveEntryEdit(){
     if(_editNewPhotoFile){
       const compressed=await compressImage(_editNewPhotoFile);
       const fd=new FormData();fd.append('file',compressed);
-      const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+      const up=await fetch(`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',body:fd}).then(r=>r.json());
       if(!up.url){if(ov) ov.style.display='none';if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
       if(_editPhotoIndex===0){
         body.img_url=up.url;
@@ -4392,7 +4416,7 @@ async function saveEntryEdit(){
       for(const f of _editAddFiles){
         const compressed=await compressImage(f);
         const fd=new FormData();fd.append('file',compressed);
-        const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+        const up=await fetch(`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',body:fd}).then(r=>r.json());
         if(!up.url){if(ov) ov.style.display='none';if(msg) msg.textContent=up.error||'사진 업로드 실패';return;}
         rawExtra.push(up.url);
       }
@@ -4646,7 +4670,7 @@ async function submitEventPhoto(){
       btn.textContent=`업로드 중 ${i+1}/${total}`;
       setFill(Math.round((i/total)*85));
       const fd=new FormData();fd.append('file',_photoQueue[i].file);
-      const up=await fetch(`${API}/api/upload`,{method:'POST',body:fd}).then(r=>r.json());
+      const up=await fetch(`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',body:fd}).then(r=>r.json());
       if(!up.url){$('photoUploadMsg').textContent=up.error||'업로드 실패';return;}
       urls.push(up.url);
     }
@@ -5274,8 +5298,8 @@ async function agentHealthReply(){
 // ── 맛집 ──
 const CAT_COLORS={'한식':'#e57373','중식':'#ff8a65','일식':'#42a5f5','양식':'#7e57c2','분식':'#ffb300','카페':'#66bb6a','기타':'#90a4ae'};
 // 두 건물 좌표 (settings에서 로드 가능, 기본값)
-let BLDG_PLUS = { lat:37.5432, lng:126.9513, name:'서울서부고용복지플러스센터', short:'복지플러스' };
-let BLDG_JI   = { lat:37.5498, lng:126.9450, name:'서울서부지청', short:'서부지청' };
+let BLDG_PLUS = { lat:37.5432, lng:126.9513, name:'서울서부고용복지플러스센터', short:'센터' };
+let BLDG_JI   = { lat:37.5498, lng:126.9450, name:'서울서부지청', short:'지청' };
 let _restData=[], _restMap=null, _restMarkers=[], _addRestMap=null, _addRestMarker=null, _restView='map', _restSearchResults=[];
 
 async function loadMapBldgSettings(){
@@ -5360,10 +5384,11 @@ function initRestMap(){
       mapDataControl:false,
     });
     [BLDG_PLUS, BLDG_JI].forEach(b=>{
+      const label=b===BLDG_PLUS?'센터':'지청';
       new naver.maps.Marker({
         position:new naver.maps.LatLng(b.lat,b.lng),
         map:_restMap,
-        icon:{content:`<div style="background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">🏢 ${b.short}</div>`,anchor:new naver.maps.Point(0,14)},
+        icon:{content:`<div title="${b.name}" style="background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:12px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:default">🏢 ${label}</div>`,anchor:new naver.maps.Point(0,12)},
         title:b.name,zIndex:10,
       });
     });
@@ -5996,7 +6021,7 @@ $('profileImgInput').onchange=async function(e){
   try{
     file=await compressImage(file,400,0.85);
     const fd=new FormData();fd.append('file',file);
-    const r=await fetch(`${API}/api/upload`,{method:'POST',body:fd});const d=await r.json();
+    const r=await fetch(`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`,{method:'POST',body:fd});const d=await r.json();
     if(d.error)throw new Error(d.error);
     selectedAvatar=imgUrl(d.url);
     $('emojiPicker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));
@@ -6010,7 +6035,7 @@ async function saveProfile(){
   try{
     const body={show_badge_admin,show_badge_top};
     if(selectedAvatar!==undefined)body.avatar_url=selectedAvatar;
-    await fetch(`${API}/api/profile/${encodeURIComponent(currentUser)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await fetch(`${API}/api/profile/${encodeURIComponent(currentUser)}?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(selectedAvatar!==null&&selectedAvatar!==undefined)profiles[currentUser]=selectedAvatar;
     const prev=badgePrefs[currentUser]||{};
     badgePrefs[currentUser]={...prev,show_badge_admin,show_badge_top};
@@ -6023,7 +6048,7 @@ async function toggleBadge(userId,badge,btn){
   const key=`granted_badge_${badge}`;
   const newVal=prefs[key]?0:1;
   try{
-    await fetch(`${API}/api/profile/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:newVal})});
+    await fetch(`${API}/api/profile/${encodeURIComponent(userId)}?token=${encodeURIComponent(sessionToken||'')}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:newVal})});
     if(!badgePrefs[userId])badgePrefs[userId]={};
     badgePrefs[userId][key]=newVal;
     btn.classList.toggle('on',newVal===1);
