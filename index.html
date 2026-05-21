@@ -3544,7 +3544,7 @@ function uploadFileXHR(file,onProgress){
       else{try{reject(new Error(JSON.parse(xhr.responseText).error||'업로드 실패'));}catch{reject(new Error('업로드 실패'));}}
     };
     xhr.onerror=()=>reject(new Error('네트워크 오류'));
-    xhr.open('POST',`${API}/api/upload`);xhr.send(fd);
+    xhr.open('POST',`${API}/api/upload?token=${encodeURIComponent(sessionToken||'')}`);xhr.send(fd);
   });
 }
 function showUploadProgress(label){$('uploadLabel').textContent=label||'업로드 중...';$('uploadBar').style.width='0%';$('uploadPct').textContent='0%';$('uploadOverlay').classList.add('open');}
