@@ -34,6 +34,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 .logo-text{font-size:28px;font-weight:700;letter-spacing:.5px;margin-top:12px;animation:logoFadeUp .5s .15s ease both}
 .logo-sub{font-size:11px;color:var(--text-hint);letter-spacing:.4px;margin-top:4px;animation:logoFadeUp .5s .28s ease both}
 @keyframes logoFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* 스플래시 */
+#splashScreen{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;transition:opacity .4s ease}
+#splashScreen.hiding{opacity:0;pointer-events:none}
+.sp-icon{width:72px;height:72px;border-radius:16px;overflow:hidden;animation:logoFadeUp .5s ease both}
+.sp-icon img{width:100%;height:100%;object-fit:contain;display:block}
+.sp-title{font-size:38px;font-weight:700;margin-top:18px;letter-spacing:.5px;animation:logoFadeUp .5s .15s ease both}
+.sp-sub{font-size:13px;color:var(--text-hint);margin-top:6px;letter-spacing:.3px;animation:logoFadeUp .5s .28s ease both}
 .lf label{display:block;font-size:12px;color:var(--text-sub);margin-bottom:5px;font-weight:500}
 .lf input{width:100%;height:42px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text);font-size:14px;outline:none;margin-bottom:12px;transition:border-color .15s}
 .lf input:focus{border-color:var(--green)}
@@ -68,6 +75,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .appbar-btns{display:flex;gap:6px}
 .appbar-btn{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;padding:6px 12px;cursor:pointer;transition:background .15s}
 .appbar-btn:hover{background:rgba(255,255,255,.32)}
+.note-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none}
 /* 탭 */
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%;will-change:opacity,transform;backface-visibility:hidden}
 .tab-page.active{display:block;animation:tabFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) both}
@@ -670,7 +678,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .simple-drag-handle{position:absolute;top:0;left:0;color:#fff;font-size:20px;cursor:grab;text-shadow:0 1px 3px rgba(0,0,0,.8);line-height:1;user-select:none;padding:7px 8px 8px 7px;background:rgba(0,0,0,.28);border-radius:0 0 10px 0;}
 .fullscreen-modal{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;max-width:100%!important;height:100%!important;border-radius:0!important;z-index:2000!important;}
 .fullscreen-modal .modal-content{height:100%!important;max-height:100%!important;}
-.blog-toolbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:#fafafa;position:sticky;top:0;z-index:10;}
+.blog-toolbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:#fafafa;}
 .blog-toolbar button{padding:3px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text);}
 .blog-toolbar button:hover{background:#f0f0f0;}
 .blog-toolbar button.active{background:#1976d2;color:#fff;border-color:#1976d2;}
@@ -704,6 +712,38 @@ button,a,[role="button"]{touch-action:manipulation}
 </head>
 <body>
 
+<!-- ════ 쪽지 보내기 모달 ════ -->
+<div class="modal-overlay center" id="noteModal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <span class="modal-title">✉ 개발자에게 쪽지</span>
+      <button class="modal-close" onclick="$('noteModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">종류</div>
+        <select id="noteCategorySelect" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text)">
+          <option value="건의사항">💡 건의사항</option>
+          <option value="기능 추가 요청">✨ 기능 추가 요청</option>
+          <option value="문의">❓ 문의</option>
+          <option value="오류 신고">🐛 오류 신고</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">내용</div>
+        <textarea id="noteContentInput" rows="5" placeholder="내용을 입력해주세요 (최대 1000자)" maxlength="1000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.6;background:var(--bg);color:var(--text)"></textarea>
+      </div>
+      <div id="noteErr" style="font-size:12px;color:var(--danger);min-height:16px"></div>
+      <button onclick="sendNote()" class="btn-green">전송하기</button>
+    </div>
+  </div>
+</div>
+<!-- ════ 스플래시 ════ -->
+<div id="splashScreen">
+  <div class="sp-icon"><img src="/icon-192.png" alt="STEP"/></div>
+  <div class="sp-title">STEP</div>
+  <div class="sp-sub">Seobu Together Empathy Platform</div>
+</div>
 <!-- ════ 로그인 ════ -->
 <div id="loginPage" class="page active">
   <div class="login-wrap">
@@ -742,6 +782,10 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
+      <div style="position:relative" id="noteBtnWrap">
+        <button onclick="openNoteModal()" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:18px;line-height:1" title="개발자에게 쪽지">✉</button>
+        <div id="noteBadge" class="note-badge" style="display:none">0</div>
+      </div>
       <div style="position:relative">
         <button id="fontSizeBtn" class="font-size-btn" onclick="toggleFontMenu(event)">
           <span style="font-size:14px;font-weight:800">가</span><span style="font-size:8px;opacity:.8">▼</span>
@@ -1227,6 +1271,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <button id="saveDraftBlog" style="background:none;border:1px solid #f57c00;color:#f57c00;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit">임시저장</button>
     <button id="submitBlog" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;font-weight:700;font-family:inherit">등록</button>
   </div>
+  <div id="blogToolbarSlot"></div>
   <div id="writeBlogBody" style="flex:1;overflow-y:auto"></div>
 </div>
 
@@ -1793,6 +1838,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
       <button class="adm-tab active" id="opsTab-quiz" onclick="switchOpsTab('quiz')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
       <button class="adm-tab" id="opsTab-photo" onclick="switchOpsTab('photo')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사진투표</button>
+      <button class="adm-tab" id="opsTab-notes" onclick="switchOpsTab('notes')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub);position:relative">쪽지함<span id="opsNoteBadge" style="display:none;position:absolute;top:6px;right:6px;background:#e53935;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:700;line-height:14px;text-align:center">!</span></button>
     </div>
     <div class="modal-body" style="padding:0">
       <!-- ── 퀴즈 탭 ── -->
@@ -1864,6 +1910,14 @@ button,a,[role="button"]{touch-action:manipulation}
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">사진 투표 행사 관리</div>
         <button class="btn-sm primary" onclick="openCreatePhotoContest()" style="width:100%;justify-content:center;margin-bottom:14px">+ 새 행사 만들기</button>
         <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+      <!-- ── 쪽지함 탭 ── -->
+      <div id="admPane-notes" class="adm-pane" style="display:none;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">받은 쪽지</div>
+          <button onclick="loadAdminNotes()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-sub)">새로고침</button>
+        </div>
+        <div id="adminNotesList" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
     </div>
   </div>
@@ -3766,9 +3820,25 @@ function _saveBlogRange(){const sel=window.getSelection();if(sel&&sel.rangeCount
 function _restoreBlogRange(){if(!_savedBlogRange)return;const sel=window.getSelection();sel.removeAllRanges();sel.addRange(_savedBlogRange);}
 function _renderBlogToolbar(){
   const existing=$('blogEditorToolbar');if(existing)existing.remove();
+  const slot=$('blogToolbarSlot');
+  slot.innerHTML='';
   const tb=document.createElement('div');tb.className='blog-toolbar';tb.id='blogEditorToolbar';
   tb.innerHTML=`
-    <select id="btFontFamily" title="글꼴"><option value="">기본</option><option value="나눔고딕">나눔고딕</option><option value="나눔명조">나눔명조</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option></select>
+    <select id="btFontFamily" title="글꼴">
+      <option value="">기본</option>
+      <option value="나눔고딕" style="font-family:나눔고딕">나눔고딕</option>
+      <option value="나눔명조" style="font-family:나눔명조">나눔명조</option>
+      <option value="나눔바른고딕" style="font-family:나눔바른고딕">나눔바른고딕</option>
+      <option value="맑은 고딕" style="font-family:'맑은 고딕'">맑은고딕</option>
+      <option value="굴림" style="font-family:굴림">굴림</option>
+      <option value="돋움" style="font-family:돋움">돋움</option>
+      <option value="바탕" style="font-family:바탕">바탕</option>
+      <option value="궁서" style="font-family:궁서">궁서</option>
+      <option value="Arial" style="font-family:Arial">Arial</option>
+      <option value="Georgia" style="font-family:Georgia">Georgia</option>
+      <option value="Times New Roman" style="font-family:'Times New Roman'">Times New Roman</option>
+      <option value="Courier New" style="font-family:'Courier New'">Courier New</option>
+    </select>
     <select id="btFontSize" title="크기"><option value="12">12</option><option value="14" selected>보통</option><option value="16">16</option><option value="18">18</option><option value="20">20</option><option value="24">24</option><option value="28">28</option><option value="32">32</option></select>
     <input type="color" id="btColor" value="#1a1a1a" title="글자색" style="width:26px;height:26px;border:1px solid var(--border);border-radius:4px;padding:1px;cursor:pointer;"/>
     <button id="btBold" title="굵게"><b>B</b></button>
@@ -3776,26 +3846,25 @@ function _renderBlogToolbar(){
     <button id="btUnderline" title="밑줄"><u>U</u></button>
     <button id="btEmoji" title="이모지">😊</button>
   `;
-  // 블로그 모드에서는 #writeEditorBody의 overflow를 visible로 해야 toolbar가 #writeBlogBody 기준으로 sticky됨
-  const editorBody=$('writeEditorBody');
-  editorBody.style.overflowY='visible';
-  const blockEditor=$('blockEditor');
-  editorBody.insertBefore(tb,blockEditor);
-  // 버튼 클릭 시 mousedown에서 selection 저장 + 포커스 이탈 방지
+  slot.appendChild(tb);
+  // 버튼: touchstart + mousedown 모두 처리 (모바일 selection 보존)
   ['btBold','btItalic','btUnderline','btEmoji'].forEach(id=>{
-    document.getElementById(id).addEventListener('mousedown',e=>{_saveBlogRange();e.preventDefault();});
+    const el=document.getElementById(id);
+    el.addEventListener('mousedown',e=>{_saveBlogRange();e.preventDefault();});
+    el.addEventListener('touchstart',e=>{_saveBlogRange();e.preventDefault();},{passive:false});
   });
-  // 드롭다운/컬러는 mousedown에서만 저장 (preventDefault하면 드롭다운 안 열림)
+  // 드롭다운/컬러: touchstart에서도 저장
   ['btFontFamily','btFontSize','btColor'].forEach(id=>{
-    document.getElementById(id).addEventListener('mousedown',_saveBlogRange);
+    const el=document.getElementById(id);
+    el.addEventListener('mousedown',_saveBlogRange);
+    el.addEventListener('touchstart',_saveBlogRange,{passive:true});
   });
-  document.getElementById('btFontFamily').onchange=function(){_restoreBlogRange();document.execCommand('fontName',false,this.value||'-apple-system');};
+  document.getElementById('btFontFamily').onchange=function(){this.style.fontFamily=this.value||'';_restoreBlogRange();document.execCommand('styleWithCSS',false,true);document.execCommand('fontName',false,this.value||'-apple-system');};
   document.getElementById('btFontSize').onchange=function(){
     _restoreBlogRange();
     const sz=this.value;
     document.execCommand('fontSize',false,'7');
-    const fonts=document.querySelectorAll('[size="7"]');
-    fonts.forEach(f=>{f.removeAttribute('size');f.style.fontSize=sz+'px';});
+    document.querySelectorAll('[size="7"]').forEach(f=>{f.removeAttribute('size');f.style.fontSize=sz+'px';});
   };
   document.getElementById('btColor').oninput=function(){_restoreBlogRange();document.execCommand('foreColor',false,this.value);};
   document.getElementById('btBold').onclick=()=>{_restoreBlogRange();document.execCommand('bold');};
@@ -4085,6 +4154,7 @@ function _closeWriteModal(){
   $('writeModal').classList.remove('open');
   $('writeModal').classList.remove('fullscreen-modal');
   $('writeEditorBody').style.overflowY=''; // restore overflow
+  $('blogToolbarSlot').innerHTML='';
   _ensureEditorInModal();
   if($('writeBlogPage').classList.contains('active')){
     showPage(_writePrevPage||'appPage');
@@ -6411,9 +6481,9 @@ function switchAdmTab(tab){
   if(tab==='stats') loadAdminStats();
 }
 function switchOpsTab(tab){
-  ['quiz','photo'].forEach(t=>{
+  ['quiz','photo','notes'].forEach(t=>{
     const btn=$('opsTab-'+t);
-    const pane=t==='quiz'?$('admPane-quiz'):$('admPane-event');
+    const pane=t==='quiz'?$('admPane-quiz'):t==='photo'?$('admPane-event'):$('admPane-notes');
     if(!btn||!pane)return;
     const isActive=t===tab;
     btn.style.borderBottomColor=isActive?'var(--green)':'transparent';
@@ -6422,10 +6492,69 @@ function switchOpsTab(tab){
   });
   if(tab==='quiz') loadAdminQuizStatus();
   if(tab==='photo') renderAdmPhotoContests();
+  if(tab==='notes') loadAdminNotes();
 }
 function openOpsModal(){
   switchOpsTab('quiz');
   $('opsModal').classList.add('open');
+}
+
+// ── 쪽지 ──
+function openNoteModal(){
+  if(!currentUser){alert('로그인이 필요합니다.');return;}
+  $('noteContentInput').value='';$('noteErr').textContent='';
+  $('noteModal').classList.add('open');
+}
+async function sendNote(){
+  const category=$('noteCategorySelect').value;
+  const content=$('noteContentInput').value.trim();
+  if(!content){$('noteErr').textContent='내용을 입력해주세요.';return;}
+  $('noteErr').textContent='';
+  try{
+    const r=await fetch(`${API}/api/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken,category,content})});
+    const d=await r.json();
+    if(d.error){$('noteErr').textContent=d.error;return;}
+    $('noteModal').classList.remove('open');
+    alert('쪽지를 보냈습니다. 감사합니다!');
+  }catch(e){$('noteErr').textContent='전송에 실패했습니다.';}
+}
+async function loadAdminNotes(){
+  const list=$('adminNotesList');if(!list)return;
+  list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint);font-size:13px">로딩 중...</div>';
+  try{
+    const r=await fetch(`${API}/api/admin/notes?token=${sessionToken}`);
+    const d=await r.json();
+    if(!d.notes||!d.notes.length){list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint);font-size:13px">받은 쪽지가 없습니다.</div>';return;}
+    const catColor={'건의사항':'#1976d2','기능 추가 요청':'#388e3c','문의':'#f57c00','오류 신고':'#e53935'};
+    list.innerHTML=d.notes.map(n=>`
+      <div id="note-${n.id}" style="border:1px solid ${n.read_at?'var(--border)':'var(--green)'};border-radius:10px;padding:12px;background:${n.read_at?'var(--bg2)':'#f0faf4'}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${catColor[n.category]||'#666'};color:#fff">${escHtml(n.category)}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${escHtml(n.from_name||n.from_user)}</span>
+          <span style="font-size:11px;color:var(--text-hint);margin-left:auto">${timeAgo(n.created_at)}</span>
+          ${!n.read_at?`<button onclick="markNoteRead('${n.id}')" style="font-size:11px;border:1px solid var(--border);background:#fff;border-radius:6px;padding:2px 7px;cursor:pointer;color:var(--text-sub)">읽음</button>`:''}
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${escHtml(n.content)}</div>
+      </div>
+    `).join('');
+    const b=$('opsNoteBadge');if(b)b.style.display=d.unread>0?'':'none';
+  }catch(e){list.innerHTML='<div style="padding:20px;text-align:center;color:var(--danger);font-size:13px">로딩 실패</div>';}
+}
+async function markNoteRead(id){
+  await fetch(`${API}/api/admin/notes/${id}/read?token=${sessionToken}`,{method:'PATCH'}).catch(()=>{});
+  const el=$(`note-${id}`);
+  if(el){el.style.background='var(--bg2)';el.style.borderColor='var(--border)';const btn=el.querySelector('button');if(btn&&btn.textContent==='읽음')btn.remove();}
+  checkNoteBadge();
+}
+async function checkNoteBadge(){
+  if(!currentUser||!['admin','sub_admin'].includes(currentUserRole))return;
+  try{
+    const r=await fetch(`${API}/api/admin/notes?token=${sessionToken}`);
+    const d=await r.json();
+    const b=$('noteBadge'),ob=$('opsNoteBadge');
+    if(b){b.style.display=d.unread>0?'flex':'none';b.textContent=d.unread>9?'9+':String(d.unread);}
+    if(ob)ob.style.display=d.unread>0?'':'none';
+  }catch(e){}
 }
 
 // ── 접속 이력 ──
@@ -6879,7 +7008,7 @@ function onLoginSuccess(d){
   localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
-  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -6917,6 +7046,12 @@ async function doChangePassword(){
   }catch(e){$('cpErr').textContent='오류가 발생했습니다.';}
 }
 $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
+const _splashStart=Date.now();
+function hideSplash(){
+  const s=$('splashScreen');if(!s||s._done)return;s._done=true;
+  const wait=Math.max(0,950-(Date.now()-_splashStart));
+  setTimeout(()=>{s.classList.add('hiding');setTimeout(()=>s.remove(),420);},wait);
+}
 (async()=>{
   const savedId=localStorage.getItem('saved_id');
   const autoLogin=localStorage.getItem('auto_login')==='1';
@@ -6931,7 +7066,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
     currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
     userNames[userCache.id]=userCache.name;
     _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
-    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
@@ -6940,7 +7075,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
         currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];evtNotices=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
         $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';$('nlAddBtn').style.display='none';
         localStorage.removeItem('session_token');localStorage.removeItem('user_cache');
-        showPage('loginPage');return;
+        showPage('loginPage');hideSplash();return;
       }
       // 유저 정보 최신화
       if(d.name&&d.name!==currentUserName){currentUserName=d.name;userNames[currentUser]=d.name;}
@@ -6970,6 +7105,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
       if(d.ok){onLoginSuccess(d);return;}
     }catch(e){}
   }
+  hideSplash();
 })();
 let _searchTid=null;
 $('searchInput').oninput=function(){
