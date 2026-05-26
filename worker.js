@@ -1406,7 +1406,9 @@ export default {
         await env.DB.prepare('INSERT INTO comments(id,post_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(id, postId, b.author, b.content, now).run();
         ctx.waitUntil(addMileageDB(env, b.author, 1));
-        return json({ id, post_id: postId, author: b.author, content: b.content, created_at: now });
+        const totalCmt = await env.DB.prepare("SELECT COUNT(*) as c FROM comments").first();
+        const comment_count = totalCmt?.c || 0;
+        return json({ id, post_id: postId, author: b.author, content: b.content, created_at: now, comment_count });
       }
 
       // ── 대댓글 삭제 ──
@@ -1466,13 +1468,19 @@ export default {
       }
 
       // ── 서부소식 (경조사) ──
+      if (p === '/api/feed-stats' && m === 'GET') {
+        const pc = await env.DB.prepare("SELECT COUNT(*) as c FROM posts WHERE status='published'").first();
+        const cc = await env.DB.prepare("SELECT COUNT(*) as c FROM comments").first();
+        return json({ post_count: pc?.c || 0, comment_count: cc?.c || 0 });
+      }
+
       if (p === '/api/events' && m === 'GET') {
         const rows = await env.DB.prepare('SELECT * FROM events ORDER BY created_at DESC').all();
         return json(rows.results);
       }
       if (p === '/api/events' && m === 'POST') {
         const b = await request.json();
-        if (b.type === '공지') {
+        if (b.type === '공지' || b.type === '피드이벤트' || b.type === '댓글이벤트') {
           const t = b.token || url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
           const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
           if (!s) return json({ error: 'unauthorized' }, 401);
