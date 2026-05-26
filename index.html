@@ -408,8 +408,8 @@ body.font-xl .modal{max-height:65dvh!important}
 .upload-bar{height:100%;background:var(--green);border-radius:4px;transition:width .15s}
 .upload-pct{font-size:13px;color:var(--text-sub);margin-top:8px}
 /* ── 간편 모드 사진 그리드 ── */
-.simple-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
-.simple-photo-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0f0f0;touch-action:none}
+.simple-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,80px));gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
+.simple-photo-item{position:relative;height:80px;border-radius:8px;overflow:hidden;background:#f0f0f0;touch-action:none}
 .simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;pointer-events:none}
 .simple-photo-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
 .simple-photo-item.dragging-src{opacity:.35;transform:scale(.95)}
@@ -3800,8 +3800,9 @@ function renderSimpleEditor(){
   const ta=textDiv.querySelector('textarea');
   ta.oninput=()=>{textBlock.content=ta.value;ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';_detectAndFetchOG(ta.value);};
   ta.addEventListener('paste',e=>{setTimeout(()=>{textBlock.content=ta.value;_detectAndFetchOG(ta.value);},0);});
-  ta.style.height='auto';ta.style.height=(ta.scrollHeight||80)+'px';
   editor.appendChild(textDiv);
+  // DOM에 붙인 뒤 scrollHeight 계산해야 정확함
+  ta.style.height='auto';ta.style.height=Math.max(ta.scrollHeight,80)+'px';
   // 링크 프리뷰 블록
   const linkBlock=editorBlocks.find(b=>b.type==='link');
   if(linkBlock){
