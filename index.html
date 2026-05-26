@@ -5011,9 +5011,10 @@ async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetc
 
 // ── 피드 이벤트 스트립 ──
 function _evtStripHtml(){
-  if(!evtNotices.length)return'';
-  if(evtNotices.length===1){
-    const e=evtNotices[0];
+  const active=evtNotices.filter(e=>!e.hidden);
+  if(!active.length)return'';
+  if(active.length===1){
+    const e=active[0];
     const isFeed=e.type==='피드이벤트',isCmt=e.type==='댓글이벤트';
     const icon=isFeed?'🎯':isCmt?'💬':'📅';
     const title=isFeed?`피드 이벤트: ${escHtml(e.title)}`:isCmt?`댓글 이벤트: ${escHtml(e.title)}`:`공지: ${escHtml(e.title)}`;
@@ -5021,14 +5022,15 @@ function _evtStripHtml(){
     return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icon}</span><div class="event-strip-body"><div class="event-strip-title">${title}</div><div class="event-strip-sub">${sub}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
   }
   const typeIcons={'피드이벤트':'🎯','댓글이벤트':'💬','공지':'📅'};
-  const icons=[...new Set(evtNotices.map(e=>typeIcons[e.type]||'📅'))].join('');
-  const uniq=[...new Set(evtNotices.map(e=>e.type==='피드이벤트'?'피드이벤트':e.type==='댓글이벤트'?'댓글이벤트':'공지'))];
-  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icons}</span><div class="event-strip-body"><div class="event-strip-title">이벤트 <b>${evtNotices.length}개</b> 진행중</div><div class="event-strip-sub">${uniq.join(' · ')}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  const icons=[...new Set(active.map(e=>typeIcons[e.type]||'📅'))].join('');
+  const uniq=[...new Set(active.map(e=>e.type==='피드이벤트'?'피드이벤트':e.type==='댓글이벤트'?'댓글이벤트':'공지'))];
+  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icons}</span><div class="event-strip-body"><div class="event-strip-title">이벤트 <b>${active.length}개</b> 진행중</div><div class="event-strip-sub">${uniq.join(' · ')}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
 }
 function _updateEvtStrip(){
   const feed=$('feed');if(!feed)return;
   let strip=feed.querySelector('.event-strip');
-  if(!evtNotices.length){if(strip)strip.remove();return;}
+  const active=evtNotices.filter(e=>!e.hidden);
+  if(!active.length){if(strip)strip.remove();return;}
   const html=_evtStripHtml();
   if(strip){const d=document.createElement('div');d.innerHTML=html;strip.replaceWith(d.firstChild);}
   else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.after(d.firstChild);}}
@@ -5047,11 +5049,13 @@ function renderEvtSheet(stats){
   const isAdmin=currentUserRole==='admin'||currentUserRole==='sub_admin';
   let statsHtml='';
   if(stats){statsHtml=`<div style="background:var(--green-light);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:13px;color:var(--green-dark);display:flex;gap:16px"><span>📝 게시글 <b>${stats.post_count}</b>개</span><span>💬 댓글 <b>${stats.comment_count}</b>개</span></div>`;}
-  if(!evtNotices.length){list.innerHTML=statsHtml+'<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
-  list.innerHTML=statsHtml+evtNotices.map(e=>{
+  const visible=isAdmin?evtNotices:evtNotices.filter(e=>!e.hidden);
+  if(!visible.length){list.innerHTML=statsHtml+'<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
+  list.innerHTML=statsHtml+visible.map(e=>{
     const canDel=currentUserRole==='admin';
     const isFeed=e.type==='피드이벤트';
     const isCmt=e.type==='댓글이벤트';
+    const isHidden=!!e.hidden;
     const target=parseInt(e.tagged_user)||0;
     let badge,body;
     if(isFeed){
@@ -5066,7 +5070,9 @@ function renderEvtSheet(stats){
       badge=`<span class="event-type-badge">공지</span>`;
       body=`<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}`;
     }
-    return`<div class="event-card"><div class="event-info">${badge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}</div>`;
+    const hiddenBadge=isHidden?`<span class="event-type-badge" style="background:#eee;color:#999">일시중단</span>`:'';
+    const adminBtns=isAdmin?`${isHidden?`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:var(--green-light);color:var(--green-dark);border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',false)">재개</button>`:`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#f5f5f5;color:#666;border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',true)">숨기기</button>`}${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}`:''
+    return`<div class="event-card" style="${isHidden?'opacity:.5':''}"><div class="event-info">${badge}${hiddenBadge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">${adminBtns}</div></div>`;
   }).join('');
 }
 function toggleEvtNoticeFields(){
@@ -5109,16 +5115,22 @@ function _showMilestonePopup(title,reward){
   $('feedEventPopup').classList.add('show');
 }
 function _checkFeedEventMilestone(postCount){
-  for(const evt of evtNotices.filter(e=>e.type==='피드이벤트')){
+  for(const evt of evtNotices.filter(e=>e.type==='피드이벤트'&&!e.hidden)){
     const target=parseInt(evt.tagged_user)||0;
     if(target>0&&postCount===target){_showMilestonePopup(`🎊 ${target}번째 게시글 달성!`,evt.content);return;}
   }
 }
 function _checkCommentEventMilestone(commentCount){
-  for(const evt of evtNotices.filter(e=>e.type==='댓글이벤트')){
+  for(const evt of evtNotices.filter(e=>e.type==='댓글이벤트'&&!e.hidden)){
     const target=parseInt(evt.tagged_user)||0;
     if(target>0&&commentCount===target){_showMilestonePopup(`🎊 ${target}번째 댓글 달성!`,evt.content);return;}
   }
+}
+async function toggleEvtHidden(id,hide){
+  await fetch(`${API}/api/events/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({hidden:hide?1:0,token:sessionToken})});
+  const idx=evtNotices.findIndex(e=>e.id===id);
+  if(idx>=0)evtNotices[idx]={...evtNotices[idx],hidden:hide?1:0};
+  _updateEvtStrip();renderEvtSheet();
 }
 async function deleteEvtNotice(id){
   if(!confirm('삭제할까요?'))return;
