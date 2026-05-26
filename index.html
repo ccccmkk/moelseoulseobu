@@ -716,23 +716,11 @@ button,a,[role="button"]{touch-action:manipulation}
 <div class="modal-overlay center" id="noteModal">
   <div class="modal" style="max-width:360px">
     <div class="modal-header">
-      <span class="modal-title">✉ 개발자에게 쪽지</span>
+      <span class="modal-title">개발자에게 쪽지</span>
       <button class="modal-close" onclick="$('noteModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px">
-      <div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">종류</div>
-        <select id="noteCategorySelect" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text)">
-          <option value="건의사항">💡 건의사항</option>
-          <option value="기능 추가 요청">✨ 기능 추가 요청</option>
-          <option value="문의">❓ 문의</option>
-          <option value="오류 신고">🐛 오류 신고</option>
-        </select>
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">내용</div>
-        <textarea id="noteContentInput" rows="5" placeholder="내용을 입력해주세요 (최대 1000자)" maxlength="1000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.6;background:var(--bg);color:var(--text)"></textarea>
-      </div>
+      <textarea id="noteContentInput" rows="6" placeholder="건의사항, 기능 요청, 문의 등을 자유롭게 남겨주세요 (최대 1000자)" maxlength="1000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.6;background:var(--bg);color:var(--text)"></textarea>
       <div id="noteErr" style="font-size:12px;color:var(--danger);min-height:16px"></div>
       <button onclick="sendNote()" class="btn-green">전송하기</button>
     </div>
@@ -783,7 +771,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="display:flex;align-items:center;gap:8px">
       <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
       <div style="position:relative" id="noteBtnWrap">
-        <button onclick="openNoteModal()" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:18px;line-height:1" title="개발자에게 쪽지">✉</button>
+        <button onclick="openNoteModal()" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;line-height:1" title="개발자에게 쪽지">💬</button>
         <div id="noteBadge" class="note-badge" style="display:none">0</div>
       </div>
       <div style="position:relative">
@@ -1058,6 +1046,10 @@ button,a,[role="button"]{touch-action:manipulation}
       </button>
       <button class="more-row" onclick="openEventSheet()">
         <span class="more-row-label">이벤트 관리</span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="more-row" onclick="openNotesInbox()">
+        <span class="more-row-label">쪽지함 <span id="notesInboxBadge" style="display:none;font-size:11px;font-weight:700;color:#e53935"></span></span>
         <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
       </button>
     </div>
@@ -1838,7 +1830,6 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
       <button class="adm-tab active" id="opsTab-quiz" onclick="switchOpsTab('quiz')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
       <button class="adm-tab" id="opsTab-photo" onclick="switchOpsTab('photo')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사진투표</button>
-      <button class="adm-tab" id="opsTab-notes" onclick="switchOpsTab('notes')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub);position:relative">쪽지함<span id="opsNoteBadge" style="display:none;position:absolute;top:6px;right:6px;background:#e53935;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:700;line-height:14px;text-align:center">!</span></button>
     </div>
     <div class="modal-body" style="padding:0">
       <!-- ── 퀴즈 탭 ── -->
@@ -1912,13 +1903,21 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
       <!-- ── 쪽지함 탭 ── -->
-      <div id="admPane-notes" class="adm-pane" style="display:none;padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">받은 쪽지</div>
-          <button onclick="loadAdminNotes()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-sub)">새로고침</button>
-        </div>
-        <div id="adminNotesList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+</div>
+<!-- ════ 쪽지함 모달 ════ -->
+<div class="modal-overlay center" id="notesInboxModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">쪽지함</span>
+      <button class="modal-close" onclick="$('notesInboxModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button onclick="loadAdminNotes()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-sub)">새로고침</button>
       </div>
+      <div id="adminNotesList" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
   </div>
 </div>
@@ -6481,9 +6480,9 @@ function switchAdmTab(tab){
   if(tab==='stats') loadAdminStats();
 }
 function switchOpsTab(tab){
-  ['quiz','photo','notes'].forEach(t=>{
+  ['quiz','photo'].forEach(t=>{
     const btn=$('opsTab-'+t);
-    const pane=t==='quiz'?$('admPane-quiz'):t==='photo'?$('admPane-event'):$('admPane-notes');
+    const pane=t==='quiz'?$('admPane-quiz'):$('admPane-event');
     if(!btn||!pane)return;
     const isActive=t===tab;
     btn.style.borderBottomColor=isActive?'var(--green)':'transparent';
@@ -6492,7 +6491,6 @@ function switchOpsTab(tab){
   });
   if(tab==='quiz') loadAdminQuizStatus();
   if(tab==='photo') renderAdmPhotoContests();
-  if(tab==='notes') loadAdminNotes();
 }
 function openOpsModal(){
   switchOpsTab('quiz');
@@ -6505,8 +6503,11 @@ function openNoteModal(){
   $('noteContentInput').value='';$('noteErr').textContent='';
   $('noteModal').classList.add('open');
 }
+function openNotesInbox(){
+  loadAdminNotes();
+  $('notesInboxModal').classList.add('open');
+}
 async function sendNote(){
-  const category=$('noteCategorySelect').value;
   const content=$('noteContentInput').value.trim();
   if(!content){$('noteErr').textContent='내용을 입력해주세요.';return;}
   $('noteErr').textContent='';
@@ -6537,7 +6538,7 @@ async function loadAdminNotes(){
         <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${escHtml(n.content)}</div>
       </div>
     `).join('');
-    const b=$('opsNoteBadge');if(b)b.style.display=d.unread>0?'':'none';
+    checkNoteBadge();
   }catch(e){list.innerHTML='<div style="padding:20px;text-align:center;color:var(--danger);font-size:13px">로딩 실패</div>';}
 }
 async function markNoteRead(id){
@@ -6551,9 +6552,9 @@ async function checkNoteBadge(){
   try{
     const r=await fetch(`${API}/api/admin/notes?token=${sessionToken}`);
     const d=await r.json();
-    const b=$('noteBadge'),ob=$('opsNoteBadge');
+    const b=$('noteBadge'),ib=$('notesInboxBadge');
     if(b){b.style.display=d.unread>0?'flex':'none';b.textContent=d.unread>9?'9+':String(d.unread);}
-    if(ob)ob.style.display=d.unread>0?'':'none';
+    if(ib){ib.style.display=d.unread>0?'':'none';ib.textContent=` (${d.unread})`; }
   }catch(e){}
 }
 
