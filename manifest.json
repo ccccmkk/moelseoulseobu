@@ -1,7 +1,7 @@
 {
-  "name": "STEP — 서부 투게더 엠퍼시 플랫폼",
+  "name": "STEP — Seobu Together Empathy Platform",
   "short_name": "STEP",
-  "description": "서부 투게더 엠퍼시 플랫폼 (Seobu Together Empathy Platform)",
+  "description": "Seobu Together Empathy Platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
