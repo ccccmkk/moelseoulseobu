@@ -1319,6 +1319,7 @@ button,a,[role="button"]{touch-action:manipulation}
   <div class="feed-evt-popup-box" onclick="event.stopPropagation()">
     <span class="feed-evt-popup-emoji">🎉</span>
     <div class="feed-evt-popup-title" id="feedEvtPopupTitle"></div>
+    <div id="feedEvtPopupWinner" style="font-size:15px;font-weight:700;color:var(--green-dark);margin-bottom:6px"></div>
     <div class="feed-evt-popup-reward" id="feedEvtPopupReward"></div>
     <button class="feed-evt-popup-close" onclick="$('feedEventPopup').classList.remove('show')">확인</button>
   </div>
@@ -5011,16 +5012,18 @@ async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetc
 // ── 피드 이벤트 스트립 ──
 function _evtStripHtml(){
   if(!evtNotices.length)return'';
-  const feedEvt=evtNotices.find(e=>e.type==='피드이벤트');
-  const cmtEvt=evtNotices.find(e=>e.type==='댓글이벤트');
-  const milEvt=feedEvt||cmtEvt;
-  const icon=feedEvt?'🎯':cmtEvt?'💬':'📅';
-  const title=feedEvt?`피드 이벤트: ${escHtml(feedEvt.title)}`:cmtEvt?`댓글 이벤트: ${escHtml(cmtEvt.title)}`:`진행중인 이벤트 ${evtNotices.length}건`;
-  let sub;
-  if(feedEvt)sub=`글 작성자에게 ${escHtml(feedEvt.content)}`;
-  else if(cmtEvt)sub=`댓글 작성자에게 ${escHtml(cmtEvt.content)}`;
-  else sub=`${escHtml(evtNotices[0].title)}`;
-  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icon}</span><div class="event-strip-body"><div class="event-strip-title">${title}</div><div class="event-strip-sub">${sub}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  if(evtNotices.length===1){
+    const e=evtNotices[0];
+    const isFeed=e.type==='피드이벤트',isCmt=e.type==='댓글이벤트';
+    const icon=isFeed?'🎯':isCmt?'💬':'📅';
+    const title=isFeed?`피드 이벤트: ${escHtml(e.title)}`:isCmt?`댓글 이벤트: ${escHtml(e.title)}`:`공지: ${escHtml(e.title)}`;
+    const sub=isFeed?`글 작성자에게 ${escHtml(e.content)}`:isCmt?`댓글 작성자에게 ${escHtml(e.content)}`:(e.content?escHtml(e.content):'');
+    return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icon}</span><div class="event-strip-body"><div class="event-strip-title">${title}</div><div class="event-strip-sub">${sub}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  }
+  const typeIcons={'피드이벤트':'🎯','댓글이벤트':'💬','공지':'📅'};
+  const icons=[...new Set(evtNotices.map(e=>typeIcons[e.type]||'📅'))].join('');
+  const uniq=[...new Set(evtNotices.map(e=>e.type==='피드이벤트'?'피드이벤트':e.type==='댓글이벤트'?'댓글이벤트':'공지'))];
+  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icons}</span><div class="event-strip-body"><div class="event-strip-title">이벤트 <b>${evtNotices.length}개</b> 진행중</div><div class="event-strip-sub">${uniq.join(' · ')}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
 }
 function _updateEvtStrip(){
   const feed=$('feed');if(!feed)return;
@@ -5098,28 +5101,23 @@ async function submitEvtNotice(){
   $('evtNoticeModal').classList.remove('open');
   await fetchEvtNotices();_updateEvtStrip();renderEvtSheet();
 }
+function _showMilestonePopup(title,reward){
+  const name=userNames[currentUser]||currentUser;
+  $('feedEvtPopupTitle').textContent=title;
+  $('feedEvtPopupWinner').textContent=`🏆 당첨자: ${name}님`;
+  $('feedEvtPopupReward').textContent=`보상: ${reward}\n\n관리자에게 문의하세요.`;
+  $('feedEventPopup').classList.add('show');
+}
 function _checkFeedEventMilestone(postCount){
-  const feedEvts=evtNotices.filter(e=>e.type==='피드이벤트');
-  for(const evt of feedEvts){
+  for(const evt of evtNotices.filter(e=>e.type==='피드이벤트')){
     const target=parseInt(evt.tagged_user)||0;
-    if(target>0&&postCount===target){
-      $('feedEvtPopupTitle').textContent=`🎊 ${target}번째 게시글 달성!`;
-      $('feedEvtPopupReward').textContent=`보상: ${evt.content}\n\n축하합니다! 관리자에게 문의하세요.`;
-      $('feedEventPopup').classList.add('show');
-      return;
-    }
+    if(target>0&&postCount===target){_showMilestonePopup(`🎊 ${target}번째 게시글 달성!`,evt.content);return;}
   }
 }
 function _checkCommentEventMilestone(commentCount){
-  const cmtEvts=evtNotices.filter(e=>e.type==='댓글이벤트');
-  for(const evt of cmtEvts){
+  for(const evt of evtNotices.filter(e=>e.type==='댓글이벤트')){
     const target=parseInt(evt.tagged_user)||0;
-    if(target>0&&commentCount===target){
-      $('feedEvtPopupTitle').textContent=`🎊 ${target}번째 댓글 달성!`;
-      $('feedEvtPopupReward').textContent=`보상: ${evt.content}\n\n축하합니다! 관리자에게 문의하세요.`;
-      $('feedEventPopup').classList.add('show');
-      return;
-    }
+    if(target>0&&commentCount===target){_showMilestonePopup(`🎊 ${target}번째 댓글 달성!`,evt.content);return;}
   }
 }
 async function deleteEvtNotice(id){
