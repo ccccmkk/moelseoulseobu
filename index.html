@@ -8236,12 +8236,10 @@ async function triggerPwaInstall(){
 function showInstallBanner(){
   const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
   if(isStandalone)return;
-  if(localStorage.getItem('install_banner_dismissed'))return;
   const b=$('installBanner');if(!b)return;
   b.style.display='flex';
 }
 function dismissInstallBanner(){
-  localStorage.setItem('install_banner_dismissed','1');
   const b=$('installBanner');if(!b)return;
   b.classList.add('hiding');
   setTimeout(()=>{b.style.display='none';b.classList.remove('hiding');},320);
