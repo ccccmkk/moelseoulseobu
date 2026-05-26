@@ -105,8 +105,11 @@ async function _sendOnePush(env, sub, payload, vapid) {
     });
     if (res.status === 410 || res.status === 404) {
       await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(()=>{});
+    } else if (!res.ok) {
+      const errText = await res.text().catch(()=>'');
+      console.error('[Push]', res.status, errText.slice(0, 200));
     }
-  } catch(_) {}
+  } catch(e) { console.error('[Push:enc]', e.message); }
 }
 
 async function sendPushToAll(env, payload) {
