@@ -2620,9 +2620,11 @@ let _lawCache=[];
 function _lawIdx(item){const i=_lawCache.length;_lawCache.push(item);return i;}
 function openLawCached(i){
   const it=_lawCache[i];if(!it)return;
-  // 기본 법령(id 없음): 검색으로 최신 ID 먼저 획득
-  if(!it.id&&it.lawtype==='law'){searchAndOpenLaw(it.name,it.mst||'');}
-  else{openLawContent(it.id,it.name,it.lawtype,it.mst||'');}
+  // 기본 법령: mst가 있으면 바로 본문 조회, 없으면 검색 후 획득
+  if(!it.id&&it.lawtype==='law'){
+    if(it.mst){openLawContent('',it.name,it.lawtype,it.mst);}
+    else{searchAndOpenLaw(it.name,'');}
+  }else{openLawContent(it.id,it.name,it.lawtype,it.mst||'');}
 }
 async function searchAndOpenLaw(lawName,fallbackMst){
   $('lawContentTitle').textContent=lawName;
