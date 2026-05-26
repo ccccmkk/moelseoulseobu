@@ -1,4 +1,4 @@
-const CACHE = 'step-app-v5';
+const CACHE = 'step-app-v6';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -8,7 +8,6 @@ self.addEventListener('activate', e => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
       .then(() => {
-        // 업데이트된 SW가 활성화되면 열린 탭 전체에 알림
         self.clients.matchAll({ type: 'window' }).then(clients => {
           clients.forEach(client => client.postMessage('sw-updated'));
         });
@@ -19,17 +18,10 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
-
-  // API 요청은 캐시 안 함
   if (url.hostname !== location.hostname) return;
-
-  // index.html (/, /index.html) 만 캐시
   const isHtml = url.pathname === '/' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
   if (!isHtml) return;
-
-  // network-first: 항상 최신 버전 먼저 시도, 오프라인이면 캐시 폴백
   e.respondWith(
     fetch(req).then(res => {
       if (res.ok) {
@@ -41,9 +33,46 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// forceUpdate 메시지: 캐시 전체 삭제
 self.addEventListener('message', e => {
   if (e.data === 'clearCache') {
     caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
   }
+});
+
+// ── 푸시 알림 ──
+self.addEventListener('push', e => {
+  let title = 'STEP';
+  let body = '새 게시물이 올라왔습니다!';
+  let data = {};
+  if (e.data) {
+    try {
+      const d = e.data.json();
+      title = d.title || title;
+      body = d.body || body;
+      data = d;
+    } catch (_) {
+      body = e.data.text() || body;
+    }
+  }
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data,
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const c of clients) {
+        if (c.url && 'focus' in c) return c.focus();
+      }
+      return self.clients.openWindow('/');
+    })
+  );
 });
