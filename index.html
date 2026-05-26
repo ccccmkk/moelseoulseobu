@@ -7885,11 +7885,11 @@ async function adminQuizAction(action){
 }
 
 // ── PWA 홈화면 추가 ──
+let deferredPrompt = null;
 (function(){
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isAndroid = /android/i.test(navigator.userAgent);
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  let deferredPrompt = null;
 
   // 서비스워커 등록
   if('serviceWorker' in navigator){
@@ -7931,13 +7931,11 @@ async function adminQuizAction(action){
     location.reload(true);
   };
 
-  // Android: 네이티브 설치 프롬프트 대기
-  if(isAndroid){
-    window.addEventListener('beforeinstallprompt', e => {
-      e.preventDefault();
-      deferredPrompt = e;
-    });
-  }
+  // beforeinstallprompt 이벤트는 항상 등록 (Android/Chrome 데스크탑 등)
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
 
   // 홈화면 추가 상태 표시
   if(isStandalone){
