@@ -522,6 +522,10 @@ export default {
         return s;
       };
       // ── 이미지 서빙 ──
+      if (p === '/robots.txt') {
+        return new Response('User-agent: *\nDisallow: /\n', { headers: { 'Content-Type': 'text/plain', ...CORS } });
+      }
+
       if (p.startsWith('/img/') && m === 'GET') {
         const obj = await env.R2.get(p.slice(1));
         if (!obj) return new Response('Not found', { status: 404 });
