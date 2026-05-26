@@ -723,6 +723,7 @@ button,a,[role="button"]{touch-action:manipulation}
   <div style="flex:1;min-width:0">
     <div style="font-size:13px;font-weight:700;margin-bottom:2px">앱으로 설치하면 더 편리해요!</div>
     <div style="font-size:11px;color:rgba(255,255,255,.65)">홈화면 아이콘으로 바로 접속 · 알림 수신</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:3px">⚠ 설치 경고 화면이 뜨면 <b style="color:rgba(255,255,255,.7)">"무시하고 설치하기"</b>를 누르세요</div>
   </div>
   <button onclick="triggerPwaInstall();dismissInstallBanner()" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">설치하기</button>
   <button onclick="dismissInstallBanner()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer;padding:0 0 0 4px;flex-shrink:0;line-height:1">×</button>
@@ -2461,8 +2462,10 @@ function renderMd(s){
   t=t.replace(/^[-*] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--green)">•</span><span>$1</span></div>');
   // 7. URL 자동 링크 (이미 <a> 태그 안에 있는 URL은 건드리지 않음)
   t=t.replace(/(?<!href=["'])https?:\/\/[^\s<>"）)）\]，。]+/g,url=>`<a href="${url.replace(/&amp;/g,'&')}" target="_blank" rel="noopener noreferrer" style="color:var(--green);word-break:break-all;text-decoration:underline" onclick="event.stopPropagation()">${url}</a>`);
-  // 8. 줄바꿈
+  // 8. 줄바꿈 (목록 <div> 앞뒤 <br> 제거해 과도한 간격 방지)
   t=t.replace(/\n/g,'<br>');
+  t=t.replace(/(<\/div>)(<br>)+/g,'$1');
+  t=t.replace(/(<br>)+(<div)/g,'$2');
   return t;
 }
 function relDate(ts){
