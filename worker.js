@@ -93,6 +93,8 @@ async function encryptWebPush(payloadStr, sub) {
 }
 
 async function _sendOnePush(env, sub, payload, vapid) {
+  const now = Math.floor(Date.now() / 1000);
+  const endpointShort = sub.endpoint.replace(/^https?:\/\/[^/]+/, '').slice(0, 80);
   try {
     const encrypted = await encryptWebPush(JSON.stringify(payload), sub);
     const jwt = await makeVapidJWT(sub.endpoint, vapid.privateKeyJwk);
@@ -108,11 +110,18 @@ async function _sendOnePush(env, sub, payload, vapid) {
     });
     if (res.status === 410 || res.status === 404) {
       await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(()=>{});
+      await env.DB.prepare('INSERT INTO push_logs(user_id,endpoint,status,error,created_at) VALUES(?,?,?,?,?)').bind(sub.user_id, endpointShort, res.status, '구독 만료 → 삭제', now).run().catch(()=>{});
     } else if (!res.ok) {
       const errText = await res.text().catch(()=>'');
       console.error('[Push]', res.status, errText.slice(0, 200));
+      await env.DB.prepare('INSERT INTO push_logs(user_id,endpoint,status,error,created_at) VALUES(?,?,?,?,?)').bind(sub.user_id, endpointShort, res.status, errText.slice(0, 300), now).run().catch(()=>{});
+    } else {
+      await env.DB.prepare('INSERT INTO push_logs(user_id,endpoint,status,error,created_at) VALUES(?,?,?,?,?)').bind(sub.user_id, endpointShort, res.status, null, now).run().catch(()=>{});
     }
-  } catch(e) { console.error('[Push:enc]', e.message); }
+  } catch(e) {
+    console.error('[Push:enc]', e.message);
+    await env.DB.prepare('INSERT INTO push_logs(user_id,endpoint,status,error,created_at) VALUES(?,?,?,?,?)').bind(sub.user_id, endpointShort, 0, '암호화 오류: ' + e.message, now).run().catch(()=>{});
+  }
 }
 
 async function sendPushToAll(env, payload) {
@@ -476,6 +485,7 @@ async function initDB(env) {
     "ALTER TABLE events ADD COLUMN hidden INTEGER DEFAULT 0",
     "ALTER TABLE events ADD COLUMN linked_post_id TEXT DEFAULT NULL",
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS push_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, endpoint TEXT, status INTEGER, error TEXT, created_at INTEGER)`,
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -936,6 +946,18 @@ export default {
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 200);
         const rows = await env.DB.prepare('SELECT l.id, l.user_id, u.name, l.ip, l.user_agent, l.result, l.created_at FROM login_logs l LEFT JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT ?').bind(limit).all();
         return json(rows.results || []);
+      }
+
+      if (p === '/api/admin/push-logs' && m === 'GET') {
+        const authToken = url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const sess = authToken ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(authToken).first() : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!['admin','sub_admin'].includes(role?.role)) return json({ error: 'forbidden' }, 403);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 200);
+        const rows = await env.DB.prepare(`SELECT pl.id, pl.user_id, u.name, pl.endpoint, pl.status, pl.error, pl.created_at FROM push_logs pl LEFT JOIN users u ON pl.user_id=u.id ORDER BY pl.created_at DESC LIMIT ?`).bind(limit).all();
+        const subCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM push_subscriptions').first();
+        return json({ logs: rows.results || [], subCount: subCount?.cnt || 0 });
       }
 
       // ── 법령 검색 ──

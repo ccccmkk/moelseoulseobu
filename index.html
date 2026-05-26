@@ -1614,6 +1614,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
       <button class="adm-tab active" id="admTab-users" onclick="switchAdmTab('users')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사용자</button>
       <button class="adm-tab" id="admTab-logs" onclick="switchAdmTab('logs')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">접속이력</button>
+      <button class="adm-tab" id="admTab-push" onclick="switchAdmTab('push')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">푸시알림</button>
       <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
       <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
       <button class="adm-tab" id="admTab-quiz" onclick="switchAdmTab('quiz')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
@@ -1675,6 +1676,18 @@ button,a,[role="button"]{touch-action:manipulation}
           <button class="btn-sm" onclick="loadLoginLogs()">새로고침</button>
         </div>
         <div id="loginLogList" style="padding:0"></div>
+      </div>
+
+      <!-- ── 푸시알림 탭 ── -->
+      <div id="admPane-push" class="adm-pane" style="display:none">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <span style="font-size:12px;font-weight:600;color:var(--text-sub)">푸시 알림 발송 로그 (최근 100건)</span>
+            <span id="pushSubCountBadge" style="font-size:11px;color:var(--text-hint);margin-left:8px"></span>
+          </div>
+          <button class="btn-sm" onclick="loadPushLogs()">새로고침</button>
+        </div>
+        <div id="pushLogList" style="padding:0"></div>
       </div>
 
       <!-- ── 에이전트 탭 ── -->
@@ -6353,7 +6366,7 @@ function loadAdminStats(){
 
 // ── 관리자 탭 전환 ──
 function switchAdmTab(tab){
-  ['users','logs','agent','stats','quiz','event'].forEach(t=>{
+  ['users','logs','push','agent','stats','quiz','event'].forEach(t=>{
     const btn=$('admTab-'+t),pane=$('admPane-'+t);
     if(!btn||!pane)return;
     const isActive=t===tab;
@@ -6362,6 +6375,7 @@ function switchAdmTab(tab){
     pane.style.display=isActive?'':'none';
   });
   if(tab==='logs') loadLoginLogs();
+  if(tab==='push') loadPushLogs();
   if(tab==='quiz') loadAdminQuizStatus();
   if(tab==='event') renderAdmPhotoContests();
   if(tab==='stats') loadAdminStats();
@@ -6407,6 +6421,45 @@ async function loadLoginLogs(){
             <span style="color:var(--text-hint)"> · ${fmtUA(l.user_agent)} · ${dateStr}</span>
           </div>
         </div>
+      </div>`;
+    }).join('');
+  }catch(e){box.innerHTML=`<div style="padding:16px;color:var(--danger);font-size:13px">불러오기 실패: ${escHtml(e.message)}</div>`;}
+}
+
+// ── 푸시 알림 로그 ──
+async function loadPushLogs(){
+  const box=$('pushLogList');
+  box.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  try{
+    const r=await fetch(`${API}/api/admin/push-logs?token=${encodeURIComponent(sessionToken)}`);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const {logs,subCount}=await r.json();
+    const badge=$('pushSubCountBadge');
+    if(badge)badge.textContent=`구독자 ${subCount}명`;
+    if(!logs.length){
+      box.innerHTML='<div style="padding:24px;text-align:center;color:var(--text-hint);font-size:13px">푸시 로그 없음 (발송 내역이 없거나 아직 로그가 쌓이지 않음)</div>';
+      return;
+    }
+    box.innerHTML=logs.map(l=>{
+      const ok=l.status>=200&&l.status<300;
+      const gone=l.status===410||l.status===404;
+      const err=l.status===0;
+      const dot=ok?'var(--green)':gone?'#ff9800':'var(--danger)';
+      const badgeBg=ok?'var(--green-light)':gone?'#fff3e0':'#ffeaea';
+      const badgeColor=ok?'var(--green-dark)':gone?'#e65100':'var(--danger)';
+      const badgeText=ok?'성공':gone?`${l.status} 만료`:err?'암호화오류':`${l.status} 오류`;
+      const ts=new Date(l.created_at*1000);
+      const dateStr=`${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}`;
+      return`<div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${dot}"></div>
+          <span style="font-size:13px;font-weight:600">${escHtml(l.name||l.user_id||'?')}</span>
+          <span style="font-size:11px;color:var(--text-hint)">${escHtml(l.user_id||'')}</span>
+          <span style="font-size:11px;padding:1px 7px;border-radius:4px;font-weight:700;background:${badgeBg};color:${badgeColor}">${badgeText}</span>
+          <span style="font-size:11px;color:var(--text-hint);margin-left:auto">${dateStr}</span>
+        </div>
+        ${l.error?`<div style="font-size:11px;color:var(--danger);margin-top:4px;padding-left:16px;font-family:monospace;word-break:break-all">${escHtml(l.error)}</div>`:''}
+        <div style="font-size:11px;color:var(--text-hint);margin-top:2px;padding-left:16px;font-family:monospace;word-break:break-all">${escHtml(l.endpoint||'')}</div>
       </div>`;
     }).join('');
   }catch(e){box.innerHTML=`<div style="padding:16px;color:var(--danger);font-size:13px">불러오기 실패: ${escHtml(e.message)}</div>`;}
