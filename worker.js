@@ -1916,7 +1916,14 @@ export default {
       // ── 사용자 관리 ──
       if (p === '/api/users' && m === 'GET') {
         const _s7 = await requireSession(); if (_s7 instanceof Response) return _s7;
-        const rows = await env.DB.prepare('SELECT u.id, u.name, u.dept, u.status, u.created_at, up.last_seen FROM users u LEFT JOIN user_presence up ON u.id=up.user_id ORDER BY u.created_at ASC').all();
+        const rows = await env.DB.prepare(`
+          SELECT u.id, u.name, u.dept, u.status, u.created_at,
+            MAX(COALESCE(up.last_seen,0), COALESCE(ll.last_login,0)) as last_seen
+          FROM users u
+          LEFT JOIN user_presence up ON u.id=up.user_id
+          LEFT JOIN (SELECT user_id, MAX(created_at) as last_login FROM login_logs WHERE result='success' GROUP BY user_id) ll ON u.id=ll.user_id
+          GROUP BY u.id ORDER BY u.created_at ASC
+        `).all();
         return json(rows.results);
       }
 
