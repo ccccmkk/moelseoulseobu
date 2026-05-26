@@ -75,6 +75,7 @@ body.font-xl .modal{max-height:65dvh!important}
 .appbar-btns{display:flex;gap:6px}
 .appbar-btn{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;padding:6px 12px;cursor:pointer;transition:background .15s}
 .appbar-btn:hover{background:rgba(255,255,255,.32)}
+.note-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none}
 /* 탭 */
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%;will-change:opacity,transform;backface-visibility:hidden}
 .tab-page.active{display:block;animation:tabFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) both}
@@ -711,6 +712,32 @@ button,a,[role="button"]{touch-action:manipulation}
 </head>
 <body>
 
+<!-- ════ 쪽지 보내기 모달 ════ -->
+<div class="modal-overlay center" id="noteModal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <span class="modal-title">✉ 개발자에게 쪽지</span>
+      <button class="modal-close" onclick="$('noteModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">종류</div>
+        <select id="noteCategorySelect" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text)">
+          <option value="건의사항">💡 건의사항</option>
+          <option value="기능 추가 요청">✨ 기능 추가 요청</option>
+          <option value="문의">❓ 문의</option>
+          <option value="오류 신고">🐛 오류 신고</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:6px">내용</div>
+        <textarea id="noteContentInput" rows="5" placeholder="내용을 입력해주세요 (최대 1000자)" maxlength="1000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.6;background:var(--bg);color:var(--text)"></textarea>
+      </div>
+      <div id="noteErr" style="font-size:12px;color:var(--danger);min-height:16px"></div>
+      <button onclick="sendNote()" class="btn-green">전송하기</button>
+    </div>
+  </div>
+</div>
 <!-- ════ 스플래시 ════ -->
 <div id="splashScreen">
   <div class="sp-icon"><img src="/icon-192.png" alt="STEP"/></div>
@@ -755,6 +782,10 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
+      <div style="position:relative" id="noteBtnWrap">
+        <button onclick="openNoteModal()" style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:18px;line-height:1" title="개발자에게 쪽지">✉</button>
+        <div id="noteBadge" class="note-badge" style="display:none">0</div>
+      </div>
       <div style="position:relative">
         <button id="fontSizeBtn" class="font-size-btn" onclick="toggleFontMenu(event)">
           <span style="font-size:14px;font-weight:800">가</span><span style="font-size:8px;opacity:.8">▼</span>
@@ -1807,6 +1838,7 @@ button,a,[role="button"]{touch-action:manipulation}
     <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
       <button class="adm-tab active" id="opsTab-quiz" onclick="switchOpsTab('quiz')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
       <button class="adm-tab" id="opsTab-photo" onclick="switchOpsTab('photo')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사진투표</button>
+      <button class="adm-tab" id="opsTab-notes" onclick="switchOpsTab('notes')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub);position:relative">쪽지함<span id="opsNoteBadge" style="display:none;position:absolute;top:6px;right:6px;background:#e53935;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:700;line-height:14px;text-align:center">!</span></button>
     </div>
     <div class="modal-body" style="padding:0">
       <!-- ── 퀴즈 탭 ── -->
@@ -1878,6 +1910,14 @@ button,a,[role="button"]{touch-action:manipulation}
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">사진 투표 행사 관리</div>
         <button class="btn-sm primary" onclick="openCreatePhotoContest()" style="width:100%;justify-content:center;margin-bottom:14px">+ 새 행사 만들기</button>
         <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+      <!-- ── 쪽지함 탭 ── -->
+      <div id="admPane-notes" class="adm-pane" style="display:none;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">받은 쪽지</div>
+          <button onclick="loadAdminNotes()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-sub)">새로고침</button>
+        </div>
+        <div id="adminNotesList" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
     </div>
   </div>
@@ -6441,9 +6481,9 @@ function switchAdmTab(tab){
   if(tab==='stats') loadAdminStats();
 }
 function switchOpsTab(tab){
-  ['quiz','photo'].forEach(t=>{
+  ['quiz','photo','notes'].forEach(t=>{
     const btn=$('opsTab-'+t);
-    const pane=t==='quiz'?$('admPane-quiz'):$('admPane-event');
+    const pane=t==='quiz'?$('admPane-quiz'):t==='photo'?$('admPane-event'):$('admPane-notes');
     if(!btn||!pane)return;
     const isActive=t===tab;
     btn.style.borderBottomColor=isActive?'var(--green)':'transparent';
@@ -6452,10 +6492,69 @@ function switchOpsTab(tab){
   });
   if(tab==='quiz') loadAdminQuizStatus();
   if(tab==='photo') renderAdmPhotoContests();
+  if(tab==='notes') loadAdminNotes();
 }
 function openOpsModal(){
   switchOpsTab('quiz');
   $('opsModal').classList.add('open');
+}
+
+// ── 쪽지 ──
+function openNoteModal(){
+  if(!currentUser){alert('로그인이 필요합니다.');return;}
+  $('noteContentInput').value='';$('noteErr').textContent='';
+  $('noteModal').classList.add('open');
+}
+async function sendNote(){
+  const category=$('noteCategorySelect').value;
+  const content=$('noteContentInput').value.trim();
+  if(!content){$('noteErr').textContent='내용을 입력해주세요.';return;}
+  $('noteErr').textContent='';
+  try{
+    const r=await fetch(`${API}/api/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken,category,content})});
+    const d=await r.json();
+    if(d.error){$('noteErr').textContent=d.error;return;}
+    $('noteModal').classList.remove('open');
+    alert('쪽지를 보냈습니다. 감사합니다!');
+  }catch(e){$('noteErr').textContent='전송에 실패했습니다.';}
+}
+async function loadAdminNotes(){
+  const list=$('adminNotesList');if(!list)return;
+  list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint);font-size:13px">로딩 중...</div>';
+  try{
+    const r=await fetch(`${API}/api/admin/notes?token=${sessionToken}`);
+    const d=await r.json();
+    if(!d.notes||!d.notes.length){list.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-hint);font-size:13px">받은 쪽지가 없습니다.</div>';return;}
+    const catColor={'건의사항':'#1976d2','기능 추가 요청':'#388e3c','문의':'#f57c00','오류 신고':'#e53935'};
+    list.innerHTML=d.notes.map(n=>`
+      <div id="note-${n.id}" style="border:1px solid ${n.read_at?'var(--border)':'var(--green)'};border-radius:10px;padding:12px;background:${n.read_at?'var(--bg2)':'#f0faf4'}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${catColor[n.category]||'#666'};color:#fff">${escHtml(n.category)}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${escHtml(n.from_name||n.from_user)}</span>
+          <span style="font-size:11px;color:var(--text-hint);margin-left:auto">${timeAgo(n.created_at)}</span>
+          ${!n.read_at?`<button onclick="markNoteRead('${n.id}')" style="font-size:11px;border:1px solid var(--border);background:#fff;border-radius:6px;padding:2px 7px;cursor:pointer;color:var(--text-sub)">읽음</button>`:''}
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">${escHtml(n.content)}</div>
+      </div>
+    `).join('');
+    const b=$('opsNoteBadge');if(b)b.style.display=d.unread>0?'':'none';
+  }catch(e){list.innerHTML='<div style="padding:20px;text-align:center;color:var(--danger);font-size:13px">로딩 실패</div>';}
+}
+async function markNoteRead(id){
+  await fetch(`${API}/api/admin/notes/${id}/read?token=${sessionToken}`,{method:'PATCH'}).catch(()=>{});
+  const el=$(`note-${id}`);
+  if(el){el.style.background='var(--bg2)';el.style.borderColor='var(--border)';const btn=el.querySelector('button');if(btn&&btn.textContent==='읽음')btn.remove();}
+  checkNoteBadge();
+}
+async function checkNoteBadge(){
+  if(!currentUser||!['admin','sub_admin'].includes(currentUserRole))return;
+  try{
+    const r=await fetch(`${API}/api/admin/notes?token=${sessionToken}`);
+    const d=await r.json();
+    const b=$('noteBadge'),ob=$('opsNoteBadge');
+    if(b){b.style.display=d.unread>0?'flex':'none';b.textContent=d.unread>9?'9+':String(d.unread);}
+    if(ob)ob.style.display=d.unread>0?'':'none';
+  }catch(e){}
 }
 
 // ── 접속 이력 ──
@@ -6909,7 +7008,7 @@ function onLoginSuccess(d){
   localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
-  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();
+  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -6967,7 +7066,7 @@ function hideSplash(){
     currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
     userNames[userCache.id]=userCache.name;
     _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
-    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();
+    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});

@@ -486,6 +486,7 @@ async function initDB(env) {
     "ALTER TABLE events ADD COLUMN linked_post_id TEXT DEFAULT NULL",
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER)`,
     `CREATE TABLE IF NOT EXISTS push_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, endpoint TEXT, status INTEGER, error TEXT, created_at INTEGER)`,
+    `CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, from_user TEXT NOT NULL, from_name TEXT, category TEXT, content TEXT NOT NULL, read_at INTEGER, created_at INTEGER NOT NULL)`,
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -958,6 +959,42 @@ export default {
         const rows = await env.DB.prepare(`SELECT pl.id, pl.user_id, u.name, pl.endpoint, pl.status, pl.error, pl.created_at FROM push_logs pl LEFT JOIN users u ON pl.user_id=u.id ORDER BY pl.created_at DESC LIMIT ?`).bind(limit).all();
         const subCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM push_subscriptions').first();
         return json({ logs: rows.results || [], subCount: subCount?.cnt || 0 });
+      }
+
+      // ── 쪽지 ──
+      if (p === '/api/notes' && m === 'POST') {
+        const { token, category, content } = await req.json().catch(() => ({}));
+        if (!token || !content) return json({ error: '필수 항목 누락' }, 400);
+        const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token).first();
+        if (!sess) return json({ error: '인증 필요' }, 401);
+        const u = await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(sess.user_id).first();
+        const id = crypto.randomUUID();
+        await env.DB.prepare('INSERT INTO notes(id,from_user,from_name,category,content,created_at) VALUES(?,?,?,?,?,?)')
+          .bind(id, sess.user_id, u?.name || sess.user_id, category || '기타', content.slice(0, 1000), Math.floor(Date.now()/1000))
+          .run();
+        return json({ ok: true });
+      }
+
+      if (p === '/api/admin/notes' && m === 'GET') {
+        const token = new URL(req.url).searchParams.get('token');
+        const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token||'').first();
+        if (!sess) return json({ error: '인증 필요' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!role || !['admin','sub_admin'].includes(role.role)) return json({ error: '권한 없음' }, 403);
+        const rows = await env.DB.prepare('SELECT * FROM notes ORDER BY created_at DESC LIMIT 100').all();
+        const unread = await env.DB.prepare('SELECT COUNT(*) as cnt FROM notes WHERE read_at IS NULL').first();
+        return json({ notes: rows.results || [], unread: unread?.cnt || 0 });
+      }
+
+      if (p.match(/^\/api\/admin\/notes\/[^/]+\/read$/) && m === 'PATCH') {
+        const token = new URL(req.url).searchParams.get('token');
+        const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token||'').first();
+        if (!sess) return json({ error: '인증 필요' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!role || !['admin','sub_admin'].includes(role.role)) return json({ error: '권한 없음' }, 403);
+        const noteId = p.split('/')[4];
+        await env.DB.prepare('UPDATE notes SET read_at=? WHERE id=?').bind(Math.floor(Date.now()/1000), noteId).run();
+        return json({ ok: true });
       }
 
       // ── 법령 검색 ──
