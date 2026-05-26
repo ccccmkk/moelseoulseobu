@@ -362,6 +362,7 @@ async function initDB(env) {
     "ALTER TABLE restaurants ADD COLUMN lng REAL DEFAULT NULL",
     "ALTER TABLE restaurants ADD COLUMN walk_sec INTEGER DEFAULT NULL",
     "ALTER TABLE photo_contests ADD COLUMN folder_id TEXT DEFAULT NULL",
+    "ALTER TABLE posts ADD COLUMN pinned INTEGER DEFAULT 0",
     "ALTER TABLE events ADD COLUMN hidden INTEGER DEFAULT 0",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
@@ -1193,9 +1194,9 @@ export default {
         }
         let rows;
         if (before > 0) {
-          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).bind(...bindArgs, before, limit + 1).all();
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} AND p.created_at < ? AND COALESCE(p.pinned,0)=0 ORDER BY p.created_at DESC LIMIT ?`).bind(...bindArgs, before, limit + 1).all();
         } else {
-          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} ORDER BY p.created_at DESC LIMIT ?`).bind(...bindArgs, limit + 1).all();
+          rows = await env.DB.prepare(`${baseSQL} WHERE ${whereClause} ORDER BY p.pinned DESC, p.created_at DESC LIMIT ?`).bind(...bindArgs, limit + 1).all();
         }
         const items = rows.results || [];
         const has_more = items.length > limit;
@@ -1317,6 +1318,16 @@ export default {
       }
 
       // ── 글 상태 변경 (임시저장↔공개, 숨김↔공개) ──
+      if (p.match(/^\/api\/posts\/[^/]+\/pin$/) && m === 'PATCH') {
+        const postId = p.split('/')[3];
+        const { pinned, token } = await request.json();
+        const sess = token ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token).first().catch(()=>null) : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (ro?.role !== 'admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('UPDATE posts SET pinned=? WHERE id=?').bind(pinned ? 1 : 0, postId).run();
+        return json({ ok: true });
+      }
       if (p.match(/^\/api\/posts\/[^/]+\/status$/) && m === 'PATCH') {
         const postId = p.split('/')[3];
         const { status, token } = await request.json();
