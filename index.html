@@ -2408,8 +2408,8 @@ async function fetchPosts(reset=false){
   finally{feedLoading=false;np.done();}
 }
 async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${encodeURIComponent(currentUser)}`);const a=await r.json();likedPosts=new Set(a);}catch(e){}}
-async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);const all=await r.json();events=all.filter(e=>e.type!=='공지');evtNotices=all.filter(e=>e.type==='공지');}catch(e){events=[];evtNotices=[];}}
-async function fetchEvtNotices(){try{const r=await fetch(`${API}/api/events`);evtNotices=(await r.json()).filter(e=>e.type==='공지');}catch(e){evtNotices=[];}}
+async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);const all=await r.json();events=all.filter(e=>e.type!=='공지'&&e.type!=='피드이벤트');evtNotices=all.filter(e=>e.type==='공지'||e.type==='피드이벤트');}catch(e){events=[];evtNotices=[];}}
+async function fetchEvtNotices(){try{const r=await fetch(`${API}/api/events`);evtNotices=(await r.json()).filter(e=>e.type==='공지'||e.type==='피드이벤트');}catch(e){evtNotices=[];}}
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
 async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1,granted_badge_admin:x.granted_badge_admin??0,granted_badge_top:x.granted_badge_top??0};});}catch(e){}}
@@ -6488,7 +6488,7 @@ function onLoginSuccess(d){
   localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
-  showPage('appPage');$('fab').className='fab';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -6540,7 +6540,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
     currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
     userNames[userCache.id]=userCache.name;
     _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
-    showPage('appPage');$('fab').className='fab';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
+    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
