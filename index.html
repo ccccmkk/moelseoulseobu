@@ -202,6 +202,11 @@ body.font-xl .modal{max-height:65dvh!important}
 .event-meta{font-size:11px;color:var(--text-hint);margin-top:6px}
 .event-del{background:none;border:none;color:var(--text-hint);cursor:pointer;font-size:18px;padding:2px 6px;align-self:flex-start;line-height:1}
 .event-del:hover{color:var(--danger)}
+.event-strip{background:linear-gradient(135deg,#e8f5e9,#f0f9f4);border:1px solid var(--green-light);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:box-shadow .15s}
+.event-strip:hover{box-shadow:0 2px 8px rgba(10,128,143,.12)}
+.event-strip-body{flex:1;min-width:0}
+.event-strip-title{font-size:13px;font-weight:700;color:var(--green-dark)}
+.event-strip-sub{font-size:12px;color:var(--text-sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 칭찬합니다 (kudos) */
 .kudos-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px}
 .kudos-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
@@ -1247,6 +1252,38 @@ button,a,[role="button"]{touch-action:manipulation}
   </div>
 </div>
 
+<!-- ════ 이벤트 시트 ════ -->
+<div class="modal-overlay" id="evtSheetOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📅 진행중인 이벤트</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="evtSheetAddBtn" class="btn-sm primary" style="display:none" onclick="openEvtNoticeModal()">+ 추가</button>
+        <button class="modal-close" onclick="$('evtSheetOverlay').classList.remove('open')">×</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:12px"><div id="evtSheetList"></div></div>
+  </div>
+</div>
+
+<!-- ════ 이벤트 공지 작성 모달 ════ -->
+<div class="modal-overlay center" id="evtNoticeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">이벤트 공지 추가</span>
+      <button class="modal-close" onclick="$('evtNoticeModal').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <div class="form-row"><label>제목</label><input type="text" id="evtNoticeTitle" placeholder="이벤트 제목"/></div>
+      <div class="form-row"><label>내용 (선택)</label><textarea id="evtNoticeContent" rows="4" placeholder="이벤트 내용을 입력하세요"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="$('evtNoticeModal').classList.remove('open')">취소</button>
+      <button class="btn-sm primary" onclick="submitEvtNotice()">등록</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 칭찬합니다 추가 모달 (관리자) ════ -->
 <div class="modal-overlay center" id="kudosModal">
   <div class="modal">
@@ -2162,7 +2199,7 @@ function updateNotiBadges(hasNew){
   $('navMoreNotiBadge').style.display=hasNew?'block':'none';
 }
 
-let posts=[],events=[],kudos=[],contests=[];
+let posts=[],events=[],evtNotices=[],kudos=[],contests=[];
 let likedPosts=new Set(),userRoles={},profiles={},userNames={};
 let badgePrefs={};
 let feedCursor=null,feedHasMore=true,feedLoading=false;
@@ -2336,7 +2373,8 @@ async function fetchPosts(reset=false){
   finally{feedLoading=false;np.done();}
 }
 async function fetchLikes(){try{const r=await fetch(`${API}/api/likes?user_id=${encodeURIComponent(currentUser)}`);const a=await r.json();likedPosts=new Set(a);}catch(e){}}
-async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);events=await r.json();}catch(e){events=[];}}
+async function fetchEvents(){try{const r=await fetch(`${API}/api/events`);const all=await r.json();events=all.filter(e=>e.type!=='공지');evtNotices=all.filter(e=>e.type==='공지');}catch(e){events=[];evtNotices=[];}}
+async function fetchEvtNotices(){try{const r=await fetch(`${API}/api/events`);evtNotices=(await r.json()).filter(e=>e.type==='공지');}catch(e){evtNotices=[];}}
 async function fetchKudos(){try{const r=await fetch(`${API}/api/kudos`);kudos=await r.json();}catch(e){kudos=[];}}
 async function fetchContests(){try{const r=await fetch(`${API}/api/contests`);contests=await r.json();}catch(e){contests=[];}}
 async function fetchProfiles(){try{const r=await fetch(`${API}/api/profiles`);const a=await r.json();profiles={};badgePrefs={};a.forEach(x=>{if(x.avatar_url)profiles[x.user_id]=x.avatar_url;badgePrefs[x.user_id]={show_badge_admin:x.show_badge_admin??1,show_badge_top:x.show_badge_top??1,granted_badge_admin:x.granted_badge_admin??0,granted_badge_top:x.granted_badge_top??0};});}catch(e){}}
@@ -2371,7 +2409,7 @@ async function initApp(){
   await fetchPosts(true);
   renderFeed();
   // 2단계: 좋아요·프로필·권한은 백그라운드에서 로드 → 완료되면 re-render
-  Promise.all([fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames()]).then(()=>renderFeed());
+  Promise.all([fetchLikes(),fetchRoles(),fetchProfiles(),fetchUserNames(),fetchEvtNotices()]).then(()=>renderFeed());
   loadMapBldgSettings();
 }
 
@@ -3033,8 +3071,9 @@ function renderFeed(){
   cleanupYtPlayers();
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
-  if(!posts.length){feed.innerHTML=compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
-  feed.innerHTML=compose+posts.map(p=>postCardHtml(p)).join('');
+  const stripHtml=evtNotices.length?`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">📅</span><div class="event-strip-body"><div class="event-strip-title">진행중인 이벤트 ${evtNotices.length}건</div><div class="event-strip-sub">${escHtml(evtNotices[0].title)}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`:'';
+  if(!posts.length){feed.innerHTML=compose+stripHtml+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
+  feed.innerHTML=compose+stripHtml+posts.map(p=>postCardHtml(p)).join('');
   $('composeBox').onclick=openWriteModal;
   initCarousels();
   setupFeedObserver();
@@ -4926,6 +4965,45 @@ async function submitEvent(){
 }
 async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});events=events.filter(e=>e.id!==id);renderEvents();renderChalEvents();}
 
+// ── 피드 이벤트 스트립 ──
+function _updateEvtStrip(){
+  const feed=$('feed');if(!feed)return;
+  let strip=feed.querySelector('.event-strip');
+  if(!evtNotices.length){if(strip)strip.remove();return;}
+  const html=`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">📅</span><div class="event-strip-body"><div class="event-strip-title">진행중인 이벤트 ${evtNotices.length}건</div><div class="event-strip-sub">${escHtml(evtNotices[0].title)}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  if(strip){const d=document.createElement('div');d.innerHTML=html;strip.replaceWith(d.firstChild);}
+  else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.after(d.firstChild);}}
+}
+function openEventSheet(){
+  $('evtSheetAddBtn').style.display=(currentUserRole==='admin'||currentUserRole==='sub_admin')?'':'none';
+  renderEvtSheet();
+  $('evtSheetOverlay').classList.add('open');
+}
+function renderEvtSheet(){
+  const list=$('evtSheetList');
+  if(!evtNotices.length){list.innerHTML='<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
+  list.innerHTML=evtNotices.map(e=>{
+    const canDel=currentUserRole==='admin';
+    return`<div class="event-card"><div class="event-info"><div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}<div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}</div>`;
+  }).join('');
+}
+function openEvtNoticeModal(){
+  $('evtNoticeTitle').value='';$('evtNoticeContent').value='';
+  $('evtNoticeModal').classList.add('open');
+}
+async function submitEvtNotice(){
+  const title=$('evtNoticeTitle').value.trim();if(!title){alert('제목을 입력해주세요.');return;}
+  const r=await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type:'공지',title,content:$('evtNoticeContent').value.trim(),token:sessionToken})});
+  if(!r.ok){alert('등록에 실패했습니다.');return;}
+  $('evtNoticeModal').classList.remove('open');
+  await fetchEvtNotices();_updateEvtStrip();renderEvtSheet();
+}
+async function deleteEvtNotice(id){
+  if(!confirm('삭제할까요?'))return;
+  await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
+  evtNotices=evtNotices.filter(e=>e.id!==id);_updateEvtStrip();renderEvtSheet();
+}
+
 // ── 칭찬합니다 탭 전체 렌더 (데이터 로드 후에만 렌더) ──
 async function renderChal(){
   np.start();
@@ -6387,7 +6465,7 @@ $('loginForm').onsubmit=doLogin;$('loginBtn').onclick=doLogin;
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
       const d=await r.json();
       if(!d.ok){
-        currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
+        currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];evtNotices=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
         $('moreAdminGroup').style.display='none';$('kudosAddBtn').style.display='none';$('contestAddBtn').style.display='none';$('nlAddBtn').style.display='none';
         localStorage.removeItem('session_token');localStorage.removeItem('user_cache');
         showPage('loginPage');return;
@@ -6430,7 +6508,7 @@ $('searchInput').oninput=function(){
 };
 $('logoutBtn').onclick=async function(){
   if(sessionToken){try{await fetch(`${API}/api/sessions`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken})});}catch(e){}}
-  currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
+  currentUser='';currentUserName='';sessionToken=null;posts=[];feedCursor=null;feedHasMore=true;feedLoading=false;events=[];evtNotices=[];kudos=[];contests=[];likedPosts=new Set();userRoles={};profiles={};userNames={};currentUserRole='user';
   _applyFontSize('sm');
   localStorage.removeItem('session_token');
   $('uid').value='';$('upw').value='';$('lerr').textContent='';

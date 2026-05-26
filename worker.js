@@ -1463,6 +1463,13 @@ export default {
       }
       if (p === '/api/events' && m === 'POST') {
         const b = await request.json();
+        if (b.type === '공지') {
+          const t = b.token || url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+          const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+          if (!s) return json({ error: 'unauthorized' }, 401);
+          const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
+          if (ro?.role !== 'admin' && ro?.role !== 'sub_admin') return json({ error: 'forbidden' }, 403);
+        }
         const id = 'evt_' + Date.now();
         await env.DB.prepare('INSERT INTO events(id,author,type,title,content,tagged_user,created_at) VALUES(?,?,?,?,?,?,?)')
           .bind(id, b.author, b.type || '기타', b.title, b.content || '', b.tagged_user || '', Math.floor(Date.now() / 1000)).run();
