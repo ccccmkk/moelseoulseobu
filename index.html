@@ -109,10 +109,9 @@ body.font-xl .modal{max-height:65dvh!important}
 .post-img-wrap img{width:100%;display:block;max-height:480px;object-fit:cover}
 .post-img-grid{display:grid;gap:2px}
 .post-img-grid.two{grid-template-columns:1fr 1fr}
-.post-img-grid.two img,.post-img-grid.three img{width:100%;height:200px;object-fit:cover;cursor:zoom-in;display:block}
-.post-img-grid.three{grid-template-columns:1fr 1fr}
-.post-img-grid.three .img-main{grid-column:1/-1}
-.post-img-grid.three .img-main img{height:260px}
+.post-img-grid.two .pig-cell img{width:100%;height:220px;object-fit:cover;cursor:zoom-in;display:block}
+.post-img-grid.multi{grid-template-columns:1fr 1fr 1fr}
+.post-img-grid.multi .pig-cell img{width:100%;height:130px;object-fit:cover;cursor:zoom-in;display:block}
 .block-caption{font-size:12px;color:var(--text-sub);padding:6px 14px;background:#fafafa;border-top:1px solid var(--border)}
 .block-text{font-size:14px;line-height:1.75;padding:8px 14px;color:var(--text)}
 .post-actions{padding:6px 10px 8px;display:flex;align-items:center;gap:12px}
@@ -2924,9 +2923,10 @@ function renderBlocksInCard(p,blogMode){
   if(imgs.length===1){
     html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(imgs[0].url)}')"><img src="${imgUrl(imgs[0].url)}" loading="lazy" decoding="async"/></div>`;
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
-  }else if(imgs.length>=2){
-    const cid='car-'+p.id;
-    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${imgUrl(i.url)}" loading="lazy" onclick="openLightbox('${imgUrl(i.url)}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
+  }else if(imgs.length===2){
+    html+=`<div class="post-img-grid two">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
+  }else if(imgs.length>=3){
+    html+=`<div class="post-img-grid multi">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
   }
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   const linkBlocks=p.blocks.filter(b=>b.type==='link');
