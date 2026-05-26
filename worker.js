@@ -364,6 +364,7 @@ async function initDB(env) {
     "ALTER TABLE photo_contests ADD COLUMN folder_id TEXT DEFAULT NULL",
     "ALTER TABLE posts ADD COLUMN pinned INTEGER DEFAULT 0",
     "ALTER TABLE events ADD COLUMN hidden INTEGER DEFAULT 0",
+    "ALTER TABLE events ADD COLUMN linked_post_id TEXT DEFAULT NULL",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -1204,6 +1205,14 @@ export default {
         return json({ posts: items.map(r => ({ ...r, blocks: JSON.parse(r.blocks) })), has_more, next_cursor: has_more ? items[items.length - 1].created_at : null });
       }
 
+      if (p.match(/^\/api\/posts\/[^/]+$/) && m === 'GET') {
+        const postId = p.split('/')[3];
+        const baseSQL = 'SELECT p.*, u.name as author_name, COALESCE(cc.cnt,0)+COALESCE(rc.rcnt,0) as comment_count, pk.keyword FROM posts p LEFT JOIN users u ON p.author=u.id LEFT JOIN (SELECT post_id, COUNT(*) as cnt FROM comments GROUP BY post_id) cc ON p.id=cc.post_id LEFT JOIN (SELECT c.post_id, COUNT(*) as rcnt FROM comment_replies cr JOIN comments c ON cr.comment_id=c.id GROUP BY c.post_id) rc ON p.id=rc.post_id LEFT JOIN post_keywords pk ON p.id=pk.post_id';
+        const row = await env.DB.prepare(`${baseSQL} WHERE p.id=? AND (p.status IS NULL OR p.status='published')`).bind(postId).first();
+        if (!row) return json({ error: 'not found' }, 404);
+        return json({ post: { ...row, blocks: JSON.parse(row.blocks || '[]') } });
+      }
+
       // ── 글 작성 ──
       if (p === '/api/posts' && m === 'POST') {
         const _s15 = await requireSession(); if (_s15 instanceof Response) return _s15;
@@ -1500,8 +1509,8 @@ export default {
           if (ro?.role !== 'admin' && ro?.role !== 'sub_admin') return json({ error: 'forbidden' }, 403);
         }
         const id = 'evt_' + Date.now();
-        await env.DB.prepare('INSERT INTO events(id,author,type,title,content,tagged_user,created_at) VALUES(?,?,?,?,?,?,?)')
-          .bind(id, b.author, b.type || '기타', b.title, b.content || '', b.tagged_user || '', Math.floor(Date.now() / 1000)).run();
+        await env.DB.prepare('INSERT INTO events(id,author,type,title,content,tagged_user,linked_post_id,created_at) VALUES(?,?,?,?,?,?,?,?)')
+          .bind(id, b.author, b.type || '기타', b.title, b.content || '', b.tagged_user || '', b.linked_post_id || null, Math.floor(Date.now() / 1000)).run();
         return json({ id });
       }
       if (p.match(/^\/api\/events\/[^/]+$/) && m === 'PATCH') {
@@ -1513,6 +1522,18 @@ export default {
         const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
         if (ro?.role !== 'admin' && ro?.role !== 'sub_admin') return json({ error: 'forbidden' }, 403);
         await env.DB.prepare('UPDATE events SET hidden=? WHERE id=?').bind(b.hidden ? 1 : 0, id).run();
+        return json({ ok: true });
+      }
+      if (p.match(/^\/api\/events\/[^/]+$/) && m === 'PUT') {
+        const id = p.split('/')[3];
+        const b = await request.json();
+        const t = b.token || url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!s) return json({ error: 'unauthorized' }, 401);
+        const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
+        if (ro?.role !== 'admin' && ro?.role !== 'sub_admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('UPDATE events SET title=?,content=?,tagged_user=?,linked_post_id=? WHERE id=?')
+          .bind(b.title || '', b.content || '', b.tagged_user || '', b.linked_post_id || null, id).run();
         return json({ ok: true });
       }
       if (p.match(/^\/api\/events\/[^/]+$/) && m === 'DELETE') {
