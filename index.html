@@ -683,6 +683,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .post-status-badge{display:inline-flex;align-items:center;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;margin-left:4px;}
 .post-status-badge.draft{background:#fff8e1;color:#f57c00;}
 .post-status-badge.hidden{background:#f5f5f5;color:#888;}
+.pin-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--green-dark);background:var(--green-light);border-radius:10px;padding:2px 7px;margin-right:4px}
 /* ── 데스크톱 레이아웃 ── */
 @media(min-width:640px){
   html,body{background:#c9cdd2}
@@ -3071,6 +3072,8 @@ function youtubeBlockHtml(b){
 }
 function postCardHtml(p){
   const key=p.id||'';const liked=likedPosts.has(key);const isMine=p.author===currentUser;const isAdm=currentUserRole==='admin';
+  const isPinned=!!p.pinned;
+  const pinBadge=isPinned?`<span class="pin-badge">📌 고정</span>`:'';
   const statusBadge=p.status==='draft'?`<span class="post-status-badge draft">임시저장</span>`:p.status==='hidden'?`<span class="post-status-badge hidden">숨김</span>`:'';
   let mmInner='';
   if(isMine){
@@ -3083,6 +3086,9 @@ function postCardHtml(p){
   }else if(isAdm){
     if(p.status!=='hidden'){mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
     else{mmInner+=`<button onclick="unhidePost('${key}')">공개</button>`;}
+    mmInner+=isPinned
+      ?`<button onclick="togglePinPost('${key}',false)">📌 고정 해제</button>`
+      :`<button onclick="togglePinPost('${key}',true)">📌 상단 고정</button>`;
     mmInner+=`<button class="danger" onclick="deletePost('${key}')">삭제</button>`;
   }
   const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${mmInner}</div></div>`:'';
@@ -3095,7 +3101,7 @@ function postCardHtml(p){
     const title=metaBlock?.title||_stripHtml(textBlocks[0]?.content)?.split('\n')[0]||p.keyword||'블로그 글';
     const excerpt=metaBlock?.description||_stripHtml(textBlocks.map(b=>b.content).join(' ')).slice(0,150);
     return`<div class="post-card" id="pc-${key}">
-      <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
+      <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${pinBadge}${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
       <div class="blog-og-card" onclick="openFullPost('${key}')">
         ${thumbBlock?.url?`<img class="blog-og-thumb" src="${imgUrl(thumbBlock.url)}" loading="lazy" decoding="async"/>`:
           (p.blocks?.find(b=>b.type==='image')?`<img class="blog-og-thumb" src="${imgUrl(p.blocks.find(b=>b.type==='image').url)}" loading="lazy" decoding="async"/>`:'') }
@@ -3113,7 +3119,7 @@ function postCardHtml(p){
     </div>`;
   }
   return`<div class="post-card" id="pc-${key}">
-    <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
+    <div class="post-header"><div style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${avatarEl(p.author)}</div><div class="post-header-info"><div class="post-author" style="cursor:pointer" onclick="openUserProfile('${escHtml(p.author)}')">${escHtml(p.author_name||userName(p.author)||'')}${badgeHtml(p.author)}</div><div class="post-date">${pinBadge}${relDate(p.created_at)}</div></div>${mm}${statusBadge}</div>
     ${renderBlocksInCard(p,false)}
     ${p.keyword?`<div class="post-tag" style="margin:4px 14px 2px">#${escHtml(p.keyword)}</div>`:''}
     <div class="post-actions">
@@ -3938,6 +3944,14 @@ $('thumbFileInput') && ($('thumbFileInput').onchange=async function(e){
   reader.readAsDataURL(file);
 });
 async function deletePost(key){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/posts/${key}?token=${encodeURIComponent(sessionToken||'')}`,{method:'DELETE'});posts=posts.filter(p=>p.id!==key);const el=$('pc-'+key);if(el)el.remove();}
+async function togglePinPost(key,pin){
+  const r=await fetch(`${API}/api/posts/${key}/pin`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:pin?1:0,token:sessionToken})});
+  if(!r.ok){alert('처리 실패');return;}
+  const p=posts.find(x=>x.id===key);if(p){p.pinned=pin?1:0;}
+  // 피드 재정렬: 고정 글 맨 위로
+  posts.sort((a,b)=>(b.pinned||0)-(a.pinned||0)||b.created_at-a.created_at);
+  renderFeed();
+}
 async function publishPost(key){await _setPostStatus(key,'published');}
 async function draftPost(key){await _setPostStatus(key,'draft');}
 async function hidePost(key){if(!confirm('이 글을 숨기겠습니까?'))return;await _setPostStatus(key,'hidden');}
