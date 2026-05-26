@@ -1304,7 +1304,7 @@ button,a,[role="button"]{touch-action:manipulation}
 <div class="modal-overlay center" id="evtNoticeModal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">이벤트 추가</span>
+      <span class="modal-title" id="evtNoticeModalTitle">이벤트 추가</span>
       <button class="modal-close" onclick="$('evtNoticeModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body" style="padding:16px">
@@ -1318,15 +1318,31 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div class="form-row"><label>제목</label><input type="text" id="evtNoticeTitle" placeholder="이벤트 제목"/></div>
       <div id="evtNoticeFeedFields" style="display:none">
-        <div class="form-row"><label>목표 게시수</label><input type="number" id="evtNoticeTarget" placeholder="예: 10" min="1" style="width:100%"/></div>
+        <div class="form-row"><label>목표 수</label><input type="number" id="evtNoticeTarget" placeholder="예: 10" min="1" style="width:100%"/></div>
         <div class="form-row"><label>보상 내용</label><input type="text" id="evtNoticeReward" placeholder="예: 편의점 상품권 1만원"/></div>
       </div>
       <div class="form-row" id="evtNoticeContentRow"><label>내용 (선택)</label><textarea id="evtNoticeContent" rows="3" placeholder="이벤트 내용을 입력하세요"></textarea></div>
+      <div class="form-row" id="evtNoticeLinkRow"><label>연결 게시물 (선택)</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="evtNoticeLinkedPost" placeholder="게시물 ID" style="flex:1" readonly/>
+          <button class="btn-sm" type="button" onclick="openPostPicker()">선택</button>
+          <button class="btn-sm" type="button" onclick="$('evtNoticeLinkedPost').value='';_evtLinkedPostTitle=''" id="evtNoticeLinkClear" style="display:none">✕</button>
+        </div>
+        <div id="evtNoticeLinkName" style="font-size:12px;color:var(--green-dark);margin-top:3px"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm" onclick="$('evtNoticeModal').classList.remove('open')">취소</button>
-      <button class="btn-sm primary" onclick="submitEvtNotice()">등록</button>
+      <button class="btn-sm primary" id="evtNoticeSubmitBtn" onclick="submitEvtNotice()">등록</button>
     </div>
+  </div>
+</div>
+
+<!-- ════ 게시물 선택 시트 (이벤트 연결용) ════ -->
+<div class="modal-overlay" id="postPickerSheet" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-height:70vh">
+    <div class="modal-header"><span class="modal-title">게시물 선택</span><button class="modal-close" onclick="$('postPickerSheet').classList.remove('open')">×</button></div>
+    <div class="modal-body" style="padding:0"><div id="postPickerList" style="padding:8px"></div></div>
   </div>
 </div>
 
@@ -3079,9 +3095,9 @@ function postCardHtml(p){
   if(isMine){
     mmInner+=`<button onclick="editPost('${key}')">수정</button>`;
     if(p.status==='draft'){mmInner+=`<button onclick="publishPost('${key}')">공개하기</button>`;}
-    else{mmInner+=`<button onclick="draftPost('${key}')">임시저장</button>`;}
-    if(p.status!=='hidden'){mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
-    else{mmInner+=`<button onclick="unhidePost('${key}')">공개</button>`;}
+    else if(p.status==='hidden'){mmInner+=`<button onclick="unhidePost('${key}')">공개</button>`;}
+    else{mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
+    if(isAdm){mmInner+=isPinned?`<button onclick="togglePinPost('${key}',false)">📌 고정 해제</button>`:`<button onclick="togglePinPost('${key}',true)">📌 상단 고정</button>`;}
     mmInner+=`<button class="danger" onclick="deletePost('${key}')">삭제</button>`;
   }else if(isAdm){
     if(p.status!=='hidden'){mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
@@ -3682,13 +3698,14 @@ function _renderBlogToolbar(){
     <button id="btItalic" title="기울임"><i>I</i></button>
     <button id="btUnderline" title="밑줄"><u>U</u></button>
     <button id="btEmoji" title="이모지">😊</button>
-    <button id="btFullscreen" title="전체화면">${_blogFullscreen?'◱':'⛶'}</button>
   `;
+  // 블로그 모드에서는 #writeEditorBody의 overflow를 visible로 해야 toolbar가 #writeBlogBody 기준으로 sticky됨
   const editorBody=$('writeEditorBody');
+  editorBody.style.overflowY='visible';
   const blockEditor=$('blockEditor');
   editorBody.insertBefore(tb,blockEditor);
   // 버튼 클릭 시 mousedown에서 selection 저장 + 포커스 이탈 방지
-  ['btBold','btItalic','btUnderline','btEmoji','btFullscreen'].forEach(id=>{
+  ['btBold','btItalic','btUnderline','btEmoji'].forEach(id=>{
     document.getElementById(id).addEventListener('mousedown',e=>{_saveBlogRange();e.preventDefault();});
   });
   // 드롭다운/컬러는 mousedown에서만 저장 (preventDefault하면 드롭다운 안 열림)
@@ -3708,13 +3725,6 @@ function _renderBlogToolbar(){
   document.getElementById('btItalic').onclick=()=>{_restoreBlogRange();document.execCommand('italic');};
   document.getElementById('btUnderline').onclick=()=>{_restoreBlogRange();document.execCommand('underline');};
   document.getElementById('btEmoji').onclick=e=>{e.stopPropagation();_toggleEmojiPicker(e.currentTarget);};
-
-  document.getElementById('btFullscreen').onclick=()=>{
-    _blogFullscreen=!_blogFullscreen;
-    const wm=$('writeModal');
-    if(_blogFullscreen){wm.classList.add('fullscreen-modal');}else{wm.classList.remove('fullscreen-modal');}
-    document.getElementById('btFullscreen').textContent=_blogFullscreen?'◱':'⛶';
-  };
 }
 function renderBlogEditor(){
   const editor=$('blockEditor');editor.innerHTML='';
@@ -3898,7 +3908,6 @@ function _showWriteEditor(mode){
   $('blogThumbArea').style.display=mode==='blog'?'':'none';
   if(mode==='blog'){
     resetBlogThumb();
-    _blogFullscreen=true;
     // move editor into blog page (DOM move)
     const body=$('writeBlogBody');
     body.appendChild($('writeEditorBody'));
@@ -3908,8 +3917,8 @@ function _showWriteEditor(mode){
     $('writeBlogPageTitle').textContent=editingKey?'블로그 글 수정':'블로그 글 작성';
     showPage('writeBlogPage');
   } else {
-    _blogFullscreen=false;
     // ensure editor body is back inside the modal
+    $('writeEditorBody').style.overflowY=''; // restore
     _ensureEditorInModal();
     $('modalFooter').style.display='';
     $('writeModal').classList.remove('fullscreen-modal');
@@ -3995,9 +4004,9 @@ async function _setPostStatus(key,status){
   }catch(e){alert('실패: '+e.message);}
 }
 function _closeWriteModal(){
-  _blogFullscreen=false;
   $('writeModal').classList.remove('open');
   $('writeModal').classList.remove('fullscreen-modal');
+  $('writeEditorBody').style.overflowY=''; // restore overflow
   _ensureEditorInModal();
   if($('writeBlogPage').classList.contains('active')){
     showPage(_writePrevPage||'appPage');
@@ -5118,12 +5127,16 @@ function renderEvtSheet(stats){
       ?`<button class="ev-hide-btn" onclick="toggleEvtHidden('${e.id}',false)">재개</button>`
       :`<button class="ev-hide-btn" onclick="toggleEvtHidden('${e.id}',true)">숨기기</button>`
     ):'';
+    const editBtn=isAdmin?`<button class="ev-hide-btn" onclick="openEvtNoticeEditModal(evtNotices.find(x=>x.id==='${e.id}'))">수정</button>`:'';
     const delBtn=canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:'';
+    const isMilestone=isFeed||isCmt;
+    const targetInfo=isMilestone&&e.tagged_user?`<span style="font-size:11px;color:var(--text-hint);margin-left:4px">목표: ${escHtml(e.tagged_user)}번째</span>`:'';
+    const linkBtn=e.linked_post_id?`<button class="ev-hide-btn" onclick="openLinkedPost('${escHtml(e.linked_post_id)}')">📄 게시물</button>`:'';
     return`<div class="event-card${isHidden?' ev-hidden':''}">`
       +`<span class="event-type-badge ${badgeCls}">${badgeTxt}</span>`
-      +`<div class="event-title-row"><div class="event-title">${hiddenBadge}${escHtml(e.title)}</div>${reward}</div>`
+      +`<div class="event-title-row"><div class="event-title">${hiddenBadge}${escHtml(e.title)}${targetInfo}</div>${reward}</div>`
       +`<span class="event-meta">${relDate(e.created_at)}</span>`
-      +hideBtn+delBtn
+      +linkBtn+editBtn+hideBtn+delBtn
       +`</div>`;
   }).join('');
 }
@@ -5132,12 +5145,41 @@ function toggleEvtNoticeFields(){
   const isMilestone=v==='피드이벤트'||v==='댓글이벤트';
   $('evtNoticeFeedFields').style.display=isMilestone?'':'none';
   $('evtNoticeContentRow').style.display=isMilestone?'none':'';
+  $('evtNoticeLinkRow').style.display=isMilestone?'none':''; // 연결 게시물은 공지에서만
   $('evtNoticeTarget').placeholder=v==='댓글이벤트'?'예: 100':'예: 10';
 }
+let _editingEvtId=null,_evtLinkedPostTitle='';
 function openEvtNoticeModal(){
+  _editingEvtId=null;
+  _evtLinkedPostTitle='';
   $('evtNoticeType').value='공지';
   $('evtNoticeTitle').value='';$('evtNoticeContent').value='';
   $('evtNoticeTarget').value='';$('evtNoticeReward').value='';
+  $('evtNoticeLinkedPost').value='';
+  $('evtNoticeLinkName').textContent='';$('evtNoticeLinkClear').style.display='none';
+  $('evtNoticeModalTitle').textContent='이벤트 추가';
+  $('evtNoticeSubmitBtn').textContent='등록';
+  toggleEvtNoticeFields();
+  $('evtNoticeModal').classList.add('open');
+}
+function openEvtNoticeEditModal(evt){
+  _editingEvtId=evt.id;
+  $('evtNoticeModalTitle').textContent='이벤트 수정';
+  $('evtNoticeSubmitBtn').textContent='저장';
+  $('evtNoticeType').value=evt.type;
+  $('evtNoticeTitle').value=evt.title||'';
+  const isMilestone=evt.type==='피드이벤트'||evt.type==='댓글이벤트';
+  if(isMilestone){
+    $('evtNoticeTarget').value=evt.tagged_user||'';
+    $('evtNoticeReward').value=evt.content||'';
+  }else{
+    $('evtNoticeContent').value=evt.content||'';
+  }
+  const lp=evt.linked_post_id||'';
+  $('evtNoticeLinkedPost').value=lp;
+  _evtLinkedPostTitle=lp?evt._linkedPostTitle||'':'';
+  $('evtNoticeLinkName').textContent=_evtLinkedPostTitle?`📄 ${_evtLinkedPostTitle}`:'';
+  $('evtNoticeLinkClear').style.display=lp?'':'none';
   toggleEvtNoticeFields();
   $('evtNoticeModal').classList.add('open');
 }
@@ -5154,10 +5196,49 @@ async function submitEvtNotice(){
   } else {
     content=$('evtNoticeContent').value.trim();
   }
-  const r=await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type,title,content,tagged_user,token:sessionToken})});
-  if(!r.ok){alert('등록에 실패했습니다.');return;}
+  const linked_post_id=$('evtNoticeLinkedPost').value||null;
+  if(_editingEvtId){
+    const r=await fetch(`${API}/api/events/${_editingEvtId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,tagged_user,linked_post_id,token:sessionToken})});
+    if(!r.ok){alert('수정에 실패했습니다.');return;}
+    const idx=evtNotices.findIndex(e=>e.id===_editingEvtId);
+    if(idx>=0)evtNotices[idx]={...evtNotices[idx],title,content,tagged_user,linked_post_id,_linkedPostTitle:_evtLinkedPostTitle};
+    _editingEvtId=null;
+  }else{
+    const r=await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type,title,content,tagged_user,linked_post_id,token:sessionToken})});
+    if(!r.ok){alert('등록에 실패했습니다.');return;}
+    await fetchEvtNotices();
+  }
   $('evtNoticeModal').classList.remove('open');
-  await fetchEvtNotices();_updateEvtStrip();renderEvtSheet();
+  _updateEvtStrip();renderEvtSheet();
+}
+async function openPostPicker(){
+  const listEl=$('postPickerList');
+  listEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-hint);font-size:13px">불러오는 중...</div>';
+  $('postPickerSheet').classList.add('open');
+  try{
+    const r=await fetch(`${API}/api/posts?limit=30&token=${encodeURIComponent(sessionToken||'')}`);
+    const d=await r.json();
+    const ps=d.posts||[];
+    if(!ps.length){listEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-hint);font-size:13px">게시물이 없습니다.</div>';return;}
+    listEl.innerHTML=ps.map(p=>{
+      const isBlog=p.mode==='blog';
+      const metaBlock=p.blocks?.find(b=>b.type==='meta');
+      const textBlocks=p.blocks?.filter(b=>b.type==='text'&&b.content?.trim())||[];
+      const _strip=h=>(h||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+      const title=metaBlock?.title||_strip(textBlocks[0]?.content)?.split('\n')[0]||(isBlog?'블로그 글':'일반 글');
+      return`<div onclick="selectLinkedPost('${p.id}','${escHtml(title.slice(0,30))}')" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:8px;align-items:center">
+        <span style="font-size:20px">${isBlog?'📝':'💬'}</span>
+        <div><div style="font-size:14px;font-weight:600;color:var(--text)">${escHtml(title.slice(0,40))}</div><div style="font-size:12px;color:var(--text-hint)">${relDate(p.created_at)} · ${escHtml(p.author_name||p.author)}</div></div>
+      </div>`;
+    }).join('');
+  }catch(e){listEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--danger);font-size:13px">불러오기 실패</div>';}
+}
+function selectLinkedPost(id,title){
+  $('evtNoticeLinkedPost').value=id;
+  _evtLinkedPostTitle=title;
+  $('evtNoticeLinkName').textContent=`📄 ${title}`;
+  $('evtNoticeLinkClear').style.display='';
+  $('postPickerSheet').classList.remove('open');
 }
 function _showMilestonePopup(title,reward){
   const name=userNames[currentUser]||currentUser;
@@ -5188,6 +5269,18 @@ async function deleteEvtNotice(id){
   if(!confirm('삭제할까요?'))return;
   await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
   evtNotices=evtNotices.filter(e=>e.id!==id);_updateEvtStrip();renderEvtSheet();
+}
+async function openLinkedPost(postId){
+  $('evtSheetOverlay').classList.remove('open');
+  const cached=posts.find(x=>x.id===postId);
+  if(cached){openFullPost(postId);return;}
+  try{
+    const r=await fetch(`${API}/api/posts/${postId}`);
+    if(!r.ok){alert('게시물을 찾을 수 없습니다.');return;}
+    const d=await r.json();
+    posts.unshift(d.post); // 캐시에 추가
+    openFullPost(postId);
+  }catch(e){alert('게시물을 불러올 수 없습니다.');}
 }
 
 // ── 이모지 피커 ──
