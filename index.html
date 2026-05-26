@@ -3826,6 +3826,8 @@ function openWriteModal(prefillUrl,prefillTitle,prefillSource){
   $('modalTitle').textContent='글 쓰기';$('submitPost').textContent='등록';
   updateAvatarEl($('modalAvatar'),currentUser);$('modalAuthorName').textContent=currentUserName;
   $('postKeyword').value='';
+  if($('blogCardTitle'))$('blogCardTitle').value='';
+  if($('blogCardDesc'))$('blogCardDesc').value='';
   editorBlocks=[{type:'text',content:''}];
   if(prefillUrl&&prefillTitle){
     // 뉴스 공유: 타입 선택 없이 바로 일반 모드로
@@ -3899,7 +3901,7 @@ function editPost(key){
   }
   if(p.mode!=='blog')$('writeModal').classList.add('open');
 }
-function resetBlogThumb(){_blogThumbUrl='';$('blogThumbPreview').src='';$('blogThumbPreview').style.display='none';$('blogThumbPlaceholder').style.display='flex';$('blogThumbDel').style.display='none';$('blogCardTitle').value='';$('blogCardDesc').value='';}
+function resetBlogThumb(){_blogThumbUrl='';$('blogThumbPreview').src='';$('blogThumbPreview').style.display='none';$('blogThumbPlaceholder').style.display='flex';$('blogThumbDel').style.display='none';}
 function removeBlogThumb(){resetBlogThumb();}
 $('thumbFileInput') && ($('thumbFileInput').onchange=async function(e){
   const file=e.target.files[0];this.value='';if(!file)return;
