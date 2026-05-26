@@ -29,8 +29,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans
 #loginPage.active{display:flex;align-items:center;justify-content:center;padding:2rem;min-height:100dvh}
 .login-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:360px;box-shadow:0 2px 16px rgba(0,0,0,.07)}
 .login-logo{display:flex;align-items:center;gap:10px;margin-bottom:2rem}
-.logo-dot{width:32px;height:32px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center}
-.logo-dot svg{width:18px;height:18px}
+.logo-dot{width:40px;height:40px;border-radius:10px;overflow:hidden;flex-shrink:0}
+.logo-dot img{width:100%;height:100%;object-fit:contain;display:block}
 .logo-text{font-size:18px;font-weight:600}
 .lf label{display:block;font-size:12px;color:var(--text-sub);margin-bottom:5px;font-weight:500}
 .lf input{width:100%;height:42px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text);font-size:14px;outline:none;margin-bottom:12px;transition:border-color .15s}
@@ -707,10 +707,10 @@ button,a,[role="button"]{touch-action:manipulation}
 <div id="loginPage" class="page active">
   <div class="login-wrap">
     <div class="login-logo">
-      <div class="logo-dot"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2L10.8 6.5H15.5L11.6 9.3L13.1 14L9 11.2L4.9 14L6.4 9.3L2.5 6.5H7.2L9 2Z" fill="white"/></svg></div>
+      <div class="logo-dot"><img src="/icon-192.png" alt="STEP"/></div>
       <div>
         <div class="logo-text">STEP</div>
-        <div style="font-size:10px;color:var(--text-hint);letter-spacing:.3px;margin-top:1px">Seobu Together Empathy Platform</div>
+        <div style="font-size:10px;color:var(--text-hint);letter-spacing:.3px;margin-top:1px">서부 투게더 엠퍼시 플랫폼</div>
       </div>
     </div>
     <!-- 로그인 폼 -->
@@ -739,7 +739,7 @@ button,a,[role="button"]{touch-action:manipulation}
   <div class="appbar">
     <div onclick="forceUpdate()" style="cursor:pointer;flex:1">
       <div class="appbar-title">STEP</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">Seobu Together Empathy Platform</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.3px;margin-top:-1px">서부 투게더 엠퍼시 플랫폼</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <button id="quizEventBtn" onclick="openQuizModal()" style="display:none;background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:20px;line-height:1;align-items:center">🎉</button>
@@ -1006,7 +1006,11 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <div class="more-group" id="moreAdminGroup" style="display:none">
       <button class="more-row" onclick="openAdminModal()">
-        <span class="more-row-label">관리자 패널</span>
+        <span class="more-row-label">관리자 패널 <span style="font-size:11px;color:var(--text-hint);font-weight:400">사용자·접속이력·에이전트·통계</span></span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="more-row" onclick="openOpsModal()">
+        <span class="more-row-label">운영 도구 <span style="font-size:11px;color:var(--text-hint);font-weight:400">퀴즈·사진투표 관리</span></span>
         <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
       </button>
       <button class="more-row" onclick="openEventSheet()">
@@ -1612,13 +1616,11 @@ button,a,[role="button"]{touch-action:manipulation}
     </div>
     <!-- 관리자 탭 -->
     <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
-      <button class="adm-tab active" id="admTab-users" onclick="switchAdmTab('users')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사용자</button>
-      <button class="adm-tab" id="admTab-logs" onclick="switchAdmTab('logs')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">접속이력</button>
-      <button class="adm-tab" id="admTab-push" onclick="switchAdmTab('push')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">푸시알림</button>
-      <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
-      <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
-      <button class="adm-tab" id="admTab-quiz" onclick="switchAdmTab('quiz')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
-      <button class="adm-tab" id="admTab-event" onclick="switchAdmTab('event')" style="flex:1;padding:10px 4px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">이벤트</button>
+      <button class="adm-tab active" id="admTab-users" onclick="switchAdmTab('users')" style="flex:1;padding:11px 6px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사용자</button>
+      <button class="adm-tab" id="admTab-logs" onclick="switchAdmTab('logs')" style="flex:1;padding:11px 6px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">접속이력</button>
+      <button class="adm-tab" id="admTab-push" onclick="switchAdmTab('push')" style="flex:1;padding:11px 6px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">푸시알림</button>
+      <button class="adm-tab" id="admTab-agent" onclick="switchAdmTab('agent')" style="flex:1;padding:11px 6px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">에이전트</button>
+      <button class="adm-tab" id="admTab-stats" onclick="switchAdmTab('stats')" style="flex:1;padding:11px 6px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">통계</button>
     </div>
     <div class="modal-body" style="padding:0">
 
@@ -1761,8 +1763,41 @@ button,a,[role="button"]{touch-action:manipulation}
         </div>
       </div>
 
+      <!-- ── 통계 탭 ── -->
+      <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
+        <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일 무료</span></div>
+        <div id="naverUsageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Workers AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주 (무료)</span></div>
+        <div id="workersAiStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">llama-3.3-70b · 무료 (일 ~10,000 뉴런)</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">법제처 Open API <span style="font-size:11px;font-weight:400;color:#0277bd;background:#e1f5fe;padding:2px 8px;border-radius:10px">무료</span></div>
+        <div id="lawUsageStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">STEP-OPENAPI · 법령/판례/AI 질문 · 제한 없음</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:#5c6bc0;background:#e8eaf6;padding:2px 8px;border-radius:10px">폴백1</span></div>
+        <div id="geminiStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백2</span></div>
+        <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<!-- ════ 운영 도구 모달 ════ -->
+<div class="modal-overlay center" id="opsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">운영 도구</span>
+      <button class="modal-close" onclick="$('opsModal').classList.remove('open')">×</button>
+    </div>
+    <div style="display:flex;border-bottom:1px solid var(--border);background:#fafafa">
+      <button class="adm-tab active" id="opsTab-quiz" onclick="switchOpsTab('quiz')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">퀴즈</button>
+      <button class="adm-tab" id="opsTab-photo" onclick="switchOpsTab('photo')" style="flex:1;padding:11px 6px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-sub)">사진투표</button>
+    </div>
+    <div class="modal-body" style="padding:0">
       <!-- ── 퀴즈 탭 ── -->
-      <div id="admPane-quiz" class="adm-pane" style="display:none;padding:16px">
+      <div id="admPane-quiz" class="adm-pane" style="padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">OX 퀴즈</div>
         <!-- 대상 그룹 선택 -->
         <div style="margin-bottom:10px">
@@ -1825,32 +1860,12 @@ button,a,[role="button"]{touch-action:manipulation}
           <button id="adminForceCloseBtn" class="btn-sm danger" onclick="adminForceClose()" style="justify-content:center;background:#b71c1c;color:#fff">⚠ 강제 초기화</button>
         </div>
       </div>
-
-      <!-- ── 통계 탭 ── -->
-      <div id="admPane-stats" class="adm-pane" style="display:none;padding:16px">
-        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">저장 공간</div>
-        <div id="storageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">네이버 뉴스 API <span style="font-size:11px;font-weight:400;color:#03c75a;background:#e6f7ef;padding:2px 8px;border-radius:10px">25,000회/일 무료</span></div>
-        <div id="naverUsageStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Workers AI <span style="font-size:11px;font-weight:400;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:10px">주 (무료)</span></div>
-        <div id="workersAiStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">llama-3.3-70b · 무료 (일 ~10,000 뉴런)</div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">법제처 Open API <span style="font-size:11px;font-weight:400;color:#0277bd;background:#e1f5fe;padding:2px 8px;border-radius:10px">무료</span></div>
-        <div id="lawUsageStats" style="margin-bottom:4px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:11px;color:var(--text-hint);margin-bottom:20px">STEP-OPENAPI · 법령/판례/AI 질문 · 제한 없음</div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Gemini API <span style="font-size:11px;font-weight:400;color:#5c6bc0;background:#e8eaf6;padding:2px 8px;border-radius:10px">폴백1</span></div>
-        <div id="geminiStats" style="margin-bottom:20px"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">Claude API <span style="font-size:11px;font-weight:400;color:#ff8a65;background:#fff3e0;padding:2px 8px;border-radius:10px">폴백2</span></div>
-        <div id="claudeStats"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
-      </div>
-
-      <!-- ── 이벤트 탭 ── -->
+      <!-- ── 사진투표 탭 ── -->
       <div id="admPane-event" class="adm-pane" style="display:none;padding:16px">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">사진 투표 행사 관리</div>
         <button class="btn-sm primary" onclick="openCreatePhotoContest()" style="width:100%;justify-content:center;margin-bottom:14px">+ 새 행사 만들기</button>
         <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
-
     </div>
   </div>
 </div>
@@ -2721,13 +2736,14 @@ function _lawGoUrl(lawtype,lawName,id,mst){
   if(mst) return`https://www.law.go.kr/lsEfInfoP.do?lsiSeq=${encodeURIComponent(mst)}`;
   return`https://www.law.go.kr/lsInfoP.do?lsiSeq=${encodeURIComponent(id)}`;
 }
-function _lawFallbackHtml(lawtype,lawName,id,mst){
+function _lawFallbackHtml(lawtype,lawName,id,mst,msg){
   const url=_lawGoUrl(lawtype,lawName,id,mst);
   const label=lawtype==='prec'?'판례':lawtype==='expc'?'해석례':'법령';
+  const bodyMsg=msg||'앱 내에서 직접 표시하지 못했습니다.<br>법제처에서 전문을 확인하세요.';
   return`<div style="padding:28px 16px;text-align:center">
     <div style="font-size:28px;margin-bottom:10px">⚖️</div>
     <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">${escHtml(lawName||label)} 본문</div>
-    <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px;line-height:1.6">앱 내에서 직접 표시하지 못했습니다.<br>법제처에서 전문을 확인하세요.</div>
+    <div style="font-size:13px;color:var(--text-hint);margin-bottom:20px;line-height:1.6">${bodyMsg}</div>
     <a href="${escHtml(url)}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 28px;background:var(--green);color:#fff;border-radius:10px;font-size:15px;font-weight:700;text-decoration:none">법제처에서 열기 →</a>
   </div>`;
 }
@@ -2743,7 +2759,11 @@ async function openLawContent(id,lawName,lawtype,mst){
     const data=await fetch(`${API}/api/law-content?${qs}`).then(r=>r.json());
     if(data.error||!data.html||!data.html.trim()||data.html.includes('법제처에서 보기')){
       const dbg=data.debug?.join(' | ')||'';
-      $('lawContentBody').innerHTML=_lawFallbackHtml(lawtype,lawName,id,mst)
+      const is525=dbg.includes('525')||dbg.toLowerCase().includes('ssl handshake');
+      const errMsg=is525
+        ?'law.go.kr 서버 일시 오류 (SSL 525)입니다.<br>잠시 후 다시 시도하거나 법제처에서 직접 확인해 주세요.'
+        :(data.error?`오류: ${escHtml(data.error)}<br>법제처에서 전문을 확인하세요.`:null);
+      $('lawContentBody').innerHTML=_lawFallbackHtml(lawtype,lawName,id,mst,errMsg)
         +(dbg?`<div style="padding:6px 14px 10px;font-size:10px;color:var(--text-hint);word-break:break-all">${escHtml(dbg)}</div>`:'')+
         `<div style="text-align:center;padding:0 14px 16px"><button onclick="openLawContent('${escHtml(id||'')}','${escHtml(lawName||'')}','${escHtml(lawtype||'')}','${escHtml(mst||'')}')" style="font-size:12px;color:var(--text-hint);background:none;border:1px solid var(--border);border-radius:6px;padding:6px 14px;cursor:pointer">다시 시도</button></div>`;
       return;
@@ -3132,7 +3152,7 @@ function postCardHtml(p){
     if(p.status==='draft'){mmInner+=`<button onclick="publishPost('${key}')">공개하기</button>`;}
     else if(p.status==='hidden'){mmInner+=`<button onclick="unhidePost('${key}')">공개</button>`;}
     else{mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
-    if(isAdm){mmInner+=isPinned?`<button onclick="togglePinPost('${key}',false)">📌 고정 해제</button>`:`<button onclick="togglePinPost('${key}',true)">📌 상단 고정</button>`;}
+    if(isAdm && p.status !== 'draft'){mmInner+=isPinned?`<button onclick="togglePinPost('${key}',false)">📌 고정 해제</button>`:`<button onclick="togglePinPost('${key}',true)">📌 상단 고정</button>`;}
     mmInner+=`<button class="danger" onclick="deletePost('${key}')">삭제</button>`;
   }else if(isAdm){
     if(p.status!=='hidden'){mmInner+=`<button onclick="hidePost('${key}')">숨김</button>`;}
@@ -6366,7 +6386,7 @@ function loadAdminStats(){
 
 // ── 관리자 탭 전환 ──
 function switchAdmTab(tab){
-  ['users','logs','push','agent','stats','quiz','event'].forEach(t=>{
+  ['users','logs','push','agent','stats'].forEach(t=>{
     const btn=$('admTab-'+t),pane=$('admPane-'+t);
     if(!btn||!pane)return;
     const isActive=t===tab;
@@ -6376,9 +6396,24 @@ function switchAdmTab(tab){
   });
   if(tab==='logs') loadLoginLogs();
   if(tab==='push') loadPushLogs();
-  if(tab==='quiz') loadAdminQuizStatus();
-  if(tab==='event') renderAdmPhotoContests();
   if(tab==='stats') loadAdminStats();
+}
+function switchOpsTab(tab){
+  ['quiz','photo'].forEach(t=>{
+    const btn=$('opsTab-'+t);
+    const pane=t==='quiz'?$('admPane-quiz'):$('admPane-event');
+    if(!btn||!pane)return;
+    const isActive=t===tab;
+    btn.style.borderBottomColor=isActive?'var(--green)':'transparent';
+    btn.style.color=isActive?'var(--green)':'var(--text-sub)';
+    pane.style.display=isActive?'':'none';
+  });
+  if(tab==='quiz') loadAdminQuizStatus();
+  if(tab==='photo') renderAdmPhotoContests();
+}
+function openOpsModal(){
+  switchOpsTab('quiz');
+  $('opsModal').classList.add('open');
 }
 
 // ── 접속 이력 ──
