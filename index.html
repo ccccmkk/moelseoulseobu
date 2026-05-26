@@ -953,12 +953,14 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
       <div id="kudosList"></div>
 
-      <!-- 섹션 3: 경조사 소식 -->
-      <div class="section-hd">
-        <span class="section-title">경조사 소식</span>
-        <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
+      <!-- 섹션 3: 경조사 소식 (숨김) -->
+      <div id="chalEventsSection" style="display:none">
+        <div class="section-hd">
+          <span class="section-title">경조사 소식</span>
+          <button class="btn-sm primary" onclick="openEventModal()">+ 추가</button>
+        </div>
+        <div id="chalEventsList"></div>
       </div>
-      <div id="chalEventsList"></div>
     </div>
 
     <!-- 행사 서브탭 내용 -->
