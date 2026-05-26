@@ -362,6 +362,7 @@ async function initDB(env) {
     "ALTER TABLE restaurants ADD COLUMN lng REAL DEFAULT NULL",
     "ALTER TABLE restaurants ADD COLUMN walk_sec INTEGER DEFAULT NULL",
     "ALTER TABLE photo_contests ADD COLUMN folder_id TEXT DEFAULT NULL",
+    "ALTER TABLE events ADD COLUMN hidden INTEGER DEFAULT 0",
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -1491,6 +1492,17 @@ export default {
         await env.DB.prepare('INSERT INTO events(id,author,type,title,content,tagged_user,created_at) VALUES(?,?,?,?,?,?,?)')
           .bind(id, b.author, b.type || '기타', b.title, b.content || '', b.tagged_user || '', Math.floor(Date.now() / 1000)).run();
         return json({ id });
+      }
+      if (p.match(/^\/api\/events\/[^/]+$/) && m === 'PATCH') {
+        const id = p.split('/')[3];
+        const b = await request.json();
+        const t = b.token || url.searchParams.get('token') || request.headers.get('Authorization')?.replace('Bearer ', '');
+        const s = t ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(t).first() : null;
+        if (!s) return json({ error: 'unauthorized' }, 401);
+        const ro = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(s.user_id).first();
+        if (ro?.role !== 'admin' && ro?.role !== 'sub_admin') return json({ error: 'forbidden' }, 403);
+        await env.DB.prepare('UPDATE events SET hidden=? WHERE id=?').bind(b.hidden ? 1 : 0, id).run();
+        return json({ ok: true });
       }
       if (p.match(/^\/api\/events\/[^/]+$/) && m === 'DELETE') {
         const id = p.split('/')[3];

@@ -109,10 +109,9 @@ body.font-xl .modal{max-height:65dvh!important}
 .post-img-wrap img{width:100%;display:block;max-height:480px;object-fit:cover}
 .post-img-grid{display:grid;gap:2px}
 .post-img-grid.two{grid-template-columns:1fr 1fr}
-.post-img-grid.two img,.post-img-grid.three img{width:100%;height:200px;object-fit:cover;cursor:zoom-in;display:block}
-.post-img-grid.three{grid-template-columns:1fr 1fr}
-.post-img-grid.three .img-main{grid-column:1/-1}
-.post-img-grid.three .img-main img{height:260px}
+.post-img-grid.two .pig-cell img{width:100%;height:220px;object-fit:cover;cursor:zoom-in;display:block}
+.post-img-grid.multi{grid-template-columns:1fr 1fr 1fr}
+.post-img-grid.multi .pig-cell img{width:100%;height:130px;object-fit:cover;cursor:zoom-in;display:block}
 .block-caption{font-size:12px;color:var(--text-sub);padding:6px 14px;background:#fafafa;border-top:1px solid var(--border)}
 .block-text{font-size:14px;line-height:1.75;padding:8px 14px;color:var(--text)}
 .post-actions{padding:6px 10px 8px;display:flex;align-items:center;gap:12px}
@@ -2924,9 +2923,10 @@ function renderBlocksInCard(p,blogMode){
   if(imgs.length===1){
     html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(imgs[0].url)}')"><img src="${imgUrl(imgs[0].url)}" loading="lazy" decoding="async"/></div>`;
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
-  }else if(imgs.length>=2){
-    const cid='car-'+p.id;
-    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${imgUrl(i.url)}" loading="lazy" onclick="openLightbox('${imgUrl(i.url)}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
+  }else if(imgs.length===2){
+    html+=`<div class="post-img-grid two">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
+  }else if(imgs.length>=3){
+    html+=`<div class="post-img-grid multi">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
   }
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   const linkBlocks=p.blocks.filter(b=>b.type==='link');
@@ -3113,8 +3113,8 @@ function renderFeed(){
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
   const stripHtml=_evtStripHtml();
-  if(!posts.length){feed.innerHTML=compose+stripHtml+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
-  feed.innerHTML=compose+stripHtml+posts.map(p=>postCardHtml(p)).join('');
+  if(!posts.length){feed.innerHTML=stripHtml+compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
+  feed.innerHTML=stripHtml+compose+posts.map(p=>postCardHtml(p)).join('');
   $('composeBox').onclick=openWriteModal;
   initCarousels();
   setupFeedObserver();
@@ -5013,9 +5013,10 @@ async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetc
 
 // ── 피드 이벤트 스트립 ──
 function _evtStripHtml(){
-  if(!evtNotices.length)return'';
-  if(evtNotices.length===1){
-    const e=evtNotices[0];
+  const active=evtNotices.filter(e=>!e.hidden);
+  if(!active.length)return'';
+  if(active.length===1){
+    const e=active[0];
     const isFeed=e.type==='피드이벤트',isCmt=e.type==='댓글이벤트';
     const icon=isFeed?'🎯':isCmt?'💬':'📅';
     const title=isFeed?`피드 이벤트: ${escHtml(e.title)}`:isCmt?`댓글 이벤트: ${escHtml(e.title)}`:`공지: ${escHtml(e.title)}`;
@@ -5023,17 +5024,18 @@ function _evtStripHtml(){
     return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icon}</span><div class="event-strip-body"><div class="event-strip-title">${title}</div><div class="event-strip-sub">${sub}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
   }
   const typeIcons={'피드이벤트':'🎯','댓글이벤트':'💬','공지':'📅'};
-  const icons=[...new Set(evtNotices.map(e=>typeIcons[e.type]||'📅'))].join('');
-  const uniq=[...new Set(evtNotices.map(e=>e.type==='피드이벤트'?'피드이벤트':e.type==='댓글이벤트'?'댓글이벤트':'공지'))];
-  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icons}</span><div class="event-strip-body"><div class="event-strip-title">이벤트 <b>${evtNotices.length}개</b> 진행중</div><div class="event-strip-sub">${uniq.join(' · ')}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  const icons=[...new Set(active.map(e=>typeIcons[e.type]||'📅'))].join('');
+  const uniq=[...new Set(active.map(e=>e.type==='피드이벤트'?'피드이벤트':e.type==='댓글이벤트'?'댓글이벤트':'공지'))];
+  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icons}</span><div class="event-strip-body"><div class="event-strip-title">이벤트 <b>${active.length}개</b> 진행중</div><div class="event-strip-sub">${uniq.join(' · ')}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
 }
 function _updateEvtStrip(){
   const feed=$('feed');if(!feed)return;
   let strip=feed.querySelector('.event-strip');
-  if(!evtNotices.length){if(strip)strip.remove();return;}
+  const active=evtNotices.filter(e=>!e.hidden);
+  if(!active.length){if(strip)strip.remove();return;}
   const html=_evtStripHtml();
   if(strip){const d=document.createElement('div');d.innerHTML=html;strip.replaceWith(d.firstChild);}
-  else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.after(d.firstChild);}}
+  else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.before(d.firstChild);}}
 }
 async function openEventSheet(){
   $('evtSheetAddBtn').style.display=(currentUserRole==='admin'||currentUserRole==='sub_admin')?'':'none';
@@ -5049,11 +5051,13 @@ function renderEvtSheet(stats){
   const isAdmin=currentUserRole==='admin'||currentUserRole==='sub_admin';
   let statsHtml='';
   if(stats){statsHtml=`<div style="background:var(--green-light);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:13px;color:var(--green-dark);display:flex;gap:16px"><span>📝 게시글 <b>${stats.post_count}</b>개</span><span>💬 댓글 <b>${stats.comment_count}</b>개</span></div>`;}
-  if(!evtNotices.length){list.innerHTML=statsHtml+'<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
-  list.innerHTML=statsHtml+evtNotices.map(e=>{
+  const visible=isAdmin?evtNotices:evtNotices.filter(e=>!e.hidden);
+  if(!visible.length){list.innerHTML=statsHtml+'<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
+  list.innerHTML=statsHtml+visible.map(e=>{
     const canDel=currentUserRole==='admin';
     const isFeed=e.type==='피드이벤트';
     const isCmt=e.type==='댓글이벤트';
+    const isHidden=!!e.hidden;
     const target=parseInt(e.tagged_user)||0;
     let badge,body;
     if(isFeed){
@@ -5068,7 +5072,9 @@ function renderEvtSheet(stats){
       badge=`<span class="event-type-badge">공지</span>`;
       body=`<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}`;
     }
-    return`<div class="event-card"><div class="event-info">${badge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}</div>`;
+    const hiddenBadge=isHidden?`<span class="event-type-badge" style="background:#eee;color:#999">일시중단</span>`:'';
+    const adminBtns=isAdmin?`${isHidden?`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:var(--green-light);color:var(--green-dark);border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',false)">재개</button>`:`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#f5f5f5;color:#666;border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',true)">숨기기</button>`}${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}`:''
+    return`<div class="event-card" style="${isHidden?'opacity:.5':''}"><div class="event-info">${badge}${hiddenBadge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">${adminBtns}</div></div>`;
   }).join('');
 }
 function toggleEvtNoticeFields(){
@@ -5111,16 +5117,22 @@ function _showMilestonePopup(title,reward){
   $('feedEventPopup').classList.add('show');
 }
 function _checkFeedEventMilestone(postCount){
-  for(const evt of evtNotices.filter(e=>e.type==='피드이벤트')){
+  for(const evt of evtNotices.filter(e=>e.type==='피드이벤트'&&!e.hidden)){
     const target=parseInt(evt.tagged_user)||0;
     if(target>0&&postCount===target){_showMilestonePopup(`🎊 ${target}번째 게시글 달성!`,evt.content);return;}
   }
 }
 function _checkCommentEventMilestone(commentCount){
-  for(const evt of evtNotices.filter(e=>e.type==='댓글이벤트')){
+  for(const evt of evtNotices.filter(e=>e.type==='댓글이벤트'&&!e.hidden)){
     const target=parseInt(evt.tagged_user)||0;
     if(target>0&&commentCount===target){_showMilestonePopup(`🎊 ${target}번째 댓글 달성!`,evt.content);return;}
   }
+}
+async function toggleEvtHidden(id,hide){
+  await fetch(`${API}/api/events/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({hidden:hide?1:0,token:sessionToken})});
+  const idx=evtNotices.findIndex(e=>e.id===id);
+  if(idx>=0)evtNotices[idx]={...evtNotices[idx],hidden:hide?1:0};
+  _updateEvtStrip();renderEvtSheet();
 }
 async function deleteEvtNotice(id){
   if(!confirm('삭제할까요?'))return;
