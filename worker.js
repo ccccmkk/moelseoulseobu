@@ -963,20 +963,20 @@ export default {
 
       // ── 쪽지 ──
       if (p === '/api/notes' && m === 'POST') {
-        const { token, category, content } = await req.json().catch(() => ({}));
+        const { token, content } = await request.json().catch(() => ({}));
         if (!token || !content) return json({ error: '필수 항목 누락' }, 400);
         const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token).first();
         if (!sess) return json({ error: '인증 필요' }, 401);
         const u = await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(sess.user_id).first();
         const id = crypto.randomUUID();
         await env.DB.prepare('INSERT INTO notes(id,from_user,from_name,category,content,created_at) VALUES(?,?,?,?,?,?)')
-          .bind(id, sess.user_id, u?.name || sess.user_id, category || '기타', content.slice(0, 1000), Math.floor(Date.now()/1000))
+          .bind(id, sess.user_id, u?.name || sess.user_id, '쪽지', content.slice(0, 1000), Math.floor(Date.now()/1000))
           .run();
         return json({ ok: true });
       }
 
       if (p === '/api/admin/notes' && m === 'GET') {
-        const token = new URL(req.url).searchParams.get('token');
+        const token = new URL(request.url).searchParams.get('token');
         const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token||'').first();
         if (!sess) return json({ error: '인증 필요' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
@@ -987,7 +987,7 @@ export default {
       }
 
       if (p.match(/^\/api\/admin\/notes\/[^/]+\/read$/) && m === 'PATCH') {
-        const token = new URL(req.url).searchParams.get('token');
+        const token = new URL(request.url).searchParams.get('token');
         const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token||'').first();
         if (!sess) return json({ error: '인증 필요' }, 401);
         const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
