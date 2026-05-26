@@ -17,7 +17,7 @@ html{background:#f5f5f5}html,body{overscroll-behavior-y:none}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --green:#0a808f;--green-dark:#076672;--green-light:#e0f4f6;
-  --bg:#f5f5f5;--border:#e8e8e8;
+  --bg:#f5f5f5;--card:#fff;--border:#e8e8e8;
   --text:#1a1a1a;--text-sub:#555;--text-hint:#aaa;
   --danger:#e53935;--radius:12px;--radius-sm:8px;
 }
@@ -210,6 +210,13 @@ body.font-xl .modal{max-height:65dvh!important}
 .event-strip-body{flex:1;min-width:0}
 .event-strip-title{font-size:13px;font-weight:700;color:var(--green-dark)}
 .event-strip-sub{font-size:12px;color:var(--text-sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#feedEventPopup{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:3000;align-items:center;justify-content:center;padding:20px}
+#feedEventPopup.show{display:flex}
+.feed-evt-popup-box{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:300px;width:100%;animation:modalSlideUp .3s cubic-bezier(0.25,0.46,0.45,0.94)}
+.feed-evt-popup-emoji{font-size:52px;display:block;margin-bottom:12px}
+.feed-evt-popup-title{font-size:20px;font-weight:800;color:var(--green-dark);margin-bottom:8px;line-height:1.3}
+.feed-evt-popup-reward{font-size:14px;color:var(--text-sub);margin-bottom:20px;line-height:1.5}
+.feed-evt-popup-close{background:var(--green);color:#fff;border:none;border-radius:24px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
 /* 칭찬합니다 (kudos) */
 .kudos-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px}
 .kudos-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
@@ -959,6 +966,10 @@ button,a,[role="button"]{touch-action:manipulation}
       </div>
     </div>
     <div class="more-group">
+      <button class="more-row" onclick="openUserProfile(currentUser)">
+        <span class="more-row-label">내 게시물</span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
       <button class="more-row" onclick="openProfileModal()">
         <span class="more-row-label">내 프로필</span>
         <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
@@ -1273,17 +1284,38 @@ button,a,[role="button"]{touch-action:manipulation}
 <div class="modal-overlay center" id="evtNoticeModal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">이벤트 공지 추가</span>
+      <span class="modal-title">이벤트 추가</span>
       <button class="modal-close" onclick="$('evtNoticeModal').classList.remove('open')">×</button>
     </div>
     <div class="modal-body" style="padding:16px">
+      <div class="form-row">
+        <label>종류</label>
+        <select id="evtNoticeType" onchange="toggleEvtNoticeFields()">
+          <option value="공지">공지</option>
+          <option value="피드이벤트">피드 이벤트 (N번째 글 보상)</option>
+        </select>
+      </div>
       <div class="form-row"><label>제목</label><input type="text" id="evtNoticeTitle" placeholder="이벤트 제목"/></div>
-      <div class="form-row"><label>내용 (선택)</label><textarea id="evtNoticeContent" rows="4" placeholder="이벤트 내용을 입력하세요"></textarea></div>
+      <div id="evtNoticeFeedFields" style="display:none">
+        <div class="form-row"><label>목표 게시수</label><input type="number" id="evtNoticeTarget" placeholder="예: 10" min="1" style="width:100%"/></div>
+        <div class="form-row"><label>보상 내용</label><input type="text" id="evtNoticeReward" placeholder="예: 편의점 상품권 1만원"/></div>
+      </div>
+      <div class="form-row" id="evtNoticeContentRow"><label>내용 (선택)</label><textarea id="evtNoticeContent" rows="3" placeholder="이벤트 내용을 입력하세요"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm" onclick="$('evtNoticeModal').classList.remove('open')">취소</button>
       <button class="btn-sm primary" onclick="submitEvtNotice()">등록</button>
     </div>
+  </div>
+</div>
+
+<!-- ════ 피드 이벤트 달성 팝업 ════ -->
+<div id="feedEventPopup" onclick="$('feedEventPopup').classList.remove('show')">
+  <div class="feed-evt-popup-box" onclick="event.stopPropagation()">
+    <span class="feed-evt-popup-emoji">🎉</span>
+    <div class="feed-evt-popup-title" id="feedEvtPopupTitle"></div>
+    <div class="feed-evt-popup-reward" id="feedEvtPopupReward"></div>
+    <button class="feed-evt-popup-close" onclick="$('feedEventPopup').classList.remove('show')">확인</button>
   </div>
 </div>
 
@@ -3074,7 +3106,7 @@ function renderFeed(){
   cleanupYtPlayers();
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
-  const stripHtml=evtNotices.length?`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">📅</span><div class="event-strip-body"><div class="event-strip-title">진행중인 이벤트 ${evtNotices.length}건</div><div class="event-strip-sub">${escHtml(evtNotices[0].title)}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`:'';
+  const stripHtml=_evtStripHtml();
   if(!posts.length){feed.innerHTML=compose+stripHtml+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
   feed.innerHTML=compose+stripHtml+posts.map(p=>postCardHtml(p)).join('');
   $('composeBox').onclick=openWriteModal;
@@ -4013,6 +4045,7 @@ $('submitPost').onclick=async function(){
       const div=document.createElement('div');div.innerHTML=postCardHtml(newPost);
       feed.insertBefore(div.firstChild,compose?compose.nextSibling:feed.firstChild);
       initCarousels();
+      if(d.post_count)_checkFeedEventMilestone(d.post_count);
     }
     _closeWriteModal();
   }catch(e){alert('저장 실패: '+e.message);}finally{$('submitPost').disabled=false;}
@@ -4969,11 +5002,19 @@ async function submitEvent(){
 async function deleteEvent(id){if(!confirm('삭제할까요?'))return;await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});events=events.filter(e=>e.id!==id);renderEvents();renderChalEvents();}
 
 // ── 피드 이벤트 스트립 ──
+function _evtStripHtml(){
+  if(!evtNotices.length)return'';
+  const feedEvt=evtNotices.find(e=>e.type==='피드이벤트');
+  const icon=feedEvt?'🎯':'📅';
+  const title=feedEvt?`피드 이벤트: ${escHtml(feedEvt.title)}`:`진행중인 이벤트 ${evtNotices.length}건`;
+  const sub=feedEvt?`${feedEvt.tagged_user}번째 글 작성자에게 ${escHtml(feedEvt.content)}`:`${escHtml(evtNotices[0].title)}`;
+  return`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">${icon}</span><div class="event-strip-body"><div class="event-strip-title">${title}</div><div class="event-strip-sub">${sub}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+}
 function _updateEvtStrip(){
   const feed=$('feed');if(!feed)return;
   let strip=feed.querySelector('.event-strip');
   if(!evtNotices.length){if(strip)strip.remove();return;}
-  const html=`<div class="event-strip" onclick="openEventSheet()"><span style="font-size:20px;flex-shrink:0">📅</span><div class="event-strip-body"><div class="event-strip-title">진행중인 이벤트 ${evtNotices.length}건</div><div class="event-strip-sub">${escHtml(evtNotices[0].title)}</div></div><span style="color:var(--green-dark);font-size:18px;flex-shrink:0">›</span></div>`;
+  const html=_evtStripHtml();
   if(strip){const d=document.createElement('div');d.innerHTML=html;strip.replaceWith(d.firstChild);}
   else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.after(d.firstChild);}}
 }
@@ -4987,19 +5028,56 @@ function renderEvtSheet(){
   if(!evtNotices.length){list.innerHTML='<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
   list.innerHTML=evtNotices.map(e=>{
     const canDel=currentUserRole==='admin';
-    return`<div class="event-card"><div class="event-info"><div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}<div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}</div>`;
+    const isFeed=e.type==='피드이벤트';
+    const target=isFeed?parseInt(e.tagged_user)||0:0;
+    const badge=isFeed?`<span class="event-type-badge" style="background:#fff3e0;color:#e65100">🎯 피드이벤트</span>`:`<span class="event-type-badge">공지</span>`;
+    const body=isFeed
+      ?`<div class="event-title">${escHtml(e.title)}</div><div class="event-content">목표: <b>${target}번째 게시글</b> · 보상: ${escHtml(e.content)}</div>`
+      :`<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}`;
+    return`<div class="event-card"><div class="event-info">${badge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div>${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}</div>`;
   }).join('');
 }
+function toggleEvtNoticeFields(){
+  const isFeed=$('evtNoticeType').value==='피드이벤트';
+  $('evtNoticeFeedFields').style.display=isFeed?'':'none';
+  $('evtNoticeContentRow').style.display=isFeed?'none':'';
+}
 function openEvtNoticeModal(){
+  $('evtNoticeType').value='공지';
   $('evtNoticeTitle').value='';$('evtNoticeContent').value='';
+  $('evtNoticeTarget').value='';$('evtNoticeReward').value='';
+  toggleEvtNoticeFields();
   $('evtNoticeModal').classList.add('open');
 }
 async function submitEvtNotice(){
+  const type=$('evtNoticeType').value;
   const title=$('evtNoticeTitle').value.trim();if(!title){alert('제목을 입력해주세요.');return;}
-  const r=await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type:'공지',title,content:$('evtNoticeContent').value.trim(),token:sessionToken})});
+  let content='',tagged_user='';
+  if(type==='피드이벤트'){
+    const target=parseInt($('evtNoticeTarget').value)||0;
+    if(!target||target<1){alert('목표 게시수를 입력해주세요.');return;}
+    const reward=$('evtNoticeReward').value.trim();
+    if(!reward){alert('보상 내용을 입력해주세요.');return;}
+    tagged_user=String(target);content=reward;
+  } else {
+    content=$('evtNoticeContent').value.trim();
+  }
+  const r=await fetch(`${API}/api/events`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author:currentUser,type,title,content,tagged_user,token:sessionToken})});
   if(!r.ok){alert('등록에 실패했습니다.');return;}
   $('evtNoticeModal').classList.remove('open');
   await fetchEvtNotices();_updateEvtStrip();renderEvtSheet();
+}
+function _checkFeedEventMilestone(postCount){
+  const feedEvts=evtNotices.filter(e=>e.type==='피드이벤트');
+  for(const evt of feedEvts){
+    const target=parseInt(evt.tagged_user)||0;
+    if(target>0&&postCount===target){
+      $('feedEvtPopupTitle').textContent=`🎊 ${target}번째 게시글 달성!`;
+      $('feedEvtPopupReward').textContent=`보상: ${escHtml(evt.content)}\n\n축하합니다! 관리자에게 문의하세요.`;
+      $('feedEventPopup').classList.add('show');
+      return;
+    }
+  }
 }
 async function deleteEvtNotice(id){
   if(!confirm('삭제할까요?'))return;

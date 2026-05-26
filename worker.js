@@ -1217,7 +1217,12 @@ export default {
             .bind(id, b.keyword, b.keyword).run();
         }
         ctx.waitUntil(addMileageDB(env, b.author, 2));
-        return json({ id });
+        let post_count = 0;
+        if (postStatus === 'published') {
+          const cnt = await env.DB.prepare("SELECT COUNT(*) as c FROM posts WHERE status='published'").first();
+          post_count = cnt?.c || 0;
+        }
+        return json({ id, post_count });
       }
 
       // ── 조회수 증가 ──
