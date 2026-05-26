@@ -3536,9 +3536,11 @@ function _closeAllMenus(){
 }
 function toggleMenu(e,btn,id){
   e.stopPropagation();
-  _closeAllMenus();
   const menu=$(id);
   if(!menu)return;
+  const isOpen=menu.classList.contains('open');
+  _closeAllMenus();
+  if(isOpen)return;
   const r=btn.getBoundingClientRect();
   menu._origParent=menu.parentElement;
   document.body.appendChild(menu);
@@ -3554,6 +3556,7 @@ function toggleMenu(e,btn,id){
   }
 }
 document.addEventListener('click',_closeAllMenus);
+document.addEventListener('scroll',_closeAllMenus,true);
 async function toggleLike(postId){
   const p=posts.find(x=>x.id===postId);if(!p)return;
   const wasLiked=likedPosts.has(postId);
@@ -6527,7 +6530,7 @@ async function sendNote(){
   if(!content){$('noteErr').textContent='내용을 입력해주세요.';return;}
   $('noteErr').textContent='';
   try{
-    const r=await fetch(`${API}/api/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken,category,content})});
+    const r=await fetch(`${API}/api/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:sessionToken,content})});
     const d=await r.json();
     if(d.error){$('noteErr').textContent=d.error;return;}
     $('noteModal').classList.remove('open');
