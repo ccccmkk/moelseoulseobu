@@ -1,7 +1,7 @@
 {
-  "name": "STEP",
+  "name": "STEP — 서부 투게더 엠퍼시 플랫폼",
   "short_name": "STEP",
-  "description": "Seobu Together Empathy Platform",
+  "description": "서부 투게더 엠퍼시 플랫폼 (Seobu Together Empathy Platform)",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,16 +9,16 @@
   "orientation": "portrait",
   "icons": [
     {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/govt-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
     }
   ]
 }
