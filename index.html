@@ -126,7 +126,7 @@ body.font-xl .modal{max-height:65dvh!important}
 #lightboxImg{max-width:100%;max-height:calc(100dvh - 80px);object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;transition:opacity .2s}
 @keyframes lbSlideLeft{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}
 @keyframes lbSlideRight{from{transform:translateX(-60px);opacity:0}to{transform:translateX(0);opacity:1}}
-.lb-close{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001}
+.lb-close{position:fixed;top:14px;right:14px;background:rgba(0,0,0,.55);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1001;box-shadow:0 0 0 1.5px rgba(255,255,255,.35),0 2px 8px rgba(0,0,0,.4)}
 /* 모달 공통 — opacity만으로 GPU 레이어 유지, visibility 미사용 */
 .modal-overlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .22s ease;backface-visibility:hidden;transform:translateZ(0)}
 .modal-overlay.open{opacity:1;pointer-events:auto}
@@ -667,7 +667,7 @@ button,a,[role="button"]{touch-action:manipulation}
 .simple-drag-handle{position:absolute;top:0;left:0;color:#fff;font-size:20px;cursor:grab;text-shadow:0 1px 3px rgba(0,0,0,.8);line-height:1;user-select:none;padding:7px 8px 8px 7px;background:rgba(0,0,0,.28);border-radius:0 0 10px 0;}
 .fullscreen-modal{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100%!important;max-width:100%!important;height:100%!important;border-radius:0!important;z-index:2000!important;}
 .fullscreen-modal .modal-content{height:100%!important;max-height:100%!important;}
-.blog-toolbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:#fafafa;}
+.blog-toolbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:#fafafa;position:sticky;top:0;z-index:10;}
 .blog-toolbar button{padding:3px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text);}
 .blog-toolbar button:hover{background:#f0f0f0;}
 .blog-toolbar button.active{background:#1976d2;color:#fff;border-color:#1976d2;}
@@ -6261,7 +6261,7 @@ function _admUserHtml(list,flat=false){
 function _admRenderRow(u){
   const role=userRoles[u.id]||'user';const isAdmin=role==='admin';const isSubAdmin=role==='sub_admin';
   const dn=escHtml(u.name||u.id);const di=escHtml(u.id);
-  const lastSeenStr=u.last_seen?relDate(u.last_seen):'접속 없음';
+  const lastSeenStr=u.last_seen&&u.last_seen>0?`${relDate(u.last_seen)} (${fmtDT(u.last_seen)})`:'접속 기록 없음';
   const deptStr=escHtml(u.dept||'');
   const roleLabel=isAdmin?' · <b style="color:var(--green)">관리자</b>':isSubAdmin?' · <b style="color:var(--accent)">중간관리자</b>':'';
   const meta=`<div style="font-size:12px;color:var(--text-hint);margin-top:1px">${di} · ${lastSeenStr}${roleLabel}</div>`;
