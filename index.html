@@ -190,7 +190,8 @@ body.font-xl .modal{max-height:65dvh!important}
 .info-placeholder h3{font-size:16px;font-weight:700;margin-bottom:8px}
 .info-placeholder p{font-size:13px;color:var(--text-sub);line-height:1.65}
 /* 서부소식(경조사) */
-.event-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start}
+.event-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;margin-bottom:5px;display:flex;align-items:center;gap:7px}
+.event-card.ev-hidden{opacity:.45}
 .event-icon{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px}
 .event-icon.evt-결혼{background:#e91e8c}
 .event-icon.evt-출산{background:#2196f3}
@@ -199,12 +200,20 @@ body.font-xl .modal{max-height:65dvh!important}
 .event-icon.evt-승진{background:#4caf50}
 .event-icon.evt-기타{background:#9e9e9e}
 .event-info{flex:1}
-.event-type-badge{font-size:11px;font-weight:600;color:var(--green-dark);background:var(--green-light);padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:6px}
-.event-title{font-size:15px;font-weight:600;margin-bottom:4px}
+.event-type-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;flex-shrink:0;white-space:nowrap;display:inline-block}
+.event-badge-feed{background:#fff3e0;color:#e65100}
+.event-badge-cmt{background:#e8f5e9;color:#2e7d32}
+.event-badge-notice{background:var(--green-light);color:var(--green-dark)}
+.event-badge-hidden{background:#eee;color:#999}
+.event-title-row{flex:1;min-width:0}
+.event-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-reward{font-size:11px;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .event-content{font-size:13px;color:var(--text-sub);line-height:1.6}
-.event-meta{font-size:11px;color:var(--text-hint);margin-top:6px}
-.event-del{background:none;border:none;color:var(--text-hint);cursor:pointer;font-size:18px;padding:2px 6px;align-self:flex-start;line-height:1}
+.event-meta{font-size:10px;color:var(--text-hint);flex-shrink:0}
+.event-del{background:none;border:none;color:var(--text-hint);cursor:pointer;font-size:16px;padding:1px 4px;line-height:1;flex-shrink:0}
 .event-del:hover{color:var(--danger)}
+.ev-hide-btn{font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text-sub);flex-shrink:0;white-space:nowrap}
+.ev-hide-btn:hover{background:#f5f5f5}
 .event-strip{background:linear-gradient(135deg,#e8f5e9,#f0f9f4);border:1px solid var(--green-light);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:box-shadow .15s}
 .event-strip:hover{box-shadow:0 2px 8px rgba(10,128,143,.12)}
 .event-strip-body{flex:1;min-width:0}
@@ -5062,26 +5071,23 @@ function renderEvtSheet(stats){
   if(!visible.length){list.innerHTML=statsHtml+'<div class="empty-state"><div class="ei">📅</div>진행중인 이벤트가 없습니다.</div>';return;}
   list.innerHTML=statsHtml+visible.map(e=>{
     const canDel=currentUserRole==='admin';
-    const isFeed=e.type==='피드이벤트';
-    const isCmt=e.type==='댓글이벤트';
+    const isFeed=e.type==='피드이벤트', isCmt=e.type==='댓글이벤트';
     const isHidden=!!e.hidden;
-    const target=parseInt(e.tagged_user)||0;
-    let badge,body;
-    if(isFeed){
-      badge=`<span class="event-type-badge" style="background:#fff3e0;color:#e65100">🎯 피드이벤트</span>`;
-      const targetHtml=isAdmin&&target?`목표: <b>N번째 게시글</b> · `:'';
-      body=`<div class="event-title">${escHtml(e.title)}</div><div class="event-content">${targetHtml}보상: ${escHtml(e.content)}</div>`;
-    }else if(isCmt){
-      badge=`<span class="event-type-badge" style="background:#e8f5e9;color:#2e7d32">💬 댓글이벤트</span>`;
-      const targetHtml=isAdmin&&target?`목표: <b>N번째 댓글</b> · `:'';
-      body=`<div class="event-title">${escHtml(e.title)}</div><div class="event-content">${targetHtml}보상: ${escHtml(e.content)}</div>`;
-    }else{
-      badge=`<span class="event-type-badge">공지</span>`;
-      body=`<div class="event-title">${escHtml(e.title)}</div>${e.content?`<div class="event-content">${renderMd(e.content)}</div>`:''}`;
-    }
-    const hiddenBadge=isHidden?`<span class="event-type-badge" style="background:#eee;color:#999">일시중단</span>`:'';
-    const adminBtns=isAdmin?`${isHidden?`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:var(--green-light);color:var(--green-dark);border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',false)">재개</button>`:`<button class="btn-sm" style="font-size:11px;padding:3px 8px;background:#f5f5f5;color:#666;border:none;border-radius:4px;cursor:pointer" onclick="toggleEvtHidden('${e.id}',true)">숨기기</button>`}${canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:''}`:''
-    return`<div class="event-card" style="${isHidden?'opacity:.5':''}"><div class="event-info">${badge}${hiddenBadge}${body}<div class="event-meta">${relDate(e.created_at)}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">${adminBtns}</div></div>`;
+    const badgeCls=isFeed?'event-badge-feed':isCmt?'event-badge-cmt':'event-badge-notice';
+    const badgeTxt=isFeed?'🎯 피드':isCmt?'💬 댓글':'📅 공지';
+    const reward=(isFeed||isCmt)&&e.content?`<div class="event-reward">🎁 ${escHtml(e.content)}</div>`:'';
+    const hiddenBadge=isHidden?`<span class="event-type-badge event-badge-hidden">중단</span> `:'';
+    const hideBtn=isAdmin?(isHidden
+      ?`<button class="ev-hide-btn" onclick="toggleEvtHidden('${e.id}',false)">재개</button>`
+      :`<button class="ev-hide-btn" onclick="toggleEvtHidden('${e.id}',true)">숨기기</button>`
+    ):'';
+    const delBtn=canDel?`<button class="event-del" onclick="deleteEvtNotice('${e.id}')">×</button>`:'';
+    return`<div class="event-card${isHidden?' ev-hidden':''}">`
+      +`<span class="event-type-badge ${badgeCls}">${badgeTxt}</span>`
+      +`<div class="event-title-row"><div class="event-title">${hiddenBadge}${escHtml(e.title)}</div>${reward}</div>`
+      +`<span class="event-meta">${relDate(e.created_at)}</span>`
+      +hideBtn+delBtn
+      +`</div>`;
   }).join('');
 }
 function toggleEvtNoticeFields(){
