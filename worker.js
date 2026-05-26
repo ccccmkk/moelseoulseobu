@@ -19,6 +19,68 @@ function fetchTimeout(url, options = {}, ms = 9000) {
   return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(tid));
 }
 
+// ── VAPID / Web Push 헬퍼 ──
+function b64uEncode(data) {
+  const bytes = data instanceof Uint8Array ? data : new TextEncoder().encode(data);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function b64uDecode(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+async function getVapidKeys(env) {
+  const pub = await env.DB.prepare("SELECT value FROM settings WHERE key='vapid_public_key'").first().catch(()=>null);
+  if (pub) {
+    const priv = await env.DB.prepare("SELECT value FROM settings WHERE key='vapid_private_key_jwk'").first().catch(()=>null);
+    return { publicKey: pub.value, privateKeyJwk: JSON.parse(priv.value) };
+  }
+  const kp = await crypto.subtle.generateKey({ name:'ECDSA', namedCurve:'P-256' }, true, ['sign','verify']);
+  const privJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+  const pubJwk  = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const unc = new Uint8Array(65);
+  unc[0] = 0x04;
+  unc.set(b64uDecode(pubJwk.x), 1);
+  unc.set(b64uDecode(pubJwk.y), 33);
+  const publicKey = b64uEncode(unc);
+  await env.DB.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)").bind('vapid_public_key', publicKey).run();
+  await env.DB.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)").bind('vapid_private_key_jwk', JSON.stringify(privJwk)).run();
+  return { publicKey, privateKeyJwk: privJwk };
+}
+async function makeVapidJWT(endpoint, privateKeyJwk) {
+  const aud = new URL(endpoint).origin;
+  const exp = Math.floor(Date.now()/1000) + 43200;
+  const hdr = b64uEncode(JSON.stringify({typ:'JWT',alg:'ES256'}));
+  const pld = b64uEncode(JSON.stringify({aud, exp, sub:'mailto:admin@step.go.kr'}));
+  const key = await crypto.subtle.importKey('jwk', privateKeyJwk, {name:'ECDSA',namedCurve:'P-256'}, false, ['sign']);
+  const sig  = await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'}, key, new TextEncoder().encode(`${hdr}.${pld}`));
+  return `${hdr}.${pld}.${b64uEncode(new Uint8Array(sig))}`;
+}
+async function sendPushToAll(env, payload) {
+  const vapid = await getVapidKeys(env).catch(()=>null);
+  if (!vapid) return;
+  const subs = await env.DB.prepare('SELECT * FROM push_subscriptions').all().catch(()=>({results:[]}));
+  const body = JSON.stringify(payload);
+  const encoder = new TextEncoder();
+  await Promise.allSettled((subs.results||[]).map(async sub => {
+    try {
+      const jwt = await makeVapidJWT(sub.endpoint, vapid.privateKeyJwk);
+      const res = await fetch(sub.endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `vapid t=${jwt},k=${vapid.publicKey}`,
+          'Content-Type': 'application/json',
+          'TTL': '86400',
+        },
+        body,
+      });
+      if (res.status === 410 || res.status === 404) {
+        await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(()=>{});
+      }
+    } catch(_) {}
+  }));
+}
+
 // Workers AI → Gemini → Claude 순서로 시도하는 통합 AI 헬퍼
 async function callAI(systemPrompt, userMessage, env, opts = {}) {
   const { type = 'general', maxTokens = 8192 } = opts;
@@ -365,6 +427,7 @@ async function initDB(env) {
     "ALTER TABLE posts ADD COLUMN pinned INTEGER DEFAULT 0",
     "ALTER TABLE events ADD COLUMN hidden INTEGER DEFAULT 0",
     "ALTER TABLE events ADD COLUMN linked_post_id TEXT DEFAULT NULL",
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER)`,
   ].map(s => env.DB.exec(s).catch(() => {})));
   // 건강봇 아바타 시드
   try { await env.DB.prepare("INSERT INTO user_profiles(user_id,avatar_url) VALUES('000000099','💊') ON CONFLICT(user_id) DO UPDATE SET avatar_url=CASE WHEN avatar_url IS NULL OR avatar_url='' THEN '💊' ELSE avatar_url END").run(); } catch(e) {}
@@ -1232,6 +1295,11 @@ export default {
         if (postStatus === 'published') {
           const cnt = await env.DB.prepare("SELECT COUNT(*) as c FROM posts WHERE status='published'").first();
           post_count = cnt?.c || 0;
+          // 푸시 알림 발송 (비동기, 응답 차단 안 함)
+          const authorName = (await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(b.author).first().catch(()=>null))?.name || b.author;
+          const textBlock = (b.blocks||[]).find(bl=>bl.type==='text');
+          const preview = textBlock?.content ? textBlock.content.replace(/<[^>]*>/g,'').slice(0,60) : '새 게시물이 올라왔습니다!';
+          ctx.waitUntil(sendPushToAll(env, { title: `STEP · ${authorName}`, body: preview }));
         }
         return json({ id, post_count });
       }
@@ -1493,6 +1561,27 @@ export default {
         const pc = await env.DB.prepare("SELECT COUNT(*) as c FROM posts WHERE status='published'").first();
         const cc = await env.DB.prepare("SELECT COUNT(*) as c FROM comments").first();
         return json({ post_count: pc?.c || 0, comment_count: cc?.c || 0 });
+      }
+
+      // ── 푸시 알림 ──
+      if (p === '/api/push/vapid-key' && m === 'GET') {
+        const vapid = await getVapidKeys(env);
+        return json({ publicKey: vapid.publicKey });
+      }
+      if (p === '/api/push/subscribe' && m === 'POST') {
+        const b = await request.json();
+        const tok = b.token || url.searchParams.get('token') || '';
+        const sess = tok ? await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(tok).first().catch(()=>null) : null;
+        if (!sess) return json({ error: 'unauthorized' }, 401);
+        const id = 'ps_' + Date.now();
+        await env.DB.prepare('INSERT OR REPLACE INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at) VALUES(?,?,?,?,?,?)')
+          .bind(id, sess.user_id, b.endpoint, b.p256dh, b.auth, Math.floor(Date.now()/1000)).run();
+        return json({ ok: true });
+      }
+      if (p === '/api/push/unsubscribe' && m === 'POST') {
+        const b = await request.json();
+        await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(b.endpoint).run().catch(()=>{});
+        return json({ ok: true });
       }
 
       if (p === '/api/events' && m === 'GET') {

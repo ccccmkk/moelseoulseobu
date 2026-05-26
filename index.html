@@ -11,6 +11,7 @@
 <meta name="googlebot" content="noindex, nofollow"/>
 <meta name="bingbot" content="noindex, nofollow"/>
 <link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/govt-logo.svg"/>
 <title>STEP</title>
 <style>
 html{background:#f5f5f5}html,body{overscroll-behavior-y:none}
@@ -1010,14 +1011,27 @@ button,a,[role="button"]{touch-action:manipulation}
         <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
       </button>
     </div>
+    <!-- 앱 설치 / 알림 설정 -->
+    <div class="more-group">
+      <button class="more-row" onclick="triggerPwaInstall()">
+        <span style="font-size:20px;flex-shrink:0;margin-right:4px">📲</span>
+        <div style="flex:1;text-align:left">
+          <div class="more-row-label">홈화면에 추가</div>
+          <div style="font-size:11px;color:var(--text-hint)" id="pwaInstallStatus">앱으로 빠르게 접속 · 알림 수신 가능</div>
+        </div>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="more-row" id="pushNotiRow" onclick="togglePushNoti()">
+        <span style="font-size:20px;flex-shrink:0;margin-right:4px">🔔</span>
+        <div style="flex:1;text-align:left">
+          <div class="more-row-label">새 게시물 알림</div>
+          <div style="font-size:11px;color:var(--text-hint)" id="pushNotiStatus">불러오는 중...</div>
+        </div>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
     <div style="padding:0 0 12px">
       <button class="more-logout-btn" id="logoutBtn">로그아웃</button>
-    </div>
-    <div id="pwaInstallWrap" style="display:none;padding:0 0 12px">
-      <button class="more-logout-btn" id="pwaInstallBtn" style="color:var(--green);border-color:var(--green);display:flex;align-items:center;justify-content:center;gap:8px">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v13M8 11l4 4 4-4M3 18h18v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z"/></svg>
-        홈화면에 추가
-      </button>
     </div>
     <div style="text-align:center;padding:8px 0 4px;font-size:11px;color:var(--text-hint)">STEP v1.2.0</div>
 
@@ -1064,6 +1078,7 @@ button,a,[role="button"]{touch-action:manipulation}
               <span>오른쪽 상단 <strong>추가</strong> 탭</span>
             </div>
             <div style="margin-top:16px;padding:12px;background:var(--green-light);border-radius:var(--radius-sm);font-size:12px;color:var(--text-sub)">
+              🔔 홈화면에 추가 후 <b>더보기 → 새 게시물 알림</b>에서 알림을 켤 수 있습니다.<br><br>
               ※ Safari 브라우저에서만 가능합니다. Chrome 앱에서는 지원되지 않습니다.
             </div>
           </div>
@@ -2398,6 +2413,7 @@ function switchTab(tab){
     updateAvatarEl($('moreUserAvatar'),currentUser);
     $('moreUserName').textContent=userNames[currentUser]||currentUser;
     $('moreUserSub').textContent=currentUser;
+    _updatePushNotiStatus();
   }
 }
 let newsMainTab='news';
@@ -7915,40 +7931,93 @@ async function adminQuizAction(action){
     location.reload(true);
   };
 
-  if(isStandalone) return; // 이미 설치됨
-  if(!isIOS && !isAndroid) return; // 모바일만 표시
-
-  // 버튼 항상 표시
-  const wrap = $('pwaInstallWrap');
-  if(wrap) wrap.style.display = '';
-
   // Android: 네이티브 설치 프롬프트 대기
   if(isAndroid){
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       deferredPrompt = e;
     });
-    window.addEventListener('appinstalled', () => {
-      if(wrap) wrap.style.display = 'none';
-      deferredPrompt = null;
-    });
   }
 
-  const btn = $('pwaInstallBtn');
-  if(!btn) return;
-  btn.onclick = async () => {
-    if(deferredPrompt){
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if(outcome === 'accepted' && wrap) wrap.style.display = 'none';
-      deferredPrompt = null;
-    } else if(isIOS){
-      $('iosInstallModal').classList.add('open');
-    } else {
-      $('androidInstallModal').classList.add('open');
-    }
-  };
+  // 홈화면 추가 상태 표시
+  if(isStandalone){
+    const s=$('pwaInstallStatus');
+    if(s)s.textContent='✅ 홈화면에 추가됨';
+  }
 })();
+
+// ── 홈화면 추가 트리거 ──
+async function triggerPwaInstall(){
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  const isAndroid=/Android/.test(navigator.userAgent);
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  if(isStandalone){alert('이미 홈화면에 추가되어 있습니다.');return;}
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    const {outcome}=await deferredPrompt.userChoice;
+    deferredPrompt=null;
+    if(outcome==='accepted'){const s=$('pwaInstallStatus');if(s)s.textContent='✅ 홈화면에 추가됨';}
+  } else if(isIOS){
+    $('iosInstallModal').classList.add('open');
+  } else {
+    $('androidInstallModal').classList.add('open');
+  }
+}
+
+// ── 푸시 알림 ──
+async function _updatePushNotiStatus(){
+  const el=$('pushNotiStatus');if(!el)return;
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    el.textContent='이 브라우저는 알림을 지원하지 않습니다';return;
+  }
+  if(isIOS&&!isStandalone){
+    el.textContent='홈화면에 추가 후 알림 설정 가능 (iOS)';return;
+  }
+  const perm=Notification.permission;
+  if(perm==='denied'){el.textContent='차단됨 — 브라우저 설정에서 허용해주세요';return;}
+  const reg=await navigator.serviceWorker.ready.catch(()=>null);
+  const sub=reg?await reg.pushManager.getSubscription().catch(()=>null):null;
+  if(sub){el.textContent='🔔 알림 켜짐';$('pushNotiRow').dataset.subbed='1';}
+  else{el.textContent='탭하여 알림 켜기';delete $('pushNotiRow').dataset.subbed;}
+}
+async function togglePushNoti(){
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){alert('이 브라우저는 푸시 알림을 지원하지 않습니다.');return;}
+  if(isIOS&&!isStandalone){$('iosInstallModal').classList.add('open');return;}
+  const row=$('pushNotiRow');
+  const reg=await navigator.serviceWorker.ready.catch(()=>null);if(!reg)return;
+  const sub=await reg.pushManager.getSubscription().catch(()=>null);
+  if(sub||row.dataset.subbed){
+    // 알림 끄기
+    if(sub)await sub.unsubscribe().catch(()=>{});
+    await fetch(`${API}/api/push/unsubscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sub?.endpoint||''})}).catch(()=>{});
+    delete row.dataset.subbed;
+    _updatePushNotiStatus();return;
+  }
+  // 알림 켜기
+  const perm=await Notification.requestPermission().catch(()=>'denied');
+  if(perm!=='granted'){alert('알림 권한이 거부되었습니다.');_updatePushNotiStatus();return;}
+  try{
+    const kr=await fetch(`${API}/api/push/vapid-key`);
+    const {publicKey}=await kr.json();
+    const newSub=await reg.pushManager.subscribe({
+      userVisibleOnly:true,
+      applicationServerKey:_urlBase64ToUint8Array(publicKey),
+    });
+    const j=newSub.toJSON();
+    await fetch(`${API}/api/push/subscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,token:sessionToken})});
+    _updatePushNotiStatus();
+  }catch(e){alert('알림 설정에 실패했습니다: '+e.message);}
+}
+function _urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(base64);
+  return Uint8Array.from(raw,c=>c.charCodeAt(0));
+}
 </script>
 </body>
 </html>
