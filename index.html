@@ -109,9 +109,10 @@ body.font-xl .modal{max-height:65dvh!important}
 .post-img-wrap img{width:100%;display:block;max-height:480px;object-fit:cover}
 .post-img-grid{display:grid;gap:2px}
 .post-img-grid.two{grid-template-columns:1fr 1fr}
-.post-img-grid.two .pig-cell img{width:100%;height:220px;object-fit:cover;cursor:zoom-in;display:block}
-.post-img-grid.multi{grid-template-columns:1fr 1fr 1fr}
-.post-img-grid.multi .pig-cell img{width:100%;height:130px;object-fit:cover;cursor:zoom-in;display:block}
+.post-img-grid.two img,.post-img-grid.three img{width:100%;height:200px;object-fit:cover;cursor:zoom-in;display:block}
+.post-img-grid.three{grid-template-columns:1fr 1fr}
+.post-img-grid.three .img-main{grid-column:1/-1}
+.post-img-grid.three .img-main img{height:260px}
 .block-caption{font-size:12px;color:var(--text-sub);padding:6px 14px;background:#fafafa;border-top:1px solid var(--border)}
 .block-text{font-size:14px;line-height:1.75;padding:8px 14px;color:var(--text)}
 .post-actions{padding:6px 10px 8px;display:flex;align-items:center;gap:12px}
@@ -398,8 +399,8 @@ body.font-xl .modal{max-height:65dvh!important}
 .upload-bar{height:100%;background:var(--green);border-radius:4px;transition:width .15s}
 .upload-pct{font-size:13px;color:var(--text-sub);margin-top:8px}
 /* ── 간편 모드 사진 그리드 ── */
-.simple-photos{display:flex;flex-wrap:wrap;gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
-.simple-photo-item{position:relative;width:78px;height:78px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f0f0f0;touch-action:none}
+.simple-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px 16px 4px;-webkit-user-select:none;user-select:none}
+.simple-photo-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0f0f0;touch-action:none}
 .simple-photo-item img{width:100%;height:100%;object-fit:cover;display:block;-webkit-user-drag:none;pointer-events:none}
 .simple-photo-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
 .simple-photo-item.dragging-src{opacity:.35;transform:scale(.95)}
@@ -661,6 +662,12 @@ button,a,[role="button"]{touch-action:manipulation}
 .blog-toolbar button{padding:3px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text);}
 .blog-toolbar button:hover{background:#f0f0f0;}
 .blog-toolbar button.active{background:#1976d2;color:#fff;border-color:#1976d2;}
+#emojiPicker{position:absolute;z-index:9999;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:10px;width:260px;max-height:300px;overflow-y:auto;display:none}
+#emojiPicker.open{display:block}
+.emoji-category{font-size:10px;font-weight:700;color:var(--text-hint);margin:6px 0 3px;letter-spacing:.05em}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.emoji-btn{font-size:20px;padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;line-height:1;transition:background .1s}
+.emoji-btn:hover{background:var(--green-light)}
 .blog-toolbar select{padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;height:26px;}
 .blog-text-block{width:100%;min-height:80px;border:none;outline:none;font-size:15px;line-height:1.7;color:var(--text);font-family:inherit;background:transparent;padding:6px 0;white-space:pre-wrap;word-break:break-word;}
 .blog-text-block:empty:before{content:attr(data-placeholder);color:var(--text-hint);pointer-events:none;}
@@ -2923,10 +2930,9 @@ function renderBlocksInCard(p,blogMode){
   if(imgs.length===1){
     html+=`<div class="post-img-wrap" onclick="openLightbox('${imgUrl(imgs[0].url)}')"><img src="${imgUrl(imgs[0].url)}" loading="lazy" decoding="async"/></div>`;
     if(imgs[0].caption)html+=`<div class="block-caption">${escHtml(imgs[0].caption)}</div>`;
-  }else if(imgs.length===2){
-    html+=`<div class="post-img-grid two">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
-  }else if(imgs.length>=3){
-    html+=`<div class="post-img-grid multi">${imgs.map(i=>`<div class="pig-cell" onclick="openLightbox('${imgUrl(i.url)}')"><img src="${imgUrl(i.url)}" loading="lazy" decoding="async"/></div>`).join('')}</div>`;
+  }else if(imgs.length>=2){
+    const cid='car-'+p.id;
+    html+=`<div class="img-carousel" id="${cid}"><div class="img-carousel-track">${imgs.map(i=>`<img src="${imgUrl(i.url)}" loading="lazy" onclick="openLightbox('${imgUrl(i.url)}')" style="cursor:zoom-in"/>`).join('')}</div><div class="img-carousel-dots">${imgs.map((_,i)=>`<button class="img-carousel-dot${i===0?' active':''}" data-idx="${i}"></button>`).join('')}</div></div>`;
   }
   texts.forEach(b=>{html+=`<div class="block-text">${renderMd(b.content)}</div>`;});
   const linkBlocks=p.blocks.filter(b=>b.type==='link');
@@ -3648,6 +3654,7 @@ function _renderBlogToolbar(){
     <button id="btBold" title="굵게"><b>B</b></button>
     <button id="btItalic" title="기울임"><i>I</i></button>
     <button id="btUnderline" title="밑줄"><u>U</u></button>
+    <button id="btEmoji" title="이모지">😊</button>
     <button id="btFullscreen" title="전체화면">${_blogFullscreen?'◱':'⛶'}</button>
   `;
   const editorBody=$('writeEditorBody');
@@ -3664,6 +3671,8 @@ function _renderBlogToolbar(){
   document.getElementById('btBold').onclick=()=>{document.execCommand('bold');};
   document.getElementById('btItalic').onclick=()=>{document.execCommand('italic');};
   document.getElementById('btUnderline').onclick=()=>{document.execCommand('underline');};
+  document.getElementById('btEmoji').onclick=e=>{e.stopPropagation();_toggleEmojiPicker(e.currentTarget);};
+
   document.getElementById('btFullscreen').onclick=()=>{
     _blogFullscreen=!_blogFullscreen;
     const wm=$('writeModal');
@@ -5136,6 +5145,50 @@ async function deleteEvtNotice(id){
   if(!confirm('삭제할까요?'))return;
   await fetch(`${API}/api/events/${id}?token=${encodeURIComponent(sessionToken)}`,{method:'DELETE'});
   evtNotices=evtNotices.filter(e=>e.id!==id);_updateEvtStrip();renderEvtSheet();
+}
+
+// ── 이모지 피커 ──
+const _EMOJI_DATA=[
+  {cat:'😊 표정',list:'😀😃😄😁😆😅🤣😂🙂🙃😉😊😇🥰😍🤩😘😗😚😙🥲😋😛😜🤪😝🤑🤗🤭🤫🤔🤐🤨😐😑😶😏😒🙄😬🤥😌😔😪🤤😴😷🤒🤕🤢🤧🥵🥶🥴😵💫🤯🤠🥳🥸😎🤓🧐😕😟🙁☹😮😯😲😳🥺😦😧😨😰😥😢😭😱😖😣😞😓😩😫🥱😤😡😠🤬😈👿💀☠'},
+  {cat:'👍 제스처',list:'👋🤚🖐✋🖖🤙👌🤌🤏✌🤞🤟🤘🤙👈👉👆🖕👇☝👍👎✊👊🤛🤜👏🙌🤲🤝🙏'},
+  {cat:'❤️ 하트',list:'❤🧡💛💚💙💜🖤🤍🤎💔❣💕💞💓💗💖💘💝💟☮✝☪🕉☸✡🔯🕎☯☦🛐⛎♈♉♊♋♌♍♎♏♐♑♒♓🆔'},
+  {cat:'🎉 축하',list:'🎉🎊🎈🎀🎁🎗🎟🎫🎖🏆🥇🥈🥉🏅🎯🎪🤹🎭🎨🖼🎰🚀⭐🌟💫✨🔥💥🎆🎇🧨'},
+  {cat:'😺 동물',list:'🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🙈🙉🙊🐔🐧🐦🦆🦅🦉🦇🐺🐗🐴🦄🐝🐛🦋🐌🐞🐜🦟🦗🕷🦂🐢🐍🦎🦖🦕🐙🦑🦐🦞🦀🐡🐠🐟🐬🐳🐋🦈🐊🐅🐆🦓🦍🦧🦣🐘🦛🦏🐪🐫🦒🦘🦬🐃🐂🐄🐎🐖🐏🐑🦙🐐🦌🐕🐩🦮🐈🐓🦃🦤🦚🦜🦢🦩🕊🐇🦝🦨🦡🦫🦦🦥🐁🐀🐿🦔'},
+  {cat:'🍎 음식',list:'🍎🍊🍋🍇🍓🫐🍈🍒🍑🥭🍍🥥🥝🍅🍆🥑🥦🥬🥒🌶🫑🧄🧅🥔🍠🫘🌽🥕🫛🍞🥐🥖🫓🥨🧀🥚🍳🧈🥞🧇🥓🥩🍗🍖🌭🍔🍟🍕🫔🌮🌯🥙🧆🥚🍣🍱🥟🦪🍤🍙🍘🍥🥮🍢🧁🍰🎂🍮🍭🍬🍫🍿🍩🍪🌰🥜🍯🧃🥤🧋☕🍵🫖🍺🍻🥂🍷🥃🍸🍹🧉'},
+  {cat:'🌍 장소',list:'🌍🌎🌏🗺🧭🏔⛰🌋🗻🏕🏖🏗🏘🏙🏚🏛🏜🏝🏞🏟🏠🏡🏢🏣🏤🏥🏦🏧🏨🏩🏪🏫🏬🏭🏯🏰💒🗼🗽⛪🕌🛕🕍⛩🕍🗾🎑🏞🌅🌄🌠🎇🎆🌃🌆🌇🌉🏙⛺🌌🌁'},
+  {cat:'💡 기호',list:'✅❌⭕🔴🟠🟡🟢🔵🟣⚫⚪🟤🔶🔷🔸🔹🔺🔻💠🔘🔲🔳▪▫◾◽◼◻🟥🟧🟨🟩🟦🟪⬛⬜🔔🔕🔊🔇📢📣💬💭🗯📌📍🗺📋📝🗒📅📆🗓📊📈📉📁📂🗂🗃🗄🗑📬📮📪📭🗳📥📤🔑🔐🔒🔓'},
+];
+let _emojiPickerSavedSel=null;
+function _toggleEmojiPicker(btn){
+  let picker=$('emojiPicker');
+  if(!picker){
+    picker=document.createElement('div');picker.id='emojiPicker';
+    picker.innerHTML=_EMOJI_DATA.map(cat=>`<div class="emoji-category">${cat.cat}</div><div class="emoji-grid">${[...cat.list].map(e=>`<button class="emoji-btn" onclick="_insertEmoji('${e}')">${e}</button>`).join('')}</div>`).join('');
+    document.body.appendChild(picker);
+    document.addEventListener('click',e=>{if(!e.target.closest('#emojiPicker')&&!e.target.closest('#btEmoji'))picker.classList.remove('open');});
+  }
+  const r=btn.getBoundingClientRect();
+  picker.style.top=(r.bottom+window.scrollY+4)+'px';
+  picker.style.left=Math.min(r.left,window.innerWidth-270)+'px';
+  _emojiPickerSavedSel=_saveSelection();
+  picker.classList.toggle('open');
+}
+function _saveSelection(){
+  const sel=window.getSelection();
+  if(sel&&sel.rangeCount>0)return sel.getRangeAt(0);
+  return null;
+}
+function _insertEmoji(emoji){
+  const ce=document.querySelector('#blockEditor .blog-text-block');if(!ce)return;
+  ce.focus();
+  if(_emojiPickerSavedSel){
+    const sel=window.getSelection();
+    try{sel.removeAllRanges();sel.addRange(_emojiPickerSavedSel);}catch(e){}
+  }
+  document.execCommand('insertText',false,emoji);
+  const idx=editorBlocks.findIndex(b=>b.type==='text');
+  if(idx>=0){const el=document.querySelectorAll('#blockEditor .blog-text-block')[0];if(el)editorBlocks[idx].content=el.innerHTML;}
+  $('emojiPicker').classList.remove('open');
 }
 
 // ── 칭찬합니다 탭 전체 렌더 (데이터 로드 후에만 렌더) ──
