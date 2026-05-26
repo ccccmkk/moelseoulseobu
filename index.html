@@ -5272,15 +5272,31 @@ async function deleteEvtNotice(id){
 }
 async function openLinkedPost(postId){
   $('evtSheetOverlay').classList.remove('open');
-  const cached=posts.find(x=>x.id===postId);
-  if(cached){openFullPost(postId);return;}
+  if(!$('appPage').classList.contains('active'))showPage('appPage');
+  switchTab('Feed');
+  let el=$('pc-'+postId);
+  if(el){setTimeout(()=>{el.scrollIntoView({behavior:'smooth',block:'center'});_highlightPostCard(el);},100);return;}
   try{
-    const r=await fetch(`${API}/api/posts/${postId}`);
-    if(!r.ok){alert('게시물을 찾을 수 없습니다.');return;}
-    const d=await r.json();
-    posts.unshift(d.post); // 캐시에 추가
-    openFullPost(postId);
+    let post=posts.find(x=>x.id===postId);
+    if(!post){
+      const r=await fetch(`${API}/api/posts/${postId}`);
+      if(!r.ok){alert('게시물을 찾을 수 없습니다.');return;}
+      post=(await r.json()).post;
+      posts.unshift(post);
+    }
+    const feed=$('feed');
+    const div=document.createElement('div');div.innerHTML=postCardHtml(post);
+    const compose=$('composeBox');
+    if(compose&&compose.nextSibling){feed.insertBefore(div.firstChild,compose.nextSibling);}
+    else{feed.insertBefore(div.firstChild,feed.firstChild);}
+    initCarousels();
+    setTimeout(()=>{const e2=$('pc-'+postId);if(e2){e2.scrollIntoView({behavior:'smooth',block:'center'});_highlightPostCard(e2);}},120);
   }catch(e){alert('게시물을 불러올 수 없습니다.');}
+}
+function _highlightPostCard(el){
+  el.style.transition='outline 0s,box-shadow .2s';
+  el.style.boxShadow='0 0 0 3px var(--green)';
+  setTimeout(()=>{el.style.transition='box-shadow .6s';el.style.boxShadow='';},1400);
 }
 
 // ── 이모지 피커 ──
