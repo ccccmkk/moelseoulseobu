@@ -1,4 +1,4 @@
-const CACHE = 'step-app-v6';
+const CACHE = 'step-app-v7';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -57,8 +57,8 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: '/govt-logo.svg',
+      badge: '/govt-logo.svg',
       data,
       vibrate: [200, 100, 200],
     })

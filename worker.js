@@ -1,4 +1,4 @@
-// v2.2.1
+// v2.2.2
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
@@ -56,29 +56,71 @@ async function makeVapidJWT(endpoint, privateKeyJwk) {
   const sig  = await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'}, key, new TextEncoder().encode(`${hdr}.${pld}`));
   return `${hdr}.${pld}.${b64uEncode(new Uint8Array(sig))}`;
 }
+// RFC 8291 (aes128gcm) Web Push 페이로드 암호화
+async function encryptWebPush(payloadStr, sub) {
+  const enc = new TextEncoder();
+  const plaintext = enc.encode(payloadStr);
+  const receiverPub = b64uDecode(sub.p256dh);
+  const authSecret = b64uDecode(sub.auth);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const serverKP = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const serverPub = new Uint8Array(await crypto.subtle.exportKey('raw', serverKP.publicKey));
+  const rcvKey = await crypto.subtle.importKey('raw', receiverPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const ecdhBits = await crypto.subtle.deriveBits({ name: 'ECDH', public: rcvKey }, serverKP.privateKey, 256);
+  const infoLabel = enc.encode('WebPush: info\0');
+  const keyInfo = new Uint8Array(infoLabel.length + receiverPub.byteLength + serverPub.length);
+  keyInfo.set(infoLabel); keyInfo.set(new Uint8Array(receiverPub), infoLabel.length); keyInfo.set(serverPub, infoLabel.length + receiverPub.byteLength);
+  const ecdhKey = await crypto.subtle.importKey('raw', ecdhBits, 'HKDF', false, ['deriveBits']);
+  const ikm = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: authSecret, info: keyInfo }, ecdhKey, 256);
+  const ikmKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  const cekBits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode('Content-Encoding: aes128gcm\0') }, ikmKey, 128);
+  const nonceBits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode('Content-Encoding: nonce\0') }, ikmKey, 96);
+  const cek = await crypto.subtle.importKey('raw', cekBits, { name: 'AES-GCM' }, false, ['encrypt']);
+  const record = new Uint8Array(plaintext.length + 1);
+  record.set(plaintext); record[plaintext.length] = 2;
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonceBits, tagLength: 128 }, cek, record));
+  const header = new Uint8Array(21 + serverPub.length);
+  header.set(salt);
+  new DataView(header.buffer).setUint32(16, 4096, false);
+  header[20] = serverPub.length;
+  header.set(serverPub, 21);
+  const out = new Uint8Array(header.length + cipher.length);
+  out.set(header); out.set(cipher, header.length);
+  return out;
+}
+
+async function _sendOnePush(env, sub, payload, vapid) {
+  try {
+    const encrypted = await encryptWebPush(JSON.stringify(payload), sub);
+    const jwt = await makeVapidJWT(sub.endpoint, vapid.privateKeyJwk);
+    const res = await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `vapid t=${jwt},k=${vapid.publicKey}`,
+        'Content-Type': 'application/octet-stream',
+        'Content-Encoding': 'aes128gcm',
+        'TTL': '86400',
+      },
+      body: encrypted,
+    });
+    if (res.status === 410 || res.status === 404) {
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(()=>{});
+    }
+  } catch(_) {}
+}
+
 async function sendPushToAll(env, payload) {
   const vapid = await getVapidKeys(env).catch(()=>null);
   if (!vapid) return;
   const subs = await env.DB.prepare('SELECT * FROM push_subscriptions').all().catch(()=>({results:[]}));
-  const body = JSON.stringify(payload);
-  const encoder = new TextEncoder();
-  await Promise.allSettled((subs.results||[]).map(async sub => {
-    try {
-      const jwt = await makeVapidJWT(sub.endpoint, vapid.privateKeyJwk);
-      const res = await fetch(sub.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `vapid t=${jwt},k=${vapid.publicKey}`,
-          'Content-Type': 'application/json',
-          'TTL': '86400',
-        },
-        body,
-      });
-      if (res.status === 410 || res.status === 404) {
-        await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(()=>{});
-      }
-    } catch(_) {}
-  }));
+  await Promise.allSettled((subs.results||[]).map(sub => _sendOnePush(env, sub, payload, vapid)));
+}
+
+async function sendPushToUser(env, userId, payload) {
+  const vapid = await getVapidKeys(env).catch(()=>null);
+  if (!vapid) return;
+  const subs = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').bind(userId).all().catch(()=>({results:[]}));
+  await Promise.allSettled((subs.results||[]).map(sub => _sendOnePush(env, sub, payload, vapid)));
 }
 
 // Workers AI → Gemini → Claude 순서로 시도하는 통합 AI 헬퍼
@@ -1495,6 +1537,15 @@ export default {
         await env.DB.prepare('INSERT INTO comments(id,post_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(id, postId, b.author, b.content, now).run();
         ctx.waitUntil(addMileageDB(env, b.author, 1));
+        ctx.waitUntil((async () => {
+          const postRow = await env.DB.prepare('SELECT author FROM posts WHERE id=?').bind(postId).first().catch(()=>null);
+          if (!postRow || postRow.author === b.author) return;
+          const commenter = await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(b.author).first().catch(()=>null);
+          await sendPushToUser(env, postRow.author, {
+            title: `STEP · ${commenter?.name || '누군가'}`,
+            body: `내 게시물에 댓글: ${b.content.slice(0, 60)}`,
+          });
+        })());
         const totalCmt = await env.DB.prepare("SELECT COUNT(*) as c FROM comments").first();
         const comment_count = totalCmt?.c || 0;
         return json({ id, post_id: postId, author: b.author, content: b.content, created_at: now, comment_count });
@@ -1553,6 +1604,15 @@ export default {
         await env.DB.prepare('INSERT INTO comment_replies(id,comment_id,author,content,created_at) VALUES(?,?,?,?,?)')
           .bind(id, commentId, author, content, now).run();
         ctx.waitUntil(addMileageDB(env, author, 1));
+        ctx.waitUntil((async () => {
+          const cmtRow = await env.DB.prepare('SELECT author FROM comments WHERE id=?').bind(commentId).first().catch(()=>null);
+          if (!cmtRow || cmtRow.author === author) return;
+          const replier = await env.DB.prepare('SELECT name FROM users WHERE id=?').bind(author).first().catch(()=>null);
+          await sendPushToUser(env, cmtRow.author, {
+            title: `STEP · ${replier?.name || '누군가'}`,
+            body: `내 댓글에 답글: ${content.slice(0, 60)}`,
+          });
+        })());
         return json({ id, comment_id: commentId, author, content, created_at: now });
       }
 
