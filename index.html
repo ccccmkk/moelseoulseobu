@@ -2461,8 +2461,10 @@ function renderMd(s){
   t=t.replace(/^[-*] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--green)">•</span><span>$1</span></div>');
   // 7. URL 자동 링크 (이미 <a> 태그 안에 있는 URL은 건드리지 않음)
   t=t.replace(/(?<!href=["'])https?:\/\/[^\s<>"）)）\]，。]+/g,url=>`<a href="${url.replace(/&amp;/g,'&')}" target="_blank" rel="noopener noreferrer" style="color:var(--green);word-break:break-all;text-decoration:underline" onclick="event.stopPropagation()">${url}</a>`);
-  // 8. 줄바꿈
+  // 8. 줄바꿈 (목록 <div> 앞뒤 <br> 제거해 과도한 간격 방지)
   t=t.replace(/\n/g,'<br>');
+  t=t.replace(/(<\/div>)(<br>)+/g,'$1');
+  t=t.replace(/(<br>)+(<div)/g,'$2');
   return t;
 }
 function relDate(ts){
