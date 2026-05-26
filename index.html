@@ -2457,7 +2457,7 @@ function switchNewsMainTab(sub){
     if(newsCat==='scrap'){if(!scrapLoaded){scrapLoaded=true;loadScrap();}}
     else if(newsCat==='local'||newsCat==='naver') loadNews();
   }
-  if(sub==='law'&&!lawLoaded){ lawLoaded=true; loadLaw(); }
+  if(sub==='law'&&!lawLoaded){ lawLoaded=true; const _lb=$('lawSearchResult');if(_lb&&!_lb.innerHTML.trim())_lb.innerHTML=`<div style="padding:40px 16px;text-align:center;color:var(--text-hint)"><div style="font-size:32px;margin-bottom:10px">⚖️</div><div style="font-size:13px">법령·판례 검색어를 입력 후 검색하세요</div></div>`; }
   if(sub==='law') updateLawAskCounter();
   if(sub==='lunch'){
     // lunchMainPane이 block으로 전환된 후 두 번의 rAF로 레이아웃 완료 보장
@@ -2602,8 +2602,7 @@ function switchLawTarget(t){
     lawSearch();
   } else if(t==='law'){
     const box=$('lawSearchResult');
-    if(box){box.innerHTML='';_lawCache=[];}
-    loadLaw();
+    if(box){_lawCache=[];box.innerHTML=`<div style="padding:40px 16px;text-align:center;color:var(--text-hint)"><div style="font-size:32px;margin-bottom:10px">⚖️</div><div style="font-size:13px">법령·판례 검색어를 입력 후 검색하세요</div></div>`;}
   } else {
     const box=$('lawSearchResult');
     if(box) box.innerHTML=`<div style="padding:28px 16px;text-align:center;color:var(--text-hint)"><div style="font-size:28px;margin-bottom:8px">${t==='prec'?'⚖️':'📋'}</div><div style="font-size:13px">${t==='prec'?'판례':'해석례'} 검색어를 입력 후 검색하세요</div></div>`;
@@ -3161,7 +3160,7 @@ function postCardHtml(p){
       :`<button onclick="togglePinPost('${key}',true)">📌 상단 고정</button>`;
     mmInner+=`<button class="danger" onclick="deletePost('${key}')">삭제</button>`;
   }
-  const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${mmInner}</div></div>`:'';
+  const mm=(isMine||isAdm)?`<div class="more-menu-wrap"><button class="more-btn" onclick="toggleMenu(event,this,'mm-${key}')">⋯</button><div class="more-menu" id="mm-${key}">${mmInner}</div></div>`:'';
   const isBlog=p.mode==='blog';
   if(isBlog){
     const thumbBlock=p.blocks?.find(b=>b.type==='thumbnail');
@@ -3461,18 +3460,22 @@ function setupFeedObserver(){
   },{threshold:0,rootMargin:'200px'});
   _feedObserver.observe(sentinel);
 }
-function toggleMenu(e,id){
+function _closeAllMenus(){
+  document.querySelectorAll('.more-menu.open').forEach(m=>{
+    m.classList.remove('open');
+    if(m._origParent){m._origParent.appendChild(m);delete m._origParent;}
+  });
+}
+function toggleMenu(e,btn,id){
   e.stopPropagation();
-  document.querySelectorAll('.more-menu.open').forEach(m=>{if(m.id!==id)m.classList.remove('open');});
+  _closeAllMenus();
   const menu=$(id);
-  const wasOpen=menu.classList.contains('open');
-  menu.classList.remove('open');
-  if(wasOpen)return;
-  const btn=e.currentTarget;
+  if(!menu)return;
   const r=btn.getBoundingClientRect();
+  menu._origParent=menu.parentElement;
+  document.body.appendChild(menu);
   menu.style.right=(window.innerWidth-r.right)+'px';
   menu.style.left='auto';
-  // tentatively place below button, adjust if off-screen bottom
   menu.style.top=(r.bottom+4)+'px';
   menu.style.bottom='auto';
   menu.classList.add('open');
@@ -3482,7 +3485,7 @@ function toggleMenu(e,id){
     menu.style.bottom=(window.innerHeight-r.top+4)+'px';
   }
 }
-document.addEventListener('click',()=>document.querySelectorAll('.more-menu.open').forEach(m=>m.classList.remove('open')));
+document.addEventListener('click',_closeAllMenus);
 async function toggleLike(postId){
   const p=posts.find(x=>x.id===postId);if(!p)return;
   const wasLiked=likedPosts.has(postId);
