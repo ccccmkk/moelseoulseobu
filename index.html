@@ -3113,8 +3113,8 @@ function renderFeed(){
   const feed=$('feed');
   const compose=`<div class="compose-box" id="composeBox">${avatarEl(currentUser)}<span class="compose-placeholder">지금 무슨 생각을 하고 있나요?</span></div>`;
   const stripHtml=_evtStripHtml();
-  if(!posts.length){feed.innerHTML=compose+stripHtml+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
-  feed.innerHTML=compose+stripHtml+posts.map(p=>postCardHtml(p)).join('');
+  if(!posts.length){feed.innerHTML=stripHtml+compose+'<div class="empty-state"><div class="ei">📝</div>첫 번째 글을 작성해보세요!</div>';$('composeBox').onclick=openWriteModal;return;}
+  feed.innerHTML=stripHtml+compose+posts.map(p=>postCardHtml(p)).join('');
   $('composeBox').onclick=openWriteModal;
   initCarousels();
   setupFeedObserver();
@@ -5033,7 +5033,7 @@ function _updateEvtStrip(){
   if(!active.length){if(strip)strip.remove();return;}
   const html=_evtStripHtml();
   if(strip){const d=document.createElement('div');d.innerHTML=html;strip.replaceWith(d.firstChild);}
-  else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.after(d.firstChild);}}
+  else{const compose=$('composeBox');if(compose){const d=document.createElement('div');d.innerHTML=html;compose.before(d.firstChild);}}
 }
 async function openEventSheet(){
   $('evtSheetAddBtn').style.display=(currentUserRole==='admin'||currentUserRole==='sub_admin')?'':'none';
