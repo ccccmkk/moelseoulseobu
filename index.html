@@ -76,6 +76,11 @@ body.font-xl .modal{max-height:65dvh!important}
 .appbar-btn{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;padding:6px 12px;cursor:pointer;transition:background .15s}
 .appbar-btn:hover{background:rgba(255,255,255,.32)}
 .note-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none}
+/* 앱 설치 유도 배너 */
+#installBanner{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:400px;background:#1a1a2e;color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:500;box-shadow:0 4px 20px rgba(0,0,0,.3);animation:bannerUp .35s ease both}
+#installBanner.hiding{animation:bannerDown .3s ease both}
+@keyframes bannerUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes bannerDown{to{opacity:0;transform:translateX(-50%) translateY(20px)}}
 /* 탭 */
 .tab-page{display:none;padding:14px 14px 80px;max-width:620px;margin:0 auto;width:100%;will-change:opacity,transform;backface-visibility:hidden}
 .tab-page.active{display:block;animation:tabFadeIn .22s cubic-bezier(0.25,0.46,0.45,0.94) both}
@@ -712,6 +717,16 @@ button,a,[role="button"]{touch-action:manipulation}
 </head>
 <body>
 
+<!-- ════ 앱 설치 유도 배너 ════ -->
+<div id="installBanner" style="display:none">
+  <span style="font-size:26px;flex-shrink:0">📲</span>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:700;margin-bottom:2px">앱으로 설치하면 더 편리해요!</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.65)">홈화면 아이콘으로 바로 접속 · 알림 수신</div>
+  </div>
+  <button onclick="triggerPwaInstall();dismissInstallBanner()" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">설치하기</button>
+  <button onclick="dismissInstallBanner()" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer;padding:0 0 0 4px;flex-shrink:0;line-height:1">×</button>
+</div>
 <!-- ════ 쪽지 보내기 모달 ════ -->
 <div class="modal-overlay center" id="noteModal">
   <div class="modal" style="max-width:360px">
@@ -7009,7 +7024,7 @@ function onLoginSuccess(d){
   localStorage.setItem('user_cache',JSON.stringify({id:d.id,name:d.name||d.id,dept:d.dept||''}));
   _applyFontSize(localStorage.getItem('fontsize_'+d.id)||'md');
   localStorage.removeItem('saved_pw'); // 이전 자동로그인 방식 잔재 삭제
-  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
+  showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);setTimeout(showInstallBanner,4000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
   if(d.must_change_password){
     $('changePwNotice').style.display='';$('changePwSkip').style.display='none';
@@ -7067,7 +7082,7 @@ function hideSplash(){
     currentUser=userCache.id;currentUserName=userCache.name;sessionToken=token;currentUserDept=userCache.dept||'';
     userNames[userCache.id]=userCache.name;
     _applyFontSize(localStorage.getItem('fontsize_'+userCache.id)||'md');
-    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);
+    showPage('appPage');$('fab').className='fab show';initApp();setTimeout(checkNotiBadge,2000);setInterval(checkNotiBadge,60000);startQuizBgPoll();hideSplash();setTimeout(checkNoteBadge,3000);setInterval(checkNoteBadge,120000);setTimeout(showInstallBanner,4000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotiBadge();});
     try{
       const r=await fetch(`${API}/api/verify-session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
@@ -8213,6 +8228,20 @@ async function triggerPwaInstall(){
   } else {
     $('androidInstallModal').classList.add('open');
   }
+}
+
+function showInstallBanner(){
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+  if(isStandalone)return;
+  if(localStorage.getItem('install_banner_dismissed'))return;
+  const b=$('installBanner');if(!b)return;
+  b.style.display='flex';
+}
+function dismissInstallBanner(){
+  localStorage.setItem('install_banner_dismissed','1');
+  const b=$('installBanner');if(!b)return;
+  b.classList.add('hiding');
+  setTimeout(()=>{b.style.display='none';b.classList.remove('hiding');},320);
 }
 
 // ── 푸시 알림 ──
