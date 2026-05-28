@@ -997,6 +997,102 @@ export default {
         return json({ ok: true });
       }
 
+      // ── 뉴스 모니터링 (서소문 고가) ──
+      if (p === '/api/admin/news-monitor' && m === 'GET') {
+        const token = url.searchParams.get('token');
+        const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token=?').bind(token||'').first();
+        if (!sess) return json({ error: '인증 필요' }, 401);
+        const role = await env.DB.prepare('SELECT role FROM user_roles WHERE user_id=?').bind(sess.user_id).first();
+        if (!role || role.role !== 'admin') return json({ error: '권한 없음' }, 403);
+
+        const query = url.searchParams.get('q') || '서소문 고가';
+        const fromStr = url.searchParams.get('from') || '2026-05-18';
+        const toStr = url.searchParams.get('to') || new Date().toISOString().slice(0,10);
+        const fromTs = new Date(fromStr + 'T00:00:00+09:00').getTime();
+        const toTs = new Date(toStr + 'T23:59:59+09:00').getTime();
+
+        const OUTLET_MAP = {
+          'chosun.com':'조선일보','donga.com':'동아일보','joins.com':'중앙일보','joongang.co.kr':'중앙일보',
+          'hani.co.kr':'한겨레','khan.co.kr':'경향신문','ohmynews.com':'오마이뉴스',
+          'yonhapnews.co.kr':'연합뉴스','yna.co.kr':'연합뉴스','ytn.co.kr':'YTN',
+          'kbs.co.kr':'KBS','mbc.co.kr':'MBC','sbs.co.kr':'SBS','jtbc.co.kr':'JTBC',
+          'tvchosun.com':'TV조선','mbn.co.kr':'MBN','channela.co.kr':'채널A',
+          'news1.kr':'뉴스1','newsis.com':'뉴시스','newspim.com':'뉴스핌',
+          'mt.co.kr':'머니투데이','moneytoday.co.kr':'머니투데이',
+          'edaily.co.kr':'이데일리','heraldcorp.com':'헤럴드경제',
+          'mk.co.kr':'매일경제','hankyung.com':'한국경제',
+          'seoul.co.kr':'서울신문','segye.com':'세계일보','munhwa.com':'문화일보',
+          'fnnews.com':'파이낸셜뉴스','sedaily.com':'서울경제',
+          'asiae.co.kr':'아시아경제','ajunews.com':'아주경제',
+          'nocutnews.co.kr':'노컷뉴스','pressian.com':'프레시안',
+          'mediatoday.co.kr':'미디어오늘','mediaus.co.kr':'미디어스',
+        };
+        function outletFromDomain(u) {
+          try {
+            const host = new URL(u).hostname.replace(/^www\./,'');
+            for (const [d,n] of Object.entries(OUTLET_MAP)) { if (host.includes(d)) return n; }
+            return host.split('.').slice(-2,-1)[0] || host;
+          } catch(e) { return ''; }
+        }
+        function decodeHtmlEntities(s) {
+          return s.replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'');
+        }
+
+        const items = [];
+
+        // 1. Google News RSS
+        try {
+          const gUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+          const gRes = await fetch(gUrl, { signal: AbortSignal.timeout(8000) });
+          const gXml = await gRes.text();
+          const itemRe = /<item>([\s\S]*?)<\/item>/g;
+          let m2;
+          while ((m2 = itemRe.exec(gXml)) !== null) {
+            const raw = m2[1];
+            const titleRaw = raw.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] || raw.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '';
+            const link = raw.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() || '';
+            const pubDate = raw.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() || '';
+            const sourceRaw = raw.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || '';
+            const ts = pubDate ? new Date(pubDate).getTime() : 0;
+            if (!ts || ts < fromTs || ts > toTs) continue;
+            // Google News title = "기사제목 - 언론사"
+            const parts = titleRaw.split(' - ');
+            const outlet = sourceRaw.trim() || (parts.length > 1 ? parts[parts.length-1].trim() : '');
+            const title = parts.length > 1 ? parts.slice(0,-1).join(' - ').trim() : titleRaw.trim();
+            items.push({ date: new Date(ts).toISOString().slice(0,10), outlet, title, url: link, src: 'Google' });
+          }
+        } catch(e) {}
+
+        // 2. Naver News API
+        try {
+          if (env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET) {
+            const nUrl = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=100&sort=date`;
+            const nRes = await fetch(nUrl, {
+              headers: { 'X-Naver-Client-Id': env.NAVER_CLIENT_ID, 'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET },
+              signal: AbortSignal.timeout(8000)
+            });
+            const nData = await nRes.json();
+            for (const it of (nData.items || [])) {
+              const ts = new Date(it.pubDate).getTime();
+              if (!ts || ts < fromTs || ts > toTs) continue;
+              const title = decodeHtmlEntities(it.title);
+              const outlet = outletFromDomain(it.originallink || it.link);
+              items.push({ date: new Date(ts).toISOString().slice(0,10), outlet, title, url: it.originallink || it.link, src: 'Naver' });
+            }
+          }
+        } catch(e) {}
+
+        // 중복 제거 (제목 앞 15자 기준)
+        const seen = new Set();
+        const deduped = items.filter(it => {
+          const key = it.title.replace(/\s+/g,'').slice(0,15);
+          if (seen.has(key)) return false;
+          seen.add(key); return true;
+        });
+        deduped.sort((a,b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
+        return json({ items: deduped, total: deduped.length, from: fromStr, to: toStr, query });
+      }
+
       // ── 법령 검색 ──
       if (p === '/api/law-search' && m === 'GET') {
         const OC = env.LAW_OC || 'STEP-OPENAPI';
