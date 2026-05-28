@@ -1068,6 +1068,10 @@ button,a,[role="button"]{touch-action:manipulation}
         <span class="more-row-label">쪽지함 <span id="notesInboxBadge" style="display:none;font-size:11px;font-weight:700;color:#e53935"></span></span>
         <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
       </button>
+      <button class="more-row" onclick="openNewsMonitor()">
+        <span class="more-row-label">뉴스 모니터링 <span style="font-size:11px;color:var(--text-hint);font-weight:400">서소문 고가</span></span>
+        <svg class="more-chev" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
     </div>
     <!-- 앱 설치 / 알림 설정 -->
     <div class="more-group">
@@ -1925,6 +1929,29 @@ button,a,[role="button"]{touch-action:manipulation}
         <div id="admPhotoContestList"><div style="font-size:13px;color:var(--text-hint)">불러오는 중...</div></div>
       </div>
       <!-- ── 쪽지함 탭 ── -->
+    </div>
+  </div>
+</div>
+<!-- ════ 뉴스 모니터링 모달 ════ -->
+<div class="modal-overlay" id="newsMonitorModal" style="align-items:flex-start;padding-top:0">
+  <div class="modal" style="max-width:100%;width:100%;height:100vh;border-radius:0;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <span class="modal-title">📰 뉴스 모니터링</span>
+      <button class="modal-close" onclick="$('newsMonitorModal').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="font-size:12px;color:var(--text-hint)">검색어</span>
+      <input id="nmQuery" value="서소문 고가" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit;width:120px">
+      <span style="font-size:12px;color:var(--text-hint)">기간</span>
+      <input type="date" id="nmFrom" value="2026-05-18" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit">
+      <span style="font-size:11px;color:var(--text-hint)">~</span>
+      <input type="date" id="nmTo" style="border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit">
+      <button onclick="loadNewsMonitor()" class="btn-green" style="padding:6px 14px;font-size:13px">불러오기</button>
+      <button onclick="downloadNewsCsv()" id="nmCsvBtn" style="display:none;padding:6px 14px;font-size:13px;background:#fff;border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-family:inherit">CSV 다운로드</button>
+    </div>
+    <div id="nmStatus" style="padding:8px 16px;font-size:12px;color:var(--text-hint);flex-shrink:0"></div>
+    <div id="nmList" style="flex:1;overflow-y:auto;padding:0 16px 16px">
+      <div style="padding:40px;text-align:center;color:var(--text-hint);font-size:13px">검색어와 기간을 확인 후 불러오기를 누르세요.</div>
     </div>
   </div>
 </div>
@@ -6529,6 +6556,56 @@ function openNoteModal(){
   if(!currentUser){alert('로그인이 필요합니다.');return;}
   $('noteContentInput').value='';$('noteErr').textContent='';
   $('noteModal').classList.add('open');
+}
+// ── 뉴스 모니터링 ──
+let _nmItems=[];
+function openNewsMonitor(){
+  const toInput=$('nmTo');
+  if(!toInput.value) toInput.value=new Date().toISOString().slice(0,10);
+  $('newsMonitorModal').classList.add('open');
+}
+async function loadNewsMonitor(){
+  const q=$('nmQuery').value.trim()||'서소문 고가';
+  const from=$('nmFrom').value;
+  const to=$('nmTo').value||new Date().toISOString().slice(0,10);
+  $('nmStatus').textContent='불러오는 중...';
+  $('nmList').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint);font-size:13px">검색 중...</div>';
+  $('nmCsvBtn').style.display='none';
+  try{
+    const r=await fetch(`${API}/api/admin/news-monitor?token=${sessionToken}&q=${encodeURIComponent(q)}&from=${from}&to=${to}`);
+    const d=await r.json();
+    if(d.error){$('nmStatus').textContent='오류: '+d.error;$('nmList').innerHTML='';return;}
+    _nmItems=d.items||[];
+    $('nmStatus').textContent=`총 ${_nmItems.length}건 (${from} ~ ${to})`;
+    if(!_nmItems.length){$('nmList').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-hint);font-size:13px">해당 기간 기사가 없습니다.</div>';return;}
+    $('nmCsvBtn').style.display='';
+    // 날짜별 그룹
+    const byDate={};
+    _nmItems.forEach(it=>{(byDate[it.date]=byDate[it.date]||[]).push(it);});
+    let html='';
+    Object.keys(byDate).sort((a,b)=>b.localeCompare(a)).forEach(date=>{
+      const kDate=new Date(date+'T00:00:00+09:00').toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+      html+=`<div style="font-size:12px;font-weight:700;color:var(--text-hint);padding:12px 0 6px;border-bottom:1px solid var(--border);margin-bottom:6px">${kDate} · ${byDate[date].length}건</div>`;
+      byDate[date].forEach(it=>{
+        html+=`<div style="padding:8px 0;border-bottom:1px solid var(--bg2);display:flex;gap:8px;align-items:flex-start">
+          <span style="font-size:11px;color:var(--text-hint);flex-shrink:0;min-width:56px;padding-top:2px">${it.outlet||'-'}</span>
+          <a href="${escHtml(it.url)}" target="_blank" rel="noopener" style="flex:1;font-size:13px;color:var(--text);line-height:1.5;text-decoration:none;word-break:keep-all" onclick="event.stopPropagation()">${escHtml(it.title)}</a>
+          <span style="font-size:10px;color:var(--text-hint);flex-shrink:0;padding-top:3px">${it.src}</span>
+        </div>`;
+      });
+    });
+    $('nmList').innerHTML=html;
+  }catch(e){$('nmStatus').textContent='오류가 발생했습니다.';$('nmList').innerHTML='';}
+}
+function downloadNewsCsv(){
+  if(!_nmItems.length)return;
+  const rows=[['날짜','언론사','제목','링크','출처'],..._nmItems.map(it=>[it.date,it.outlet,it.title,it.url,it.src])];
+  const csv='﻿'+rows.map(r=>r.map(c=>'"'+(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const q=$('nmQuery').value.trim()||'뉴스';
+  a.download=`${q}_${$('nmFrom').value}_${$('nmTo').value||new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 function openNotesInbox(){
   loadAdminNotes();
